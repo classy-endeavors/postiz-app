@@ -1275,11 +1275,8 @@ export class PostsService {
                   id: integration.id,
                 },
                 settings: {
-                  __type: integration.providerIdentifier as any,
-                  title: '',
-                  tags: [],
-                  subreddit: [],
-                },
+                  __type: integration.providerIdentifier,
+                } as any,
                 value: [
                   ...toPost.list.map((l) => ({
                     id: '',

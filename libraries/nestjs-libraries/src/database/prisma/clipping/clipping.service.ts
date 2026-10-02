@@ -966,8 +966,8 @@ export class ClippingService {
               posts: [
                 {
                   settings: {
-                    __type: integration!.providerIdentifier as any,
-                  },
+                    __type: integration!.providerIdentifier,
+                  } as any,
                   group: makeId(10),
                   integration: { id: integration!.id },
                   value: [

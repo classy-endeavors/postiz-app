@@ -11,7 +11,7 @@
   },
   "packageManager": "pnpm@10.6.1",
   "scripts": {
-    "dev": "pnpm run --filter ./apps/extension --filter ./apps/orchestrator --filter ./apps/backend --filter ./apps/frontend --parallel dev",
+    "dev": "pnpm run --filter ./apps/orchestrator --filter ./apps/backend --filter ./apps/frontend --parallel dev",
     "dev-backend": "pnpm run --filter ./apps/backend --filter ./apps/frontend --parallel dev",
     "pm2": "pnpm run pm2-run",
     "publish-sdk": "pnpm run --filter ./apps/sdk publish",
@@ -21,7 +21,6 @@
     "build:backend": "rm -rf apps/backend/dist && pnpm --filter ./apps/backend run build",
     "build:frontend": "rm -rf apps/frontend/dist && pnpm --filter ./apps/frontend run build",
     "build:orchestrator": "rm -rf apps/orchestrator/dist && pnpm --filter ./apps/orchestrator run build",
-    "build:extension": "rm -rf apps/extension/dist && pnpm --filter ./apps/extension run build",
     "dev:backend": "rm -rf apps/backend/dist && pnpm --filter ./apps/backend run dev",
     "dev:frontend": "rm -rf apps/frontend/dist && pnpm --filter ./apps/frontend run dev",
     "dev:orchestrator": "rm -rf apps/orchestrator/dist && pnpm --filter ./apps/orchestrator run dev",

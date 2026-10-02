@@ -19,7 +19,6 @@ import useSWR from 'swr';
 import { CheckPayment } from '@gitroom/frontend/components/layout/check.payment';
 import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
 import { ShowMediaBoxModal } from '@gitroom/frontend/components/media/media.component';
-import { ShowLinkedinCompany } from '@gitroom/frontend/components/launches/helpers/linkedin.component';
 import { MediaSettingsLayout } from '@gitroom/frontend/components/launches/helpers/media.settings.component';
 import { Toaster } from '@gitroom/react/toaster/toaster';
 import { ShowPostSelector } from '@gitroom/frontend/components/post-url-selector/post.url.selector';
@@ -34,13 +33,11 @@ import { AnnouncementBanner } from '@gitroom/frontend/components/layout/announce
 import { Title } from '@gitroom/frontend/components/layout/title';
 import { TopMenu } from '@gitroom/frontend/components/layout/top.menu';
 import { LanguageComponent } from '@gitroom/frontend/components/layout/language.component';
-import { ChromeExtensionComponent } from '@gitroom/frontend/components/layout/chrome.extension.component';
 import NotificationComponent from '@gitroom/frontend/components/notifications/notification.component';
 import { OrganizationSelector } from '@gitroom/frontend/components/layout/organization.selector';
 import { StreakComponent } from '@gitroom/frontend/components/layout/streak.component';
 import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-condition.component';
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
-import { FirstBillingComponent } from '@gitroom/frontend/components/billing/first.billing.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 
@@ -53,7 +50,7 @@ const jakartaSans = Plus_Jakarta_Sans({
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
 
-  const { backendUrl, billingEnabled, isGeneral } = useVariables();
+  const { backendUrl } = useVariables();
 
   // Feedback icon component attaches Sentry feedback to a top-bar icon when DSN is present
   const searchParams = useSearchParams();
@@ -90,7 +87,6 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
           <TrialTracker />
           <CheckPayment check={searchParams.get('check') || ''} mutate={mutate}>
             <ShowMediaBoxModal />
-            <ShowLinkedinCompany />
             <MediaSettingsLayout />
             <ShowPostSelector />
             <PreConditionComponent />
@@ -103,10 +99,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               )}
             >
               <div>{user?.admin ? <Impersonate /> : <div />}</div>
-              {user.tier === 'FREE' && isGeneral && billingEnabled ? (
-                <FirstBillingComponent />
-              ) : (
-                <>
+              <>
                   <AnnouncementBanner />
                   <div className="flex-1 flex gap-[8px]">
                     <Support />
@@ -138,7 +131,6 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           </div>
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <LanguageComponent />
-                          <ChromeExtensionComponent />
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <AttachToFeedbackIcon />
                           <NotificationComponent />
@@ -147,8 +139,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                       <div className="flex flex-1 gap-[1px]">{children}</div>
                     </div>
                   </div>
-                </>
-              )}
+              </>
             </div>
           </CheckPayment>
         </MantineWrapper>

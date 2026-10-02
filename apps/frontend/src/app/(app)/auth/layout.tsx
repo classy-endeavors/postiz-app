@@ -3,7 +3,6 @@ import { getT } from '@gitroom/react/translation/get.translation.service.backend
 export const dynamic = 'force-dynamic';
 import { ReactNode } from 'react';
 import loadDynamic from 'next/dynamic';
-import { TestimonialComponent } from '@gitroom/frontend/components/auth/testimonial.component';
 import { LogoTextComponent } from '@gitroom/frontend/components/ui/logo-text.component';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Toaster } from '@gitroom/react/toaster/toaster';
@@ -27,14 +26,15 @@ export default async function AuthLayout({
             <div className="flex">{children}</div>
           </div>
         </div>
-        <div className="text-[36px] flex-1 pt-[88px] hidden lg:flex flex-col items-center">
-          <div className="text-center">
-            Over <span className="text-[42px] text-[#FC69FF]">20,000+</span>{' '}
-            Entrepreneurs use
-            <br />
-            Postiz To Grow Their Social Presence
+        <div className="flex-1 hidden lg:flex flex-col items-center justify-center px-[40px]">
+          <div className="text-center text-[44px] font-[700] leading-[1.15] max-w-[640px]">
+            Your <span className="text-[#FF5227]">content</span> runs itself
+            now.
           </div>
-          <TestimonialComponent />
+          <div className="text-center text-[18px] text-[#B8B4AE] mt-[20px] max-w-[520px]">
+            Plan, schedule and publish to TikTok and YouTube from one calendar,
+            with AI that writes in your voice.
+          </div>
         </div>
       </div>
     </MantineWrapper>

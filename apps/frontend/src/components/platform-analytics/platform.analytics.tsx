@@ -17,19 +17,7 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import useCookie from 'react-use-cookie';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
-const allowedIntegrations = [
-  'facebook',
-  'instagram',
-  'instagram-standalone',
-  'linkedin-page',
-  'tiktok',
-  'tiktok-business',
-  'youtube',
-  'gmb',
-  'pinterest',
-  'threads',
-  'x',
-];
+const allowedIntegrations = ['tiktok', 'youtube'];
 export const PlatformAnalytics = () => {
   const fetch = useFetch();
   const t = useT();
@@ -76,51 +64,17 @@ export const PlatformAnalytics = () => {
       return [];
     }
     const arr = [];
-    if (
-      [
-        'facebook',
-        'instagram',
-        'instagram-standalone',
-        'linkedin-page',
-        'pinterest',
-        'youtube',
-        'threads',
-        'gmb',
-        'x',
-        'tiktok',
-        'tiktok-business',
-      ].indexOf(currentIntegration.identifier) !== -1
-    ) {
+    if (allowedIntegrations.indexOf(currentIntegration.identifier) !== -1) {
       arr.push({
         key: 7,
         value: t('7_days', '7 Days'),
       });
-    }
-    if (
-      [
-        'facebook',
-        'instagram',
-        'instagram-standalone',
-        'linkedin-page',
-        'pinterest',
-        'youtube',
-        'threads',
-        'gmb',
-        'x',
-        'tiktok',
-        'tiktok-business',
-      ].indexOf(currentIntegration.identifier) !== -1
-    ) {
       arr.push({
         key: 30,
         value: t('30_days', '30 Days'),
       });
     }
-    if (
-      ['facebook', 'linkedin-page', 'pinterest', 'youtube', 'x', 'gmb'].indexOf(
-        currentIntegration.identifier
-      ) !== -1
-    ) {
+    if (currentIntegration.identifier === 'youtube') {
       arr.push({
         key: 90,
         value: t('90_days', '90 Days'),

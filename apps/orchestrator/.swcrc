@@ -16,8 +16,7 @@
       "@gitroom/nestjs-libraries/*": ["libraries/nestjs-libraries/src/*"],
       "@gitroom/react/*": ["libraries/react-shared-libraries/src/*"],
       "@gitroom/plugins/*": ["libraries/plugins/src/*"],
-      "@gitroom/workers/*": ["apps/workers/src/*"],
-      "@gitroom/extension/*": ["apps/extension/src/*"]
+      "@gitroom/workers/*": ["apps/workers/src/*"]
     },
     "keepClassNames": true,
     "transform": {

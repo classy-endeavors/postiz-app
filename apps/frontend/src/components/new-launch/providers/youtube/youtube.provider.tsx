@@ -8,7 +8,7 @@ import {
 import { YoutubeSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/youtube.settings.dto';
 import { useSettings } from '@gitroom/frontend/components/launches/helpers/use.values';
 import { Input } from '@gitroom/react/form/input';
-import { MediumTags } from '@gitroom/frontend/components/new-launch/providers/medium/medium.tags';
+import { YoutubeTags } from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.tags';
 import { MediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Select } from '@gitroom/react/form/select';
 import { YoutubePreview } from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.preview';
@@ -66,7 +66,7 @@ const YoutubeSettings: FC = () => {
           </option>
         ))}
       </Select>
-      <MediumTags label="Tags" {...register('tags')} />
+      <YoutubeTags label="Tags" {...register('tags')} />
       <div className="mt-[20px]">
         <MediaComponent
           type="image"
