@@ -22,6 +22,10 @@ import { Request, Response } from 'express';
 import { RequestContext } from '@mastra/core/di';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import {
+  aiConfig,
+  createOpenAIClient,
+} from '@gitroom/nestjs-libraries/openai/ai.config';
 
 export type ChannelsContext = {
   integrations: string;
@@ -60,7 +64,8 @@ export class CopilotController {
       cors: copilotCors(),
       runtime: new CopilotRuntime(),
       serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
+        openai: createOpenAIClient(),
+        model: aiConfig.textModel,
       }),
     });
 
@@ -106,7 +111,8 @@ export class CopilotController {
       cors: copilotCors(),
       runtime,
       serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
+        openai: createOpenAIClient(),
+        model: aiConfig.textModel,
       }),
     });
 
