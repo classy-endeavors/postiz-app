@@ -11,8 +11,36 @@ interface AnalyticsDataItem {
   label: string;
   data: Array<{ total: number; date: string }>;
   average?: boolean;
+  format?: 'percentage' | 'duration';
   percentageChange?: number;
 }
+
+const formatTotal = (item: AnalyticsDataItem) => {
+  const sum = item.data.reduce((acc, curr) => acc + Number(curr.total || 0), 0);
+  const value = item.average ? sum / (item.data.length || 1) : sum;
+  if (item.format === 'duration') {
+    const seconds = Math.round(value);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+  if (item.average) {
+    return value.toFixed(2) + '%';
+  }
+  return new Intl.NumberFormat().format(Math.round(value));
+};
+
+const StatTile: FC<{ item: AnalyticsDataItem; total: string }> = ({
+  item,
+  total,
+}) => (
+  <div className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner px-[16px] py-[14px] flex flex-col gap-[6px]">
+    <div className="text-[11.5px] font-[700] uppercase tracking-[0.04em] text-textItemBlur">
+      {item.label}
+    </div>
+    <div className="font-heading font-[800] text-[28px] leading-[1.1] tracking-[-0.01em]">
+      {total}
+    </div>
+  </div>
+);
 
 const TrendIndicator: FC<{ value: number; average?: boolean }> = ({
   value,
@@ -57,21 +85,9 @@ const AnalyticsCard: FC<{
   const colorVariants = ['purple', 'green', 'blue'] as const;
   const color = colorVariants[index % colorVariants.length];
 
-  const hasDataPoints = item.data.length >= 1;
-
   return (
     <div className="group relative">
-      <div
-        className={`
-          flex flex-col h-full
-          bg-newTableHeader
-          border border-newTableBorder
-          rounded-[12px]
-          overflow-hidden
-          transition-all duration-200
-          hover:border-[#FF5227]/50
-        `}
-      >
+      <div className="flex flex-col h-full bg-newBgColorInner border-[1.5px] border-newSep rounded-[14px] overflow-hidden transition-colors duration-200 hover:border-newOutline">
         {/* Header */}
         <div className="flex items-center justify-between px-[16px] pt-[14px] pb-[8px]">
           <div className="flex items-center gap-[10px]">
@@ -83,7 +99,7 @@ const AnalyticsCard: FC<{
                 ${color === 'blue' ? 'bg-[#1d9bf0]' : ''}
               `}
             />
-            <span className="text-[15px] font-medium text-newTableText">
+            <span className="text-[11.5px] font-[700] uppercase tracking-[0.04em] text-textItemBlur">
               {item.label}
             </span>
           </div>
@@ -92,31 +108,16 @@ const AnalyticsCard: FC<{
           )}
         </div>
 
-        {/* Content */}
-        {hasDataPoints ? (
-          <>
-            {/* Chart */}
-            <div className="flex-1 px-[12px] py-[8px]">
-              <div className="h-[120px] relative">
-                <ChartSocial data={item.data} color={color} key={`chart-${index}`} />
-              </div>
-            </div>
-
-            {/* Value */}
-            <div className="px-[16px] pb-[14px]">
-              <div className="text-[36px] leading-[42px] font-semibold tracking-tight">
-                {total}
-              </div>
-            </div>
-          </>
-        ) : (
-          /* Single value display */
-          <div className="flex-1 flex flex-col items-center justify-center py-[32px] px-[16px]">
-            <div className="text-[48px] leading-[56px] font-semibold tracking-tight">
-              {total}
-            </div>
+        <div className="flex-1 px-[12px] py-[8px]">
+          <div className="h-[120px] relative">
+            <ChartSocial data={item.data} color={color} key={`chart-${index}`} />
           </div>
-        )}
+        </div>
+        <div className="px-[16px] pb-[14px]">
+          <div className="font-heading font-[800] text-[30px] leading-[1.15] tracking-[-0.01em]">
+            {total}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -241,17 +242,16 @@ export const RenderAnalytics: FC<{
 
   const t = useT();
 
-  const totals = useMemo(() => {
-    return data?.map((p: AnalyticsDataItem) => {
-      const value =
-        (p?.data.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0) || 0) /
-        (p.average ? p.data.length : 1);
-      if (p.average) {
-        return value.toFixed(2) + '%';
-      }
-      return new Intl.NumberFormat().format(Math.round(value));
-    });
-  }, [data]);
+  const stats = useMemo(
+    () =>
+      ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length === 1),
+    [data]
+  );
+  const series = useMemo(
+    () =>
+      ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length > 1),
+    [data]
+  );
 
   if (loading) {
     return (
@@ -261,22 +261,38 @@ export const RenderAnalytics: FC<{
     );
   }
 
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
-      {data?.length === 0 && (
+  if (!stats.length && !series.length) {
+    return (
+      <div className="grid grid-cols-1">
         <EmptyState
           onRefresh={refreshChannel(integration as any)}
           refreshNeeded={!!integration?.refreshNeeded}
         />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-[16px]">
+      {!!stats.length && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+          {stats.map((item) => (
+            <StatTile key={item.label} item={item} total={formatTotal(item)} />
+          ))}
+        </div>
       )}
-      {data?.map((item: AnalyticsDataItem, index: number) => (
-        <AnalyticsCard
-          key={`analytics-${index}`}
-          item={item}
-          total={totals[index]}
-          index={index}
-        />
-      ))}
+      {!!series.length && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+          {series.map((item, index) => (
+            <AnalyticsCard
+              key={item.label}
+              item={item}
+              total={formatTotal(item)}
+              index={index}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
