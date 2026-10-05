@@ -3,6 +3,7 @@ import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
+import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { Organization } from '@prisma/client';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
 import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
@@ -91,7 +92,8 @@ export class MediaService {
     private _openAi: OpenaiService,
     private _subscriptionService: SubscriptionService,
     private _videoManager: VideoManager,
-    private _temporalService: TemporalService
+    private _temporalService: TemporalService,
+    private _coinsService: CoinsService
   ) {}
 
   async deleteMedia(org: string, id: string) {
@@ -107,23 +109,25 @@ export class MediaService {
     org: Organization,
     generatePromptFirst?: boolean
   ) {
-    try {
-      const generating = await this._subscriptionService.useCredit(
-        org,
-        'ai_images',
-        async () => {
-          if (generatePromptFirst) {
-            prompt = await this._openAi.generatePromptForPicture(prompt);
-            console.log('Prompt:', prompt);
+    const generating = await this._coinsService.spend(org.id, 'image', async () => {
+      try {
+        return await this._subscriptionService.useCredit(
+          org,
+          'ai_images',
+          async () => {
+            if (generatePromptFirst) {
+              prompt = await this._openAi.generatePromptForPicture(prompt);
+              console.log('Prompt:', prompt);
+            }
+            return this._openAi.generateImage(prompt);
           }
-          return this._openAi.generateImage(prompt);
-        }
-      );
+        );
+      } catch (err) {
+        throw generationError(err);
+      }
+    });
 
-      return generating;
-    } catch (err) {
-      throw generationError(err);
-    }
+    return generating;
   }
 
   // Streams the remote body straight into storage: only the sniffing prefix

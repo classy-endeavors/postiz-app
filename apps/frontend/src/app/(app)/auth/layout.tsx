@@ -14,26 +14,68 @@ export default async function AuthLayout({
 }) {
   const t = await getT();
 
+  const features = [
+    t(
+      'auth_feature_calendar',
+      'One calendar for TikTok, YouTube and Instagram'
+    ),
+    t('auth_feature_ai', 'AI that drafts posts in your voice'),
+    t('auth_feature_analytics', 'Analytics for every connected channel'),
+  ];
+
   return (
     <MantineWrapper>
       <Toaster />
-      <div className="bg-newBgColor flex flex-1 p-[12px] gap-[12px] min-h-screen w-screen text-newTextColor">
-        {/*<style>{`html, body {overflow-x: hidden;}`}</style>*/}
+      <div className="bg-newBgColor flex h-screen w-screen p-[12px] gap-[12px] text-newTextColor">
         <ReturnUrlComponent />
-        <div className="flex flex-col py-[40px] px-[20px] flex-1 lg:w-[600px] lg:flex-none rounded-[22px] p-[12px] bg-newBgColorInner border-[1.5px] border-newOutline shadow-hard [&_h1]:font-heading [&_h1]:font-[800]">
-          <div className="w-full max-w-[440px] mx-auto justify-center gap-[20px] h-full flex flex-col">
+        <div className="flex flex-col flex-1 lg:w-[520px] lg:flex-none rounded-[22px] bg-newBgColorInner border-[1.5px] border-newOutline shadow-hard overflow-y-auto [&_h1]:font-heading [&_h1]:font-[800]">
+          <div className="px-[32px] pt-[24px]">
             <LogoTextComponent />
-            <div className="flex">{children}</div>
+          </div>
+          <div className="flex flex-1 items-center px-[32px] py-[24px]">
+            <div className="w-full max-w-[400px] mx-auto flex">{children}</div>
           </div>
         </div>
-        <div className="flex-1 hidden lg:flex flex-col items-center justify-center px-[40px]">
-          <div className="text-center text-[44px] font-heading font-[800] tracking-[-0.02em] leading-[1.15] max-w-[640px]">
-            Your <span className="text-btnPrimary">content</span> runs itself
-            now.
-          </div>
-          <div className="text-center text-[18px] text-textItemBlur mt-[20px] max-w-[520px]">
-            Plan, schedule and publish to TikTok, YouTube and Instagram from one calendar,
-            with AI that writes in your voice.
+        <div className="flex-1 hidden lg:flex flex-col justify-center rounded-[22px] bg-btnPrimary border-[1.5px] border-newOutline shadow-hard px-[56px] text-white overflow-hidden relative">
+          <div className="absolute -end-[120px] -top-[120px] w-[360px] h-[360px] rounded-full bg-white/10" />
+          <div className="absolute -start-[80px] -bottom-[140px] w-[300px] h-[300px] rounded-full bg-white/10" />
+          <div className="relative max-w-[560px] flex flex-col gap-[24px]">
+            <div className="text-[44px] font-heading font-[800] tracking-[-0.02em] leading-[1.1]">
+              {t('auth_headline', 'Your content runs itself now.')}
+            </div>
+            <div className="text-[18px] text-white/85">
+              {t(
+                'auth_subheadline',
+                'Plan, schedule and publish from one place, with AI that writes in your voice.'
+              )}
+            </div>
+            <div className="flex flex-col gap-[12px] mt-[8px]">
+              {features.map((feature) => (
+                <div
+                  key={feature}
+                  className="flex items-center gap-[12px] text-[16px] font-[600]"
+                >
+                  <div className="w-[28px] h-[28px] rounded-full bg-white text-btnPrimary flex items-center justify-center shrink-0">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M20 6L9 17L4 12"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  {feature}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

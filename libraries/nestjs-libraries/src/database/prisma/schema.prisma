@@ -24,6 +24,7 @@ model Organization {
   autoPost            AutoPost[]
   Comments            Comments[]
   credits             Credits[]
+  coinTransactions    CoinTransaction[]
   clippings           Clipping[]
   customers           Customer[]
   errors              Errors[]
@@ -286,6 +287,19 @@ model Credits {
 
   @@index([organizationId])
   @@index([createdAt])
+}
+
+model CoinTransaction {
+  id             String       @id @default(uuid())
+  organizationId String
+  amount         Int
+  type           String
+  description    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, type])
 }
 
 model Clipping {

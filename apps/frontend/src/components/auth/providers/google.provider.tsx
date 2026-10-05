@@ -13,7 +13,7 @@ export const GoogleProvider = () => {
   return (
     <div
       onClick={gotoLogin}
-      className={`cursor-pointer flex-1 bg-white h-[52px] rounded-[10px] border-[1.5px] border-newOutline shadow-hardSm flex justify-center items-center text-[#0E0E0E] gap-[5px]`}
+      className={`cursor-pointer flex-1 bg-white h-[46px] rounded-[10px] border-[1.5px] border-newOutline shadow-hardSm flex justify-center items-center text-[#0E0E0E] gap-[5px]`}
     >
       <div>
         <svg
@@ -40,7 +40,9 @@ export const GoogleProvider = () => {
           />
         </svg>
       </div>
-      <div className="block xs:hidden">{t('google', 'Google')}</div>
+      <div className="block xs:hidden font-[600] text-[14px]">
+        {t('continue_with_google', 'Continue with Google')}
+      </div>
     </div>
   );
 };

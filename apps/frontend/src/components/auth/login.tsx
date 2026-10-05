@@ -71,14 +71,17 @@ export function Login() {
       <form className="flex-1 flex" onSubmit={form.handleSubmit(onSubmit)}>
         <div className="flex flex-col flex-1">
           <div>
-            <h1 className="text-[40px] font-[500] -tracking-[0.8px] text-start cursor-pointer">
-              {t('sign_in', 'Sign In')}
+            <h1 className="text-[32px] -tracking-[0.8px] leading-[1.15] text-start">
+              {t('welcome_back', 'Welcome back')}
             </h1>
+            <div className="text-[14px] text-textItemBlur mt-[6px]">
+              {t(
+                'sign_in_subtitle',
+                'Sign in to plan, schedule and publish your content.'
+              )}
+            </div>
           </div>
-          <div className="text-[14px] mt-[32px] mb-[12px]">
-            {t('continue_with', 'Continue With')}
-          </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col mt-[24px]">
             {isGeneral && genericOauth ? (
               <OauthProvider />
             ) : !isGeneral ? (
@@ -91,15 +94,12 @@ export function Login() {
                 {billingEnabled && <WalletProvider />}
               </div>
             )}
-            <div className="h-[20px] mb-[24px] mt-[24px] relative">
-              <div className="absolute w-full h-[1px] bg-fifth top-[50%] -translate-y-[50%]" />
-              <div
-                className={`absolute z-[1] justify-center items-center w-full start-0 -top-[4px] flex`}
-              >
-                <div className="px-[16px]">{t('or', 'or')}</div>
-              </div>
+            <div className="flex items-center gap-[12px] my-[18px] text-[12px] text-textItemBlur">
+              <div className="flex-1 h-[1px] bg-newTableBorder" />
+              {t('or', 'or')}
+              <div className="flex-1 h-[1px] bg-newTableBorder" />
             </div>
-            <div className="flex flex-col gap-[12px]">
+            <div className="flex flex-col gap-[4px]">
               <div className="text-textColor">
                 <Input
                   label="Email"
@@ -133,31 +133,32 @@ export function Login() {
                   </Link>
                 </div>
               )}
-              <div className="text-center mt-6">
-                <div className="w-full flex">
-                  <Button
-                    type="submit"
-                    className="flex-1 rounded-[10px] !h-[52px]"
-                    loading={loading}
-                  >
-                    {t('sign_in_1', 'Sign in')}
-                  </Button>
-                </div>
-                <p className="mt-4 text-sm">
-                  {t('don_t_have_an_account', "Don't Have An Account?")}&nbsp;
-                  <Link href="/auth" className="underline cursor-pointer">
-                    {t('sign_up', 'Sign Up')}
-                  </Link>
-                </p>
-                <p className="mt-4 text-sm">
-                  <Link
-                    href="/auth/forgot"
-                    className="underline hover:font-bold cursor-pointer"
-                  >
-                    {t('forgot_password', 'Forgot password')}
-                  </Link>
-                </p>
+              <div className="flex justify-end -mt-[4px]">
+                <Link
+                  href="/auth/forgot"
+                  className="text-[13px] text-textItemBlur hover:text-newTextColor underline"
+                >
+                  {t('forgot_password', 'Forgot password')}
+                </Link>
               </div>
+              <div className="w-full flex mt-[12px]">
+                <Button
+                  type="submit"
+                  className="flex-1 rounded-[10px] !h-[46px]"
+                  loading={loading}
+                >
+                  {t('sign_in_1', 'Sign in')}
+                </Button>
+              </div>
+              <p className="mt-[16px] text-[14px] text-center">
+                {t('don_t_have_an_account', "Don't Have An Account?")}&nbsp;
+                <Link
+                  href="/auth"
+                  className="font-[600] text-btnPrimary hover:underline"
+                >
+                  {t('sign_up', 'Sign Up')}
+                </Link>
+              </p>
             </div>
           </div>
         </div>
