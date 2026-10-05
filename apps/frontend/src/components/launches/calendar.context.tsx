@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 import dayjs from 'dayjs';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Post, Integration, Tags } from '@prisma/client';
 import { useSearchParams } from 'next/navigation';
@@ -64,6 +64,10 @@ export const CalendarContext = createContext({
     /** empty **/
   },
   changeDate: (id: string, date: dayjs.Dayjs) => {
+    /** empty **/
+  },
+  detailDay: null as string | null,
+  setDetailDay: (day: string | null) => {
     /** empty **/
   },
   // List view specific
@@ -148,6 +152,8 @@ export const CalendarWeekProvider: FC<{
   const [displaySaved, setDisplaySaved] = useCookie('calendar-display', 'month');
   const display = searchParams.get('display') || displaySaved;
 
+  const [detailDay, setDetailDay] = useState<string | null>(null);
+
   // List view state
   const [listPage, setListPage] = useState(0);
   const [listState, setListStateRaw] = useState<ListStateFilter>('all');
@@ -184,11 +190,13 @@ export const CalendarWeekProvider: FC<{
 
   // Calendar view data fetcher
   const loadData = useCallback(async () => {
+    // The month grid also shows the leading/trailing days of the neighbour months
+    const rangeUnit = filters.display === 'month' ? 'isoWeek' : 'day';
     const modifiedParams = new URLSearchParams({
       display: filters.display,
       customer: filters?.customer?.toString() || '',
-      startDate: newDayjs(filters.startDate).startOf('day').utc().format(),
-      endDate: newDayjs(filters.endDate).endOf('day').utc().format(),
+      startDate: newDayjs(filters.startDate).startOf(rangeUnit).utc().format(),
+      endDate: newDayjs(filters.endDate).endOf(rangeUnit).utc().format(),
     }).toString();
 
     const data = await (await fetch(`/posts?${modifiedParams}`)).json();
@@ -277,6 +285,7 @@ export const CalendarWeekProvider: FC<{
       setDisplaySaved(newFilters.display);
       setFilters(newFilters);
       setInternalData([]);
+      setDetailDay(null);
 
       // Reset page when switching to list view
       if (newFilters.display === 'list') {
@@ -326,10 +335,14 @@ export const CalendarWeekProvider: FC<{
   }, [posts]);
 
   // Combined reload function that handles both calendar and list views
+  const swr = useSWRConfig();
   const reloadCalendarView = useCallback(() => {
     mutateCalendar();
     mutateList();
-  }, [mutateCalendar, mutateList]);
+    swr.mutate(
+      (key) => typeof key === 'string' && key.startsWith('/posts-day-')
+    );
+  }, [mutateCalendar, mutateList, swr]);
 
   // Determine loading state based on current view
   const loading = filters.display === 'list' ? listIsLoading : calendarIsLoading;
@@ -345,6 +358,8 @@ export const CalendarWeekProvider: FC<{
         integrations,
         setFilters: setFiltersWrapper,
         changeDate,
+        detailDay,
+        setDetailDay,
         comments,
         sets: sets || [],
         signature: sign,

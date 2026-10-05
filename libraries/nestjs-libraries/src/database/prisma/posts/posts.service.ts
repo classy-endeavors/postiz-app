@@ -342,6 +342,10 @@ export class PostsService {
     });
   }
 
+  getDayPosts(orgId: string, query: GetPostsDto) {
+    return this._postRepository.getDayPosts(orgId, query);
+  }
+
   async getPostsList(orgId: string, query: GetPostsListDto) {
     return minifyPostsList(
       await this._postRepository.getPostsList(orgId, query)

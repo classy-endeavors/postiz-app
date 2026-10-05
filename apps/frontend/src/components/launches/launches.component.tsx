@@ -8,7 +8,6 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { capitalize, groupBy, orderBy } from 'lodash';
 import { CalendarWeekProvider } from '@gitroom/frontend/components/launches/calendar.context';
-import { Filters } from '@gitroom/frontend/components/launches/filters';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import clsx from 'clsx';
@@ -19,7 +18,7 @@ import { Integration } from '@prisma/client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
-import { Calendar } from './calendar';
+import { CalendarPanel } from './calendar';
 import { useDrag, useDrop } from 'react-dnd';
 import { DNDProvider } from '@gitroom/frontend/components/launches/helpers/dnd.provider';
 import { GeneratorComponent } from './generator/generator';
@@ -721,10 +720,9 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
-          <Filters />
-          <div className="flex-1 flex">
-            <Calendar />
+        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px]">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] rounded-[20px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
+            <CalendarPanel />
           </div>
         </div>
       </CalendarWeekProvider>

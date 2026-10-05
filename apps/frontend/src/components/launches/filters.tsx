@@ -299,8 +299,18 @@ export const Filters = () => {
     <div className="text-textColor flex flex-col md:flex-row gap-[8px] items-center select-none">
       {!isListView && (
         <div className="flex flex-grow flex-row items-center gap-[16px]">
-          <div className="font-heading font-[800] text-[20px] tracking-[-0.01em] whitespace-nowrap min-w-[230px]">
-            {getDisplayText()}
+          <div className="flex flex-col min-w-[230px]">
+            <div className="font-heading font-[800] text-[20px] tracking-[-0.01em] whitespace-nowrap">
+              {getDisplayText()}
+            </div>
+            {calendar.display === 'month' && (
+              <div className="text-[12px] text-textItemBlur">
+                {t(
+                  'calendar_month_hint',
+                  'Use Detail on a day for the full status per channel.'
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-[6px]">
             <div onClick={previous} className={navButtonClass}>

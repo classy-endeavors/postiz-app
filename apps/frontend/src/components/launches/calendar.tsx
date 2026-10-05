@@ -33,6 +33,7 @@ import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import clsx from 'clsx';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import useSWR from 'swr';
 import { ExistingDataContextProvider } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
 import { useDrag, useDrop } from 'react-dnd';
 import { Integration, Post, State, Tags } from '@prisma/client';
@@ -41,7 +42,7 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import { groupBy, random, sortBy } from 'lodash';
+import { groupBy, random, sortBy, uniq } from 'lodash';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { extend } from 'dayjs';
 import { isUSCitizen } from './helpers/isuscitizen.utils';
@@ -58,6 +59,7 @@ import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { Button } from '@gitroom/react/form/button';
+import { Filters } from '@gitroom/frontend/components/launches/filters';
 
 // Extend dayjs with necessary plugins
 extend(isSameOrAfter);
@@ -600,6 +602,303 @@ export const Calendar = () => {
     </>
   );
 };
+
+export const CalendarPanel = () => {
+  const { detailDay } = useCalendar();
+  if (detailDay) {
+    return <DayDetail />;
+  }
+  return (
+    <>
+      <Filters />
+      <div className="flex-1 flex">
+        <Calendar />
+      </div>
+    </>
+  );
+};
+
+const outlineButtonClass =
+  'shrink-0 h-[40px] px-[16px] rounded-[12px] border-[1.5px] border-newOutline bg-newBgColorInner text-newTextColor font-heading font-[700] text-[13.5px] hover:bg-newBgColor transition-colors';
+
+const detailCardTone: Record<GroupState, string> = {
+  PUBLISHED:
+    'bg-statusPublishedBg shadow-[inset_4px_0_0_var(--new-status-published)]',
+  ERROR: 'bg-statusFailedBg shadow-[inset_4px_0_0_var(--new-status-failed)]',
+  PARTIAL:
+    'bg-statusPartialBg shadow-[inset_4px_0_0_var(--new-status-partial)]',
+  QUEUE:
+    'bg-newBgColorInner shadow-[inset_4px_0_0_var(--new-status-scheduled)]',
+  DRAFT:
+    'bg-newBgColor border-dashed shadow-[inset_4px_0_0_var(--new-status-draft)]',
+};
+
+const detailBadgeTone: Record<GroupState, string> = {
+  PUBLISHED: 'text-statusPublished border-current',
+  ERROR: 'text-statusFailed border-current',
+  PARTIAL: 'text-statusPartial border-current',
+  QUEUE: 'bg-newTextColor text-newBgColorInner border-transparent',
+  DRAFT: 'text-statusDraft border-current',
+};
+
+type GroupState = State | 'PARTIAL';
+
+const getStatusLabel = (t: ReturnType<typeof useT>, state: GroupState) =>
+  ({
+    PUBLISHED: t('published', 'Published'),
+    ERROR: t('failed', 'Failed'),
+    PARTIAL: t('partial', 'Partial'),
+    QUEUE: t('scheduled', 'Scheduled'),
+    DRAFT: t('draft', 'Draft'),
+  }[state]);
+
+const getGroupState = (posts: { state: State }[]): GroupState => {
+  const states = posts.map((p) => p.state);
+  if (states.every((s) => s === 'DRAFT')) return 'DRAFT';
+  if (states.every((s) => s === 'PUBLISHED')) return 'PUBLISHED';
+  if (states.every((s) => s === 'ERROR')) return 'ERROR';
+  if (states.some((s) => s === 'ERROR')) return 'PARTIAL';
+  return 'QUEUE';
+};
+
+type DayPost = Pick<
+  Post,
+  | 'id'
+  | 'title'
+  | 'content'
+  | 'image'
+  | 'publishDate'
+  | 'releaseURL'
+  | 'state'
+  | 'error'
+  | 'group'
+> & {
+  tags: { tag: Tags }[];
+  integration: Pick<
+    Integration,
+    'id' | 'providerIdentifier' | 'name' | 'picture'
+  >;
+};
+
+const useDayPosts = (day: string | null, customer?: string) => {
+  const fetch = useFetch();
+  const params = useMemo(
+    () =>
+      new URLSearchParams({
+        startDate: newDayjs(day).startOf('day').utc().format(),
+        endDate: newDayjs(day).endOf('day').utc().format(),
+        customer: customer || '',
+      }).toString(),
+    [day, customer]
+  );
+  const load = useCallback(async () => {
+    return (await (await fetch(`/posts/day?${params}`)).json()) as {
+      posts: DayPost[];
+    };
+  }, [fetch, params]);
+  return useSWR(day ? `/posts-day-${params}` : null, load, {
+    refreshWhenOffline: false,
+    refreshWhenHidden: false,
+    revalidateOnFocus: false,
+  });
+};
+
+const DayDetail = () => {
+  const t = useT();
+  const { detailDay, setDetailDay, customer } = useCalendar();
+  const { data, isLoading } = useDayPosts(detailDay, customer);
+  const { editPost } = usePostActions();
+  const timeFormat = isUSCitizen() ? 'h:mm A' : 'HH:mm';
+  const dayLabel = newDayjs(detailDay).format('dddd, LL');
+
+  const groups = useMemo(
+    () => Object.values(groupBy(data?.posts || [], (post) => post.group)),
+    [data]
+  );
+
+  const back = useCallback(() => setDetailDay(null), [setDetailDay]);
+
+  return (
+    <div className="flex flex-col gap-[14px] flex-1 min-h-0">
+      <nav className="flex items-center flex-wrap gap-[8px] text-[13px]">
+        <button
+          type="button"
+          onClick={back}
+          className="font-[700] text-textItemFocused underline underline-offset-[3px] hover:text-newTextColor"
+        >
+          {t('calendar', 'Calendar')}
+        </button>
+        <span className="text-textItemBlur font-[600]">/</span>
+        <span className="font-[700]">{dayLabel}</span>
+      </nav>
+      <div className="flex items-start justify-between gap-[16px] flex-wrap">
+        <div>
+          <h3 className="font-heading font-[800] text-[22px] tracking-[-0.01em] leading-[1.2]">
+            {dayLabel}
+          </h3>
+          <p className="text-[12px] text-textItemBlur mt-[4px]">
+            {t(
+              'calendar_day_detail_hint',
+              'Full status per channel for this day. Open a post in the editor to change or reschedule it.'
+            )}
+          </p>
+        </div>
+        <button type="button" onClick={back} className={outlineButtonClass}>
+          {t('back_to_calendar', 'Back to calendar')}
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[14px] pe-[4px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
+        {isLoading ? (
+          <p className="text-[13px] text-textItemBlur">
+            {t('loading', 'Loading...')}
+          </p>
+        ) : !groups.length ? (
+          <p className="text-[14px] text-textItemBlur">
+            {t('no_posts_on_this_day', 'No posts on this day.')}
+          </p>
+        ) : (
+          groups.map((group) => {
+            const first = group[0];
+            const state = getGroupState(group);
+            const text = stripHtmlValidation(
+              'none',
+              first.content,
+              false,
+              true,
+              false
+            );
+            const media = uniq(
+              group.flatMap((post) => {
+                try {
+                  return (JSON.parse(post.image || '[]') as { path?: string }[])
+                    .map((m) => m?.path?.split('/').pop())
+                    .filter(Boolean) as string[];
+                } catch {
+                  return [];
+                }
+              })
+            );
+            return (
+              <article
+                key={first.group}
+                className={clsx(
+                  'shrink-0 rounded-[14px] border-[1.5px] border-newSep p-[16px]',
+                  detailCardTone[state]
+                )}
+              >
+                <div className="flex items-start justify-between gap-[16px] flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-[8px] mb-[8px]">
+                      <span className="font-heading font-[800] text-[13px] tabular-nums">
+                        {newDayjs(first.publishDate).local().format(timeFormat)}
+                      </span>
+                      <span
+                        className={clsx(
+                          'text-[10.5px] font-[800] uppercase tracking-[0.04em] px-[9px] py-[3px] rounded-full border',
+                          detailBadgeTone[state]
+                        )}
+                      >
+                        {getStatusLabel(t, state)}
+                      </span>
+                      {first.tags.map((p) => (
+                        <span
+                          key={p.tag.id}
+                          className="flex items-center gap-[5px] text-[10.5px] font-[800] uppercase tracking-[0.04em] px-[9px] py-[3px] rounded-full bg-newBorder text-textItemBlur"
+                        >
+                          <span
+                            className="w-[6px] h-[6px] rounded-full bg-btnPrimary"
+                            style={{ backgroundColor: p.tag.color }}
+                          />
+                          {p.tag.name}
+                        </span>
+                      ))}
+                    </div>
+                    <h4 className="font-heading font-[800] text-[18px] tracking-[-0.01em] leading-[1.25] line-clamp-1">
+                      {first.title || text || t('no_content', 'no content')}
+                    </h4>
+                    {!!first.title && !!text && (
+                      <p className="mt-[6px] text-[13.5px] text-textItemBlur leading-[1.5] line-clamp-3 whitespace-pre-wrap">
+                        {text}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={editPost(first, false)}
+                    className={outlineButtonClass}
+                  >
+                    {t('open_in_editor', 'Open in editor')}
+                  </button>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[10px] mt-[14px]">
+                  {group.map((post) => (
+                    <div
+                      key={post.id}
+                      className="rounded-[12px] border-[1.5px] border-newSep bg-newBgColorInner px-[12px] py-[10px]"
+                    >
+                      <div className="flex items-center justify-between gap-[10px]">
+                        <span className="flex items-center gap-[8px] min-w-0">
+                          <span className="relative shrink-0">
+                            <img
+                              className="w-[22px] h-[22px] rounded-[6px]"
+                              src={post.integration.picture || '/no-picture.jpg'}
+                              alt={post.integration.name}
+                            />
+                            <img
+                              className="w-[12px] h-[12px] rounded-[3px] absolute -bottom-[3px] -end-[3px]"
+                              src={`/icons/platforms/${post.integration.providerIdentifier}.png`}
+                              alt={post.integration.providerIdentifier}
+                            />
+                          </span>
+                          <span className="font-[800] text-[13px] truncate">
+                            {post.integration.name}
+                          </span>
+                        </span>
+                        <span
+                          className={clsx(
+                            'text-[10.5px] font-[800] uppercase tracking-[0.04em] shrink-0',
+                            monthStatusTone[post.state]
+                          )}
+                        >
+                          {getStatusLabel(t, post.state)}
+                        </span>
+                      </div>
+                      {post.state === 'ERROR' && (
+                        <p className="mt-[6px] text-[12px] text-statusFailed leading-[1.4] break-words">
+                          {post.error ||
+                            t(
+                              'post_publish_error',
+                              'An error occurred while publishing this post'
+                            )}
+                        </p>
+                      )}
+                      {!!post.releaseURL && (
+                        <a
+                          href={post.releaseURL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-[6px] block text-[12px] text-textItemBlur leading-[1.4] break-all underline hover:text-textItemFocused"
+                        >
+                          {post.releaseURL}
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {!!media.length && (
+                  <p className="mt-[10px] text-[12px] text-textItemBlur break-all">
+                    {t('media', 'Media')}: {media.join(', ')}
+                  </p>
+                )}
+              </article>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const CalendarColumn: FC<{
   getDate: dayjs.Dayjs;
   randomHour?: boolean;
@@ -619,8 +918,7 @@ export const CalendarColumn: FC<{
     sets,
     signature,
     loading,
-    setFilters,
-    customer,
+    setDetailDay,
   } = useCalendar();
   const modal = useModals();
   const fetch = useFetch();
@@ -857,14 +1155,8 @@ export const CalendarColumn: FC<{
   const addProvider = useAddProvider();
 
   const openDay = useCallback(() => {
-    const day = getDate.format('YYYY-MM-DD');
-    setFilters({
-      startDate: day,
-      endDate: day,
-      display: 'day',
-      customer,
-    });
-  }, [getDate, setFilters, customer]);
+    setDetailDay(getDate.format('YYYY-MM-DD'));
+  }, [getDate, setDetailDay]);
 
   if (display === 'month') {
     const isToday = getDate.isSame(newDayjs(), 'day');
@@ -1167,12 +1459,7 @@ const CalendarItem: FC<{
       : statistics;
 
   if (display === 'month') {
-    const statusLabel = {
-      PUBLISHED: t('published', 'Published'),
-      ERROR: t('failed', 'Failed'),
-      QUEUE: t('scheduled', 'Scheduled'),
-      DRAFT: t('draft', 'Draft'),
-    }[state];
+    const statusLabel = getStatusLabel(t, state);
     return (
       <div
         // @ts-ignore

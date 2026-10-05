@@ -102,6 +102,8 @@ module.exports = {
         statusPublished: 'var(--new-status-published)',
         statusFailedBg: 'var(--new-status-failed-bg)',
         statusFailed: 'var(--new-status-failed)',
+        statusPartialBg: 'var(--new-status-partial-bg)',
+        statusPartial: 'var(--new-status-partial)',
         statusScheduled: 'var(--new-status-scheduled)',
         statusDraft: 'var(--new-status-draft)',
         menuDots: 'var(--new-menu-dots)',
