@@ -24,6 +24,7 @@ import clsx from 'clsx';
 import { VideoFrame } from '@gitroom/react/helpers/video.frame';
 import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { AiImage } from '@gitroom/frontend/components/launches/ai.image';
 import { DropFiles } from '@gitroom/frontend/components/layout/drop.files';
@@ -354,17 +355,17 @@ export const MediaBox: FC<{
         title: '',
         top: 10,
         children: (
-          <div className="w-full h-full p-[50px]">
+          <div className="w-full h-full p-[50px] flex justify-center items-center">
             {hasExtension(media.path, 'mp4') ? (
-              <VideoFrame
-                autoplay={true}
-                url={mediaDirectory.set(media.path)}
-              />
+              <div className="w-full h-[75vh] [&_video]:object-contain">
+                <VideoFrame
+                  autoplay={true}
+                  url={mediaDirectory.set(media.path)}
+                />
+              </div>
             ) : (
               <img
-                width="100%"
-                height="100%"
-                className="w-full h-full max-h-[100%] max-w-[100%] object-cover"
+                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
                 src={mediaDirectory.set(media.path)}
                 alt="media"
               />
@@ -449,6 +450,22 @@ export const MediaBox: FC<{
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
         </div>
+        {standalone && !!data?.results?.length && (
+          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
+            <div className="flex-1 text-newTextColor/[0.8]">
+              {t(
+                'media_library_next_steps',
+                'Your uploads are saved here. To publish one, create a post in the Calendar and click "Insert Media", or attach it to a message in the Agent.'
+              )}
+            </div>
+            <Link
+              href="/launches"
+              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap"
+            >
+              {t('go_to_calendar', 'Go to Calendar')}
+            </Link>
+          </div>
+        )}
         <div className="w-full pointer-events-none relative mt-[5px] mb-[5px]">
           <div className="w-full h-[46px] overflow-hidden absolute left-0 bg-newBgColorInner uppyChange">
             <Dashboard
