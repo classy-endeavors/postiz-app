@@ -502,14 +502,16 @@ export class IntegrationService {
           getIntegration.token,
           +date
         );
-        await ioRedis.set(
-          `integration:${org.id}:${integration}:${date}`,
-          JSON.stringify(loadAnalytics),
-          'EX',
-          !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
-            ? 1
-            : 3600
-        );
+        if (loadAnalytics.length) {
+          await ioRedis.set(
+            `integration:${org.id}:${integration}:${date}`,
+            JSON.stringify(loadAnalytics),
+            'EX',
+            !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
+              ? 1
+              : 3600
+          );
+        }
         return loadAnalytics;
       } catch (e) {
         if (e instanceof RefreshToken) {
