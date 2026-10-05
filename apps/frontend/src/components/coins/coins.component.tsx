@@ -15,13 +15,24 @@ interface CoinsResponse {
   balance: number;
   monthly: number;
   costs: { message: number; image: number; post: number };
+  thisMonth: { spent: number; added: number };
+}
+
+type HistoryFilter = 'all' | 'spent' | 'added';
+
+interface CoinsHistoryResponse {
   transactions: {
     id: string;
     amount: number;
     type: string;
     description: string | null;
     createdAt: string;
+    balanceAfter: number | null;
   }[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 const useCoins = () => {
@@ -33,6 +44,180 @@ const useCoins = () => {
     revalidateOnFocus: true,
     revalidateOnReconnect: false,
   });
+};
+
+const useCoinsHistory = (page: number, filter: HistoryFilter) => {
+  const fetch = useFetch();
+  const load = useCallback(async (path: string) => {
+    return (await (await fetch(path)).json()) as CoinsHistoryResponse;
+  }, []);
+  return useSWR(`/coins/history?page=${page}&filter=${filter}`, load, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: false,
+    keepPreviousData: true,
+  });
+};
+
+const CoinsHistory: FC = () => {
+  const t = useT();
+  const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const { data } = useCoinsHistory(page, filter);
+
+  const activities: Record<string, string> = {
+    message: t('coins_activity_message', 'AI message'),
+    image: t('coins_activity_image', 'AI image'),
+    post: t('coins_activity_post', 'Post'),
+    monthly_grant: t('coins_activity_monthly', 'Monthly coins'),
+    admin_grant: t('coins_activity_added', 'Added by team'),
+  };
+  const filters: { value: HistoryFilter; label: string }[] = [
+    { value: 'all', label: t('all', 'All') },
+    { value: 'spent', label: t('coins_spent', 'Spent') },
+    { value: 'added', label: t('coins_added', 'Added') },
+  ];
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
+  const showBalance = filter === 'all';
+  const columns = showBalance
+    ? 'grid-cols-[150px_130px_1fr_80px_90px]'
+    : 'grid-cols-[150px_130px_1fr_80px]';
+
+  return (
+    <div className="flex-[2] min-w-[320px] bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+      <div className="flex items-center justify-between gap-[12px] flex-wrap">
+        <div>
+          <div className="text-[16px] font-heading font-[700]">
+            {t('coins_history', 'Coin history')}
+          </div>
+          <div className="text-[13px] text-textItemBlur mt-[2px]">
+            {t(
+              'coins_history_description',
+              'Every coin you spent or received, newest first.'
+            )}
+          </div>
+        </div>
+        <div className="flex p-[3px] rounded-[8px] border border-newTableBorder">
+          {filters.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => {
+                setPage(0);
+                setFilter(item.value);
+              }}
+              className={clsx(
+                'px-[12px] h-[30px] rounded-[6px] text-[13px] font-[600] transition-colors',
+                filter === item.value
+                  ? 'bg-boxFocused text-textItemFocused'
+                  : 'text-textItemBlur hover:bg-boxHover'
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div
+            className={clsx(
+              'grid gap-[12px] px-[12px] py-[8px] text-[12px] uppercase text-textItemBlur border-b border-newTableBorder',
+              columns
+            )}
+          >
+            <div>{t('date_and_time', 'Date & time')}</div>
+            <div>{t('activity', 'Activity')}</div>
+            <div>{t('details', 'Details')}</div>
+            <div className="text-end">{t('coins', 'Coins')}</div>
+            {showBalance && (
+              <div className="text-end">{t('balance', 'Balance')}</div>
+            )}
+          </div>
+          {!!data && !data.transactions.length && (
+            <div className="px-[12px] py-[20px] text-[14px] text-textItemBlur">
+              {t('no_coin_activity', 'No coin activity yet.')}
+            </div>
+          )}
+          {data?.transactions.map((transaction) => (
+            <div
+              key={transaction.id}
+              className={clsx(
+                'grid gap-[12px] px-[12px] py-[10px] text-[14px] items-center border-b border-newTableBorder last:border-b-0',
+                columns
+              )}
+            >
+              <div>
+                <div>{dayjs(transaction.createdAt).format('MMM D, YYYY')}</div>
+                <div className="text-[12px] text-textItemBlur">
+                  {dayjs(transaction.createdAt).format('h:mm A')}
+                </div>
+              </div>
+              <div>
+                <span
+                  className={clsx(
+                    'inline-flex px-[10px] py-[2px] rounded-full text-[12px] font-[600]',
+                    transaction.amount > 0
+                      ? 'bg-statusPublishedBg text-statusPublished'
+                      : 'bg-boxHover text-newTextColor'
+                  )}
+                >
+                  {activities[transaction.type] || transaction.type}
+                </span>
+              </div>
+              <div className="text-textItemBlur break-words">
+                {transaction.description}
+              </div>
+              <div
+                className={clsx(
+                  'text-end font-[700]',
+                  transaction.amount > 0
+                    ? 'text-statusPublished'
+                    : 'text-newTextColor'
+                )}
+              >
+                {transaction.amount > 0 ? '+' : ''}
+                {transaction.amount}
+              </div>
+              {showBalance && (
+                <div className="text-end text-textItemBlur">
+                  {transaction.balanceAfter}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {!!data && data.total > data.limit && (
+        <div className="flex items-center justify-between">
+          <div className="text-[13px] text-textItemBlur">
+            {t('page_of', 'Page {{page}} of {{total}}', {
+              page: page + 1,
+              total: totalPages,
+            })}
+          </div>
+          <div className="flex gap-[8px]">
+            <Button
+              secondary
+              className="rounded-[8px]"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              {t('previous', 'Previous')}
+            </Button>
+            <Button
+              className="rounded-[8px]"
+              disabled={!data.hasMore}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              {t('next', 'Next')}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
@@ -215,7 +400,9 @@ export const CoinsComponent: FC = () => {
 
   const reload = useCallback(() => {
     mutate();
-    globalMutate('/coins/balance');
+    globalMutate(
+      (key) => typeof key === 'string' && key.startsWith('/coins/')
+    );
   }, []);
 
   if (!data) {
@@ -251,6 +438,20 @@ export const CoinsComponent: FC = () => {
               { monthly: data.monthly }
             )}
           </div>
+          <div className="flex gap-[10px] mt-[10px] flex-wrap">
+            <div className="rounded-[10px] bg-white/15 px-[12px] py-[6px] text-[13px]">
+              {t('coins_spent_this_month', 'Spent this month')}:{' '}
+              <span className="font-[700]">
+                {data.thisMonth.spent.toLocaleString()}
+              </span>
+            </div>
+            <div className="rounded-[10px] bg-white/15 px-[12px] py-[6px] text-[13px]">
+              {t('coins_added_this_month', 'Added this month')}:{' '}
+              <span className="font-[700]">
+                {data.thisMonth.added.toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
         <div className="flex-1 min-w-[280px] rounded-[16px] bg-newBgColorInner border border-newTableBorder p-[24px] flex flex-col gap-[12px]">
           <div className="text-[16px] font-heading font-[700]">
@@ -279,45 +480,10 @@ export const CoinsComponent: FC = () => {
         </div>
       </div>
       <div className="flex gap-[20px] flex-wrap items-start">
-        <div className="flex-1 min-w-[320px] flex flex-col gap-[20px]">
+        <CoinsHistory />
+        <div className="flex-1 min-w-[300px] flex flex-col gap-[20px]">
           <RequestCoins onSent={reload} />
           {!!user?.isSuperAdmin && <GrantCoins onGranted={reload} />}
-        </div>
-        <div className="flex-1 min-w-[320px] bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
-          <div className="text-[16px] font-heading font-[700]">
-            {t('coins_history', 'History')}
-          </div>
-          {!data.transactions.length && (
-            <div className="text-[14px] text-textItemBlur">
-              {t('no_coin_activity', 'No coin activity yet.')}
-            </div>
-          )}
-          <div className="flex flex-col">
-            {data.transactions.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="flex items-center justify-between py-[10px] border-b border-newTableBorder last:border-b-0"
-              >
-                <div>
-                  <div className="text-[14px]">{transaction.description}</div>
-                  <div className="text-[12px] text-textItemBlur">
-                    {dayjs(transaction.createdAt).format('MMM D, YYYY HH:mm')}
-                  </div>
-                </div>
-                <div
-                  className={clsx(
-                    'text-[14px] font-[700]',
-                    transaction.amount > 0
-                      ? 'text-statusPublished'
-                      : 'text-newTextColor'
-                  )}
-                >
-                  {transaction.amount > 0 ? '+' : ''}
-                  {transaction.amount}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>

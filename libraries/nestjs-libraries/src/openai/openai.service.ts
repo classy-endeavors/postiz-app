@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { shuffle } from 'lodash';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
@@ -94,7 +94,10 @@ Clips must not overlap. Write the title and the post in this language, whatever 
       }
     }
 
-    throw new Error('The image model did not return an image');
+    throw new HttpException(
+      'The AI could not create an image from this prompt. Try rewording it, for example without real people, brands or copyrighted characters.',
+      422
+    );
   }
 
   async generatePromptForPicture(prompt: string) {

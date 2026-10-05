@@ -3,7 +3,10 @@ import { Organization, User } from '@prisma/client';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { CoinsRepository } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.repository';
-import { RequestCoinsDto } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
+import {
+  CoinsHistoryDto,
+  RequestCoinsDto,
+} from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 
 dayjs.extend(utc);
@@ -61,9 +64,49 @@ export class CoinsService {
       balance: await this.getBalance(organizationId),
       monthly: MONTHLY_COINS,
       costs: COIN_COSTS,
-      transactions: await this._coinsRepository.getTransactions(
-        organizationId
+      thisMonth: await this._coinsRepository.getTotalsSince(
+        organizationId,
+        dayjs.utc().startOf('month').toDate()
       ),
+    };
+  }
+
+  async getHistory(organizationId: string, query: CoinsHistoryDto) {
+    const page = query.page || 0;
+    const filter = query.filter || 'all';
+    const limit = 20;
+
+    const balance = await this.getBalance(organizationId);
+    const { transactions, total } =
+      await this._coinsRepository.getTransactions(
+        organizationId,
+        page,
+        limit,
+        filter
+      );
+
+    // The balance after each row only adds up when every row is listed
+    let balanceAfter =
+      filter === 'all'
+        ? balance -
+          (await this._coinsRepository.getNewestTotal(
+            organizationId,
+            page * limit
+          ))
+        : null;
+
+    return {
+      transactions: transactions.map((transaction) => {
+        const row = { ...transaction, balanceAfter };
+        if (balanceAfter !== null) {
+          balanceAfter -= transaction.amount;
+        }
+        return row;
+      }),
+      total,
+      page,
+      limit,
+      hasMore: (page + 1) * limit < total,
     };
   }
 
@@ -107,13 +150,13 @@ export class CoinsService {
   }
 
   // Keyed by the post, so a retried save never charges the same post twice
-  chargePost(organizationId: string, postId: string) {
+  chargePost(organizationId: string, postId: string, channel?: string) {
     return this._coinsRepository.addTransactionOnce(
       `post-${postId}`,
       organizationId,
       -COIN_COSTS.post,
       'post',
-      DESCRIPTIONS.post
+      channel ? `${DESCRIPTIONS.post} on ${channel}` : DESCRIPTIONS.post
     );
   }
 

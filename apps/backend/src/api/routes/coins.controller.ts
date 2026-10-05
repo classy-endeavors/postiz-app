@@ -1,10 +1,18 @@
-import { Body, Controller, Get, HttpException, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Organization, User } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import {
+  CoinsHistoryDto,
   GrantCoinsDto,
   RequestCoinsDto,
 } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
@@ -17,6 +25,14 @@ export class CoinsController {
   @Get('/')
   getCoins(@GetOrgFromRequest() org: Organization) {
     return this._coinsService.getCoins(org.id);
+  }
+
+  @Get('/history')
+  getHistory(
+    @GetOrgFromRequest() org: Organization,
+    @Query() query: CoinsHistoryDto
+  ) {
+    return this._coinsService.getHistory(org.id, query);
   }
 
   @Get('/balance')

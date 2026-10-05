@@ -999,7 +999,15 @@ export class PostsService {
       }
 
       if (toCharge.has(post)) {
-        await this._coinsService.chargePost(orgId, posts[0].id);
+        const integration = await this._integrationService.getIntegrationById(
+          orgId,
+          post.integration.id
+        );
+        await this._coinsService.chargePost(
+          orgId,
+          posts[0].id,
+          integration?.name
+        );
       }
 
       const existingIds = (post.value || []).map((p) => p.id).filter(Boolean);
@@ -1198,7 +1206,11 @@ export class PostsService {
     }
     await this._postRepository.changeState(id, state);
     if (charge) {
-      await this._coinsService.chargePost(orgId, id);
+      await this._coinsService.chargePost(
+        orgId,
+        id,
+        getPostById.integration?.name
+      );
     }
 
     try {

@@ -1,12 +1,29 @@
 import {
   IsDefined,
+  IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+export type CoinsHistoryFilter = 'all' | 'spent' | 'added';
+
+export class CoinsHistoryDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Transform(({ value }) => parseInt(value, 10))
+  page?: number = 0;
+
+  @IsOptional()
+  @IsIn(['all', 'spent', 'added'])
+  filter?: CoinsHistoryFilter = 'all';
+}
 
 export class RequestCoinsDto {
   @IsInt()
