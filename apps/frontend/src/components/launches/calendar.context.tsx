@@ -54,7 +54,7 @@ export const CalendarContext = createContext({
   reloadCalendarView: () => {
     /** empty **/
   },
-  display: 'week',
+  display: 'month',
   setFilters: (filters: {
     startDate: string;
     endDate: string;

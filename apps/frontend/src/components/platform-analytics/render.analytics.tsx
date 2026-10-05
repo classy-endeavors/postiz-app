@@ -153,7 +153,7 @@ const EmptyState: FC<{ onRefresh: () => void; refreshNeeded: boolean }> = ({
         </p>
       ) : (
         <>
-          <p className="text-[15px] text-newTextColor font-[600] text-center mb-[6px]">
+          <p className="font-heading text-[15px] text-newTextColor font-[700] text-center mb-[6px]">
             {t('no_analytics_data_yet', 'No analytics data for this period yet')}
           </p>
           <p className="text-[13px] text-newTableText text-center mb-[16px] max-w-[460px]">
