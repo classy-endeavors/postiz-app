@@ -12,6 +12,12 @@ export const aiConfig = {
 
 export const isCustomAiEndpoint = !!aiConfig.baseURL;
 
+// Gemini's OpenAI-compatible streaming omits tool call indexes and drops thought signatures,
+// so the agent talks to Gemini through its native API instead
+export const isGeminiEndpoint = !!aiConfig.baseURL?.includes(
+  'generativelanguage.googleapis.com'
+);
+
 export const createOpenAIClient = () =>
   new OpenAI({ apiKey: aiConfig.apiKey, baseURL: aiConfig.baseURL });
 

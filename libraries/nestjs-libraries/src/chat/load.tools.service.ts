@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import {
   aiConfig,
   isCustomAiEndpoint,
+  isGeminiEndpoint,
 } from '@gitroom/nestjs-libraries/openai/ai.config';
 import { Memory } from '@mastra/memory';
 import { pStore } from '@gitroom/nestjs-libraries/chat/mastra.store';
@@ -22,8 +24,10 @@ const openai = createOpenAI({
   baseURL: aiConfig.baseURL,
 });
 
-// OpenAI-compatible endpoints (Gemini, etc.) only implement Chat Completions, not the Responses API
-const agentModel = isCustomAiEndpoint
+// OpenAI-compatible endpoints only implement Chat Completions, not the Responses API
+const agentModel = isGeminiEndpoint
+  ? createGoogleGenerativeAI({ apiKey: aiConfig.apiKey })(aiConfig.agentModel)
+  : isCustomAiEndpoint
   ? openai.chat(aiConfig.agentModel)
   : openai(aiConfig.agentModel);
 
