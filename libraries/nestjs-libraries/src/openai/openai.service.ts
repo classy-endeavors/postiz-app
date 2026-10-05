@@ -79,15 +79,22 @@ Clips must not overlap. Write the title and the post in this language, whatever 
   async generateImage(prompt: string, isVertical = false) {
     // gpt-image models always return base64 (b64_json) and do not accept the
     // `response_format` parameter, unlike the deprecated dall-e-3.
-    const generate = (
-      await openai.images.generate({
-        prompt,
-        model: aiConfig.imageModel,
-        size: isVertical ? '1024x1536' : '1024x1024',
-      })
-    ).data[0];
+    // Gemini image models sometimes answer with text only, so retry before giving up.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const generate = (
+        await openai.images.generate({
+          prompt,
+          model: aiConfig.imageModel,
+          size: isVertical ? '1024x1536' : '1024x1024',
+        })
+      ).data?.[0];
 
-    return generate.b64_json;
+      if (generate?.b64_json) {
+        return generate.b64_json;
+      }
+    }
+
+    throw new Error('The image model did not return an image');
   }
 
   async generatePromptForPicture(prompt: string) {
