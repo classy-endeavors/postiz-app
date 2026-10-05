@@ -15,8 +15,6 @@ import {
   AnyMcpClient,
   CopyButton,
   getMcpConfig,
-  isChatOnlyMcpClient,
-  localCliSteps,
   McpAuth,
   McpClient,
   mcpClients,
@@ -255,7 +253,6 @@ const onboardingAgents = [
   'Claude Code',
   'Cursor',
   'Codex',
-  'Grok Bot',
 ] as const;
 
 type OnboardingAgent = (typeof onboardingAgents)[number];
@@ -269,8 +266,6 @@ const otherAgents = mcpClients.filter(
 // Not an agent, a tab showing the raw API key for people integrating by hand
 const apiTab = 'API' as const;
 type OnboardingTab = OnboardingAgent | typeof otherTab | typeof apiTab;
-
-const cliCommands = localCliSteps.map((step) => step.code);
 
 const OnboardingStep2: FC<{ onBack: () => void; onNext: () => void }> = ({
   onBack,
@@ -319,80 +314,12 @@ const OnboardingStep2: FC<{ onBack: () => void; onNext: () => void }> = ({
           href: mcpConnectorUrls.Cursor,
           label: t('add_to_cursor', 'Add to Cursor'),
         }
-      : agent === 'Grok Bot' && billingEnabled
-      ? {
-          href: mcpConnectorUrls['Grok Bot'],
-          label: t('add_to_grok_bot', 'Add to Grok Bot'),
-        }
       : null;
 
   const maskedApiKey = revealed ? apiKey : '*'.repeat(apiKey.length);
 
-  const chatSection = (
-    <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder overflow-hidden">
-      <div className="bg-newBgColorInner px-[20px] py-[14px] border-b border-newBorder">
-        <div className="text-[15px] font-[600]">{t('chat', 'Chat')}</div>
-        <div className="text-[13px] text-customColor18 mt-[2px]">
-          {t(
-            'chat_onboarding_description',
-            'No MCP or CLI settings needed. Paste this into the chat, the agent installs the Postiz CLI and asks you for your API key.'
-          )}
-        </div>
-      </div>
-      <div className="p-[20px] flex flex-col gap-[16px]">
-        <div className="flex flex-col gap-[8px]">
-          <pre className="bg-newBgColorInner border border-newBorder rounded-[8px] p-[12px] text-[12px] whitespace-pre-wrap break-all overflow-x-auto leading-[1.5]">
-            {config}
-          </pre>
-          <div className="flex gap-[8px]">
-            <CopyButton text={config} label={t('copy', 'Copy')} />
-          </div>
-        </div>
-        <div className="flex flex-col gap-[8px]">
-          <div className="text-[13px] font-[600] text-customColor18">
-            {t('api_key', 'API Key')}
-          </div>
-          <pre className="bg-newBgColorInner border border-newBorder rounded-[8px] p-[12px] text-[12px] whitespace-pre-wrap break-all overflow-x-auto leading-[1.5]">
-            {maskedApiKey}
-          </pre>
-          <div className="flex gap-[8px]">
-            <button
-              type="button"
-              onClick={() => setRevealed(!revealed)}
-              className="cursor-pointer px-[16px] h-[36px] bg-btnSimple hover:bg-boxHover transition-colors rounded-[8px] text-[13px] font-[600] flex items-center gap-[6px]"
-            >
-              {revealed ? t('hide', 'Hide') : t('reveal', 'Reveal')}
-            </button>
-            <CopyButton text={apiKey} label={t('copy', 'Copy')} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   const apiSection = (
     <>
-      <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder px-[20px] py-[14px] flex items-center justify-between gap-[12px]">
-        <div>
-          <div className="text-[15px] font-[600]">
-            {t('documentation', 'Documentation')}
-          </div>
-          <div className="text-[13px] text-customColor18 mt-[2px]">
-            {t(
-              'api_onboarding_description',
-              'Use the AI Zyntra API from your own code, n8n or any other automation'
-            )}
-          </div>
-        </div>
-        <a
-          className="cursor-pointer px-[24px] h-[44px] bg-[#FF5227] hover:bg-[#CB4220] text-white transition-colors rounded-[8px] text-[14px] font-[600] flex items-center gap-[8px] shrink-0"
-          href="https://docs.postiz.com/public-api/introduction"
-          target="_blank"
-        >
-          <McpClientIcon client={apiTab} size={18} />
-          {t('read_the_api_docs', 'Read the API docs')}
-        </a>
-      </div>
       <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder overflow-hidden">
         <div className="bg-newBgColorInner px-[20px] py-[14px] border-b border-newBorder">
           <div className="text-[15px] font-[600]">
@@ -513,31 +440,6 @@ const OnboardingStep2: FC<{ onBack: () => void; onNext: () => void }> = ({
     </div>
   );
 
-  const cliSection = (
-    <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder overflow-hidden flex flex-col">
-      <div className="bg-newBgColorInner px-[20px] py-[14px] border-b border-newBorder">
-        <div className="text-[15px] font-[600]">{t('cli', 'CLI')}</div>
-        <div className="text-[13px] text-customColor18 mt-[2px]">
-          {t(
-            'cli_onboarding_description',
-            'Install the Postiz CLI and the skill that teaches your agent how to use it'
-          )}
-        </div>
-      </div>
-      <div className="p-[20px] flex flex-col gap-[8px] flex-1">
-        <pre className="bg-newBgColorInner border border-newBorder rounded-[8px] p-[12px] text-[12px] whitespace-pre-wrap break-all overflow-x-auto leading-[1.5] flex-1">
-          {cliCommands.join('\n')}
-        </pre>
-        <div className="flex gap-[8px]">
-          <CopyButton
-            text={cliCommands.join(' && ')}
-            label={t('copy', 'Copy')}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-[24px] flex-1">
       <div className="flex gap-[4px] flex-col text-center">
@@ -597,18 +499,10 @@ const OnboardingStep2: FC<{ onBack: () => void; onNext: () => void }> = ({
 
           {agent === apiTab ? (
             apiSection
-          ) : isChatOnlyMcpClient(agent) ? (
-            <>
-              {connectorSection}
-              {chatSection}
-            </>
           ) : (
             <>
               {connectorSection}
-              <div className="grid grid-cols-2 gap-[16px]">
-                {mcpSection}
-                {cliSection}
-              </div>
+              {mcpSection}
             </>
           )}
         </div>

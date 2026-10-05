@@ -146,6 +146,14 @@ export const SettingsPopup: FC<{
               <LogoutComponent />
             </div>
           )}
+          <a
+            href="https://github.com/classy-endeavors/postiz-app"
+            target="_blank"
+            rel="noreferrer"
+            className="block mt-4 text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
+          >
+            {t('open_source_licenses', 'Open-source licenses')}
+          </a>
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">

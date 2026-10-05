@@ -79,7 +79,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
         credentials="include"
         runtimeUrl={backendUrl + '/copilot/chat'}
         useSingleEndpoint={true}
-        showDevConsole={false}
+        enableInspector={false}
       >
         <MantineWrapper>
           <ToolTip />

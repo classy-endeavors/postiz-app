@@ -52,7 +52,7 @@ export const AgentChat: FC = () => {
       credentials="include"
       runtimeUrl={backendUrl + '/copilot/agent'}
       useSingleEndpoint={true}
-      showDevConsole={false}
+      enableInspector={false}
       agent="postiz"
       properties={{
         integrations: properties,
