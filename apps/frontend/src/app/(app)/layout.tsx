@@ -6,7 +6,7 @@ import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
 import LayoutContext from '@gitroom/frontend/components/layout/layout.context';
 import { ReactNode } from 'react';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Bricolage_Grotesque, Instrument_Sans } from 'next/font/google';
 import clsx from 'clsx';
 import { VariableContextComponent } from '@gitroom/react/helpers/variable.context';
 import { PHProvider } from '@gitroom/react/helpers/posthog';
@@ -21,15 +21,22 @@ import {
 import { HtmlComponent } from '@gitroom/frontend/components/layout/html.component';
 import { ChangeDirClient } from '@gitroom/frontend/components/new-layout/change.dir.client';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500'],
+const instrumentSans = Instrument_Sans({
+  weight: ['400', '500', '600', '700'],
   style: ['normal', 'italic'],
   subsets: ['latin'],
+});
+
+const bricolageGrotesque = Bricolage_Grotesque({
+  weight: ['500', '700', '800'],
+  subsets: ['latin'],
+  variable: '--font-heading',
 });
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const language = cookieStore.get(cookieName)?.value || fallbackLng;
+  const mode = cookieStore.get('mode')?.value === 'dark' ? 'dark' : 'light';
   return (
     <html>
       <head>
@@ -39,7 +46,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </head>
       <ChangeDirClient />
       <body
-        className={clsx(jakartaSans.className, 'dark text-primary !bg-primary')}
+        className={clsx(
+          instrumentSans.className,
+          bricolageGrotesque.variable,
+          mode,
+          'text-primary !bg-primary'
+        )}
       >
         <VariableContextComponent
           storageProvider={

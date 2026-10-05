@@ -826,8 +826,9 @@ export const Editor: FC<{
                           <EmojiPicker
                             height={400}
                             theme={
-                              (localStorage.getItem('mode') as Theme) ||
-                              Theme.DARK
+                              document.body.classList.contains('dark')
+                                ? Theme.DARK
+                                : Theme.LIGHT
                             }
                             onEmojiClick={(e) => {
                               addText(e.emoji);

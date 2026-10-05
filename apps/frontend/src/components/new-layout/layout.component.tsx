@@ -2,7 +2,6 @@
 
 import React, { ReactNode, useCallback, useEffect } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 const ModeComponent = dynamic(
   () => import('@gitroom/frontend/components/layout/mode.component'),
   {
@@ -40,12 +39,6 @@ import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-c
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
-
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500', '700'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
-});
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
@@ -93,17 +86,14 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <NewSubscription />
             <ContinueProvider />
             <div
-              className={clsx(
-                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
-                jakartaSans.className
-              )}
+              className="flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]"
             >
               <div>{user?.admin ? <Impersonate /> : <div />}</div>
               <>
                   <AnnouncementBanner />
-                  <div className="flex-1 flex gap-[8px]">
+                  <div className="flex-1 flex gap-[12px]">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
+                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[16px] border-[1.5px] border-newOutline shadow-hard">
                       <div
                         id="left-menu"
                         className={clsx(
@@ -117,9 +107,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
+                    <div className="flex-1 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
                       <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                        <div className="text-[24px] font-[600] flex flex-1">
+                        <div className="text-[24px] font-heading font-[800] tracking-[-0.01em] flex flex-1">
                           <Title />
                         </div>
                         <div className="flex gap-[20px] text-textItemBlur">

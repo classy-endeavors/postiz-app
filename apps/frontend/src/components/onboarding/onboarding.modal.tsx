@@ -519,7 +519,7 @@ const OnboardingStep2: FC<{ onBack: () => void; onNext: () => void }> = ({
       <div className="flex justify-between items-center pt-[8px] mt-auto w-full max-w-[1100px] mx-auto">
         <button
           onClick={onBack}
-          className="group flex items-center gap-[8px] bg-transparent border-2 border-boxFocused font-medium px-[24px] py-[12px] rounded-[12px] text-[15px] transition-all"
+          className="group flex items-center gap-[8px] bg-transparent border-2 border-newOutline font-medium px-[24px] py-[12px] rounded-[12px] text-[15px] transition-all"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

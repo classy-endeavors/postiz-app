@@ -425,7 +425,7 @@ export const MonthView = () => {
     const days = [];
     // Starting from Monday (1) to Sunday (7)
     for (let i = 1; i <= 7; i++) {
-      days.push(newDayjs().day(i).format('dddd'));
+      days.push(newDayjs().day(i).format('ddd'));
     }
     return days;
   }, [i18next.resolvedLanguage]);
@@ -444,13 +444,15 @@ export const MonthView = () => {
     // Get the start date (Monday of the first week that includes this month)
     const calendarStartDate = startOfMonth.subtract(daysBeforeMonth, 'day');
 
-    // Create an array to hold the calendar days (6 weeks * 7 days = 42 days max)
+    // Only as many full weeks as the month needs
+    const totalDays =
+      Math.ceil((daysBeforeMonth + startOfMonth.daysInMonth()) / 7) * 7;
     const calendarDays = [];
     let currentDay = calendarStartDate;
-    for (let i = 0; i < 42; i++) {
+    for (let i = 0; i < totalDays; i++) {
       let label = 'current-month';
-      if (currentDay.month() < currentMonth) label = 'previous-month';
-      if (currentDay.month() > currentMonth) label = 'next-month';
+      if (currentDay.isBefore(startOfMonth, 'month')) label = 'previous-month';
+      if (currentDay.isAfter(startOfMonth, 'month')) label = 'next-month';
       calendarDays.push({
         day: currentDay,
         label,
@@ -462,29 +464,41 @@ export const MonthView = () => {
     return calendarDays;
   }, [startDate]);
 
+  const today = newDayjs().format('YYYY-MM-DD');
+
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 flex relative">
-        <div className="grid grid-cols-7 grid-rows-[62px_auto] gap-[4px] rounded-[10px] absolute start-0 top-0 overflow-auto w-full h-full scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
-          {localizedDays.map((day) => (
-            <div
-              key={day}
-              className="z-[20] p-2 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"
-            >
-              <div>{day}</div>
-            </div>
-          ))}
-          {calendarDays.map((date, index) => (
-            <div
-              key={index}
-              className="text-center items-center justify-center flex"
-            >
-              <CalendarColumn
-                getDate={newDayjs(date.day).endOf('day')}
-                randomHour={true}
-              />
-            </div>
-          ))}
+        <div className="absolute start-0 top-0 w-full h-full overflow-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
+          <div className="grid grid-cols-7 sticky top-0 z-[20] bg-newBgColor border-b-[1.5px] border-newSep">
+            {localizedDays.map((day) => (
+              <div
+                key={day}
+                className="py-[10px] px-[6px] text-center text-[10.5px] font-[800] uppercase tracking-[0.06em] text-textItemBlur border-e border-newSep last:border-e-0"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 auto-rows-[minmax(168px,auto)]">
+            {calendarDays.map((date, index) => (
+              <div
+                key={index}
+                className={clsx(
+                  'flex min-w-0 max-h-[240px] border-e border-b border-newSep [&:nth-child(7n)]:border-e-0',
+                  date.day.format('YYYY-MM-DD') === today
+                    ? 'bg-newButter shadow-[inset_0_0_0_1.5px_var(--new-outline)]'
+                    : date.label !== 'current-month' && 'bg-newBgColor'
+                )}
+              >
+                <CalendarColumn
+                  getDate={newDayjs(date.day).endOf('day')}
+                  randomHour={true}
+                  outOfMonth={date.label !== 'current-month'}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -589,10 +603,11 @@ export const Calendar = () => {
 export const CalendarColumn: FC<{
   getDate: dayjs.Dayjs;
   randomHour?: boolean;
+  outOfMonth?: boolean;
 }> = memo((props) => {
   const t = useT();
 
-  const { getDate, randomHour } = props;
+  const { getDate, randomHour, outOfMonth } = props;
   const [num, setNum] = useState(0);
   const user = useUser();
   const {
@@ -604,6 +619,8 @@ export const CalendarColumn: FC<{
     sets,
     signature,
     loading,
+    setFilters,
+    customer,
   } = useCalendar();
   const modal = useModals();
   const fetch = useFetch();
@@ -838,6 +855,89 @@ export const CalendarColumn: FC<{
   }, [integrations, getDate, sets, signature]);
 
   const addProvider = useAddProvider();
+
+  const openDay = useCallback(() => {
+    const day = getDate.format('YYYY-MM-DD');
+    setFilters({
+      startDate: day,
+      endDate: day,
+      display: 'day',
+      customer,
+    });
+  }, [getDate, setFilters, customer]);
+
+  if (display === 'month') {
+    const isToday = getDate.isSame(newDayjs(), 'day');
+    return (
+      <div
+        ref={drop as any}
+        className={clsx(
+          'flex flex-col w-full gap-[6px] px-[6px] pt-[8px] pb-[6px] min-w-0',
+          loading && 'animate-pulse',
+          canDrop && 'bg-boxFocused'
+        )}
+      >
+        <div className="flex items-center justify-between gap-[6px] px-[2px] shrink-0">
+          <span
+            className={clsx(
+              'inline-grid place-items-center min-w-[24px] h-[24px] px-[6px] rounded-full text-[12px] font-[800] font-heading leading-none',
+              isToday
+                ? 'bg-newTextColor text-newBgColorInner'
+                : outOfMonth
+                ? 'text-textItemBlur'
+                : 'text-newTextColor'
+            )}
+          >
+            {getDate.date()}
+          </span>
+          {postList.length > 0 && (
+            <span className="text-[10px] font-[700] text-textItemBlur">
+              {postList.length}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[4px] pe-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
+          {postList.map((post) => (
+            <CalendarItem
+              key={post.id}
+              display="month"
+              isBeforeNow={isBeforeNow}
+              date={getDate}
+              state={post.state}
+              statistics={openStatistics(post.id)}
+              missingRelease={openMissingRelease(post.id)}
+              editPost={editPost(post, false)}
+              duplicatePost={editPost(post, true)}
+              copyDebugJson={
+                user?.isSuperAdmin ? copyDebugJson(post) : undefined
+              }
+              post={post}
+              integrations={integrations}
+              deletePost={deletePost(post)}
+            />
+          ))}
+          {!isBeforeNow && (
+            <div
+              onClick={integrations.length ? addModal : addProvider}
+              className="group flex-1 min-h-[28px] flex items-center justify-center cursor-pointer rounded-[8px] hover:bg-boxFocused transition-colors"
+            >
+              <span className="hidden group-hover:block text-textItemFocused text-[18px] font-[700] leading-none">
+                +
+              </span>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={openDay}
+          className="shrink-0 w-full py-[5px] px-[6px] rounded-[8px] border border-newSep bg-newBgColorInner text-newTextColor text-[10.5px] font-[800] tracking-[0.02em] hover:border-newOutline hover:bg-newBgColor transition-colors"
+        >
+          {t('detail', 'Detail')}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={clsx(
@@ -850,9 +950,6 @@ export const CalendarColumn: FC<{
       )}
       ref={drop as any}
     >
-      {display === 'month' && (
-        <div className={clsx('pt-[6px] text-[14px]')}>{getDate.date()}</div>
-      )}
       <div
         className={clsx(
           'relative flex flex-col flex-1 text-white rounded-[8px] min-h-[70px]',
@@ -880,7 +977,7 @@ export const CalendarColumn: FC<{
             >
               <div className="relative w-full flex flex-col items-center p-[2.5px]">
                 <CalendarItem
-                  display={display as 'day' | 'week' | 'month'}
+                  display={display as 'day' | 'week'}
                   isBeforeNow={isBeforeNow}
                   date={getDate}
                   state={post.state}
@@ -920,9 +1017,7 @@ export const CalendarColumn: FC<{
           >
             <div
               className={clsx(
-                display === ('month' as any)
-                  ? 'flex-1 min-h-[40px] w-full'
-                  : !postList.length
+                !postList.length
                   ? 'min-h-full w-full p-[5px]'
                   : 'min-h-[40px] w-full',
                 'flex items-center justify-center cursor-pointer pb-[2.5px]'
@@ -989,6 +1084,22 @@ export const CalendarColumn: FC<{
     </div>
   );
 });
+const monthItemTone: Record<State, string> = {
+  PUBLISHED:
+    'bg-statusPublishedBg border-newSep shadow-[inset_3px_0_0_var(--new-status-published)]',
+  ERROR:
+    'bg-statusFailedBg border-newSep shadow-[inset_3px_0_0_var(--new-status-failed)]',
+  QUEUE:
+    'bg-newBgColorInner border-newSep shadow-[inset_3px_0_0_var(--new-status-scheduled)]',
+  DRAFT:
+    'bg-newBgColor border-dashed border-newSep shadow-[inset_3px_0_0_var(--new-status-draft)]',
+};
+const monthStatusTone: Record<State, string> = {
+  PUBLISHED: 'text-statusPublished',
+  ERROR: 'text-statusFailed',
+  QUEUE: 'text-statusScheduled',
+  DRAFT: 'text-statusDraft',
+};
 const CalendarItem: FC<{
   date: dayjs.Dayjs;
   isBeforeNow: boolean;
@@ -1047,6 +1158,126 @@ const CalendarItem: FC<{
     }),
     []
   );
+  const statisticsAction =
+    (post.integration.providerIdentifier === 'x' && disableXAnalytics) ||
+    !post.releaseId
+      ? undefined
+      : post.releaseId === 'missing'
+      ? missingRelease
+      : statistics;
+
+  if (display === 'month') {
+    const statusLabel = {
+      PUBLISHED: t('published', 'Published'),
+      ERROR: t('failed', 'Failed'),
+      QUEUE: t('scheduled', 'Scheduled'),
+      DRAFT: t('draft', 'Draft'),
+    }[state];
+    return (
+      <div
+        // @ts-ignore
+        ref={dragRef}
+        className="w-full relative group shrink-0"
+        style={{ opacity }}
+      >
+        <div
+          onClick={editPost}
+          {...(state === 'ERROR' && {
+            'data-tooltip-id': 'tooltip',
+            'data-tooltip-content':
+              post.error || 'An error occurred while publishing this post',
+          })}
+          className={clsx(
+            'w-full grid grid-cols-[auto_minmax(0,1fr)] gap-x-[6px] items-start ps-[7px] pe-[6px] py-[5px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
+            monthItemTone[state]
+          )}
+        >
+          <span className="text-[10px] font-[700] tabular-nums text-textItemBlur leading-[1.35] pt-[1px] whitespace-nowrap">
+            {newDayjs(post.publishDate)
+              .local()
+              .format(isUSCitizen() ? 'h:mm A' : 'HH:mm')}
+          </span>
+          <span className="min-w-0 flex flex-col gap-[1px]">
+            <span className="flex items-center gap-[4px] min-w-0">
+              <img
+                className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
+                src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
+                alt={post.integration?.providerIdentifier}
+              />
+              <span className="text-[11px] font-[700] leading-[1.3] truncate text-newTextColor">
+                {stripHtmlValidation('none', post.content, false, true, false) ||
+                  t('no_content', 'no content')}
+              </span>
+            </span>
+            <span
+              className={clsx(
+                'flex items-center gap-[4px] text-[9.5px] font-[700] leading-[1.25] min-w-0',
+                monthStatusTone[state]
+              )}
+            >
+              <span className="shrink-0">{statusLabel}</span>
+              {!!post.tags.length && (
+                <span className="flex items-center gap-[3px] min-w-0 text-textItemBlur">
+                  <span
+                    className="w-[6px] h-[6px] rounded-full shrink-0 bg-btnPrimary"
+                    style={{ backgroundColor: post.tags[0].tag.color }}
+                  />
+                  <span className="truncate">
+                    {post.tags.map((p) => p.tag.name).join(', ')}
+                  </span>
+                </span>
+              )}
+            </span>
+          </span>
+        </div>
+        {showCreationMethodBadge && (
+          <div className="absolute -bottom-[4px] -end-[4px] z-10">
+            <CreationMethodBadge
+              creationMethod={post.creationMethod}
+              ringColor="var(--new-bgColor)"
+            />
+          </div>
+        )}
+        <div className="hidden group-hover:flex absolute top-[3px] end-[3px] z-[30] items-center gap-[6px] px-[6px] py-[3px] rounded-[8px] border-[1.5px] border-newOutline bg-newBgColorInner text-newTextColor shadow-hardSm">
+          {copyDebugJson && (
+            <div
+              className="cursor-pointer hover:text-textItemFocused"
+              onClick={copyDebugJson}
+            >
+              <CopyDebug />
+            </div>
+          )}
+          <div
+            className="cursor-pointer hover:text-textItemFocused"
+            onClick={duplicatePost}
+          >
+            <Duplicate />
+          </div>
+          <div
+            className="cursor-pointer hover:text-textItemFocused"
+            onClick={preview}
+          >
+            <Preview />
+          </div>
+          {statisticsAction && (
+            <div
+              className="cursor-pointer hover:text-textItemFocused"
+              onClick={statisticsAction}
+            >
+              <Statistics />
+            </div>
+          )}
+          <div
+            className="cursor-pointer hover:text-statusFailed"
+            onClick={deletePost}
+          >
+            <DeletePost />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       // @ts-ignore
@@ -1122,30 +1353,16 @@ const CalendarItem: FC<{
         >
           <Preview />
         </div>{' '}
-        {((post.integration.providerIdentifier === 'x' && disableXAnalytics) || !post.releaseId) ? (
-          <></>
-        ) : post.releaseId === 'missing' && missingRelease ? (
+        {statisticsAction && (
           <div
             className={clsx(
               'hidden group-hover:block hover:underline cursor-pointer',
               post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
             )}
-            onClick={missingRelease}
+            onClick={statisticsAction}
           >
             <Statistics />
           </div>
-        ) : post.releaseId !== 'missing' ? (
-          <div
-            className={clsx(
-              'hidden group-hover:block hover:underline cursor-pointer',
-              post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
-            )}
-            onClick={statistics}
-          >
-            <Statistics />
-          </div>
-        ) : (
-          <></>
         )}{' '}
         <div
           className={clsx(

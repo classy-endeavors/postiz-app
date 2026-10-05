@@ -32,7 +32,7 @@ export const FarcasterProvider = () => {
   return (
     <div
       onClick={open}
-      className={`cursor-pointer bg-white h-[52px] flex-1 rounded-[10px] flex justify-center items-center text-[#0E0E0E] gap-[5px]`}
+      className={`cursor-pointer bg-white h-[52px] flex-1 rounded-[10px] border-[1.5px] border-newOutline shadow-hardSm flex justify-center items-center text-[#0E0E0E] gap-[5px]`}
     >
     <svg
       xmlns="http://www.w3.org/2000/svg"

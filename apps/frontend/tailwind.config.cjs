@@ -96,6 +96,14 @@ module.exports = {
         newTableTextFocused: 'var(--new-table-text-focused)',
         newColColor: 'var(--new-col-color)',
         newSettings: 'var(--new-settings)',
+        newOutline: 'var(--new-outline)',
+        newButter: 'var(--new-butter)',
+        statusPublishedBg: 'var(--new-status-published-bg)',
+        statusPublished: 'var(--new-status-published)',
+        statusFailedBg: 'var(--new-status-failed-bg)',
+        statusFailed: 'var(--new-status-failed)',
+        statusScheduled: 'var(--new-status-scheduled)',
+        statusDraft: 'var(--new-status-draft)',
         menuDots: 'var(--new-menu-dots)',
         menuDotsHover: 'var(--new-menu-hover)',
         bigStrip: 'var(--new-big-strips)',
@@ -123,6 +131,7 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Helvetica Neue'],
+        heading: ['var(--font-heading)', 'Segoe UI', 'sans-serif'],
       },
       animation: {
         fade: 'fadeOut 0.5s ease-in-out',
@@ -142,6 +151,10 @@ module.exports = {
         yellowToast: '0px 0px 50px rgba(252, 186, 3, 0.3)',
         greenToast: '0px 0px 50px rgba(60, 124, 90, 0.3)',
         menu: 'var(--menu-shadow)',
+        hard: '4px 4px 0 0 var(--new-hard-shadow)',
+        hardSm: '2px 2px 0 0 var(--new-hard-shadow)',
+        hardOutline: '3px 3px 0 0 var(--new-outline)',
+        hardOutlineSm: '2px 2px 0 0 var(--new-outline)',
         previewShadow: 'var(--preview-box-shadow)',
       },
       dropShadow: {
