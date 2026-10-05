@@ -127,18 +127,25 @@ export class CoinsService {
     }
   }
 
-  // Charges before the work runs and refunds when it throws, like useCredit
+  // Charges before the work runs and refunds when it throws, like useCredit.
+  // The detail (the prompt) is what the history shows instead of the generic label
   async spend<T>(
     organizationId: string,
     action: CoinAction,
-    func: () => Promise<T>
+    func: () => Promise<T>,
+    detail?: string
   ): Promise<T> {
     await this.checkBalance(organizationId, COIN_COSTS[action]);
+    const text = (detail || '').replace(/\s+/g, ' ').trim();
     const { id } = await this._coinsRepository.addTransaction(
       organizationId,
       -COIN_COSTS[action],
       action,
-      DESCRIPTIONS[action]
+      !text
+        ? DESCRIPTIONS[action]
+        : text.length > 300
+        ? `${text.slice(0, 300)}…`
+        : text
     );
 
     try {

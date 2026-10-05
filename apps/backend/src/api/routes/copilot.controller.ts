@@ -50,6 +50,19 @@ const isUserMessage = (req: Request) =>
   req?.body?.method === 'agent/run' &&
   req?.body?.body?.messages?.at?.(-1)?.role === 'user';
 
+const userMessageText = (req: Request): string => {
+  const content = req?.body?.body?.messages?.at?.(-1)?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  return Array.isArray(content)
+    ? content
+        .filter((part: any) => part?.type === 'text')
+        .map((part: any) => part.text)
+        .join(' ')
+    : '';
+};
+
 @Controller('/copilot')
 export class CopilotController {
   constructor(
@@ -85,8 +98,11 @@ export class CopilotController {
       return copilotRuntimeHandler(req, res);
     }
 
-    return this._coinsService.spend(organization.id, 'message', async () =>
-      copilotRuntimeHandler(req, res)
+    return this._coinsService.spend(
+      organization.id,
+      'message',
+      async () => copilotRuntimeHandler(req, res),
+      userMessageText(req)
     );
   }
 
@@ -138,8 +154,11 @@ export class CopilotController {
       return copilotRuntimeHandler(req, res);
     }
 
-    return this._coinsService.spend(organization.id, 'message', async () =>
-      copilotRuntimeHandler(req, res)
+    return this._coinsService.spend(
+      organization.id,
+      'message',
+      async () => copilotRuntimeHandler(req, res),
+      userMessageText(req)
     );
   }
 

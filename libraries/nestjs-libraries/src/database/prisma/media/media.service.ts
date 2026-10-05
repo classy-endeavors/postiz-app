@@ -82,6 +82,19 @@ const USABLE_AS_IS = new Set([
   '.gif',
 ]);
 
+// The AI image modal sends "<!-- description -->...<!-- /description -->
+// <!-- style -->...<!-- /style -->", turned into one line for the coin history
+const readablePrompt = (prompt: string) => {
+  const style = prompt
+    .match(/<!-- style -->([\s\S]*?)<!-- \/style -->/)?.[1]
+    ?.trim();
+  const text = prompt
+    .replace(/<!-- style -->[\s\S]*?<!-- \/style -->/, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .trim();
+  return style ? `${text} · ${style} style` : text;
+};
+
 @Injectable()
 export class MediaService {
   private storage = UploadFactory.createStorage();
@@ -109,23 +122,28 @@ export class MediaService {
     org: Organization,
     generatePromptFirst?: boolean
   ) {
-    const generating = await this._coinsService.spend(org.id, 'image', async () => {
-      try {
-        return await this._subscriptionService.useCredit(
-          org,
-          'ai_images',
-          async () => {
-            if (generatePromptFirst) {
-              prompt = await this._openAi.generatePromptForPicture(prompt);
-              console.log('Prompt:', prompt);
+    const generating = await this._coinsService.spend(
+      org.id,
+      'image',
+      async () => {
+        try {
+          return await this._subscriptionService.useCredit(
+            org,
+            'ai_images',
+            async () => {
+              if (generatePromptFirst) {
+                prompt = await this._openAi.generatePromptForPicture(prompt);
+                console.log('Prompt:', prompt);
+              }
+              return this._openAi.generateImage(prompt);
             }
-            return this._openAi.generateImage(prompt);
-          }
-        );
-      } catch (err) {
-        throw generationError(err);
-      }
-    });
+          );
+        } catch (err) {
+          throw generationError(err);
+        }
+      },
+      readablePrompt(prompt)
+    );
 
     return generating;
   }

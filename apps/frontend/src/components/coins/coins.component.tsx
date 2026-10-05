@@ -20,6 +20,13 @@ interface CoinsResponse {
 
 type HistoryFilter = 'all' | 'spent' | 'added';
 
+// Charges made before prompts were recorded only have the generic label
+const prompts = ['message', 'image'];
+const defaults: Record<string, string> = {
+  message: 'AI agent message',
+  image: 'AI image generation',
+};
+
 interface CoinsHistoryResponse {
   transactions: {
     id: string;
@@ -165,8 +172,14 @@ const CoinsHistory: FC = () => {
                   {activities[transaction.type] || transaction.type}
                 </span>
               </div>
-              <div className="text-textItemBlur break-words">
-                {transaction.description}
+              <div
+                className="text-textItemBlur break-words line-clamp-2"
+                title={transaction.description || undefined}
+              >
+                {prompts.includes(transaction.type) &&
+                transaction.description !== defaults[transaction.type]
+                  ? `“${transaction.description}”`
+                  : transaction.description}
               </div>
               <div
                 className={clsx(
