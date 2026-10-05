@@ -5,6 +5,7 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import clsx from 'clsx';
 
 interface AnalyticsDataItem {
   label: string;
@@ -121,7 +122,10 @@ const AnalyticsCard: FC<{
   );
 };
 
-const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
+const EmptyState: FC<{ onRefresh: () => void; refreshNeeded: boolean }> = ({
+  onRefresh,
+  refreshNeeded,
+}) => {
   const t = useT();
 
   return (
@@ -140,15 +144,34 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
           <path d="M12 8v4l2 2" />
         </svg>
       </div>
-      <p className="text-[15px] text-newTableText text-center mb-[12px]">
-        {t(
-          'this_channel_needs_to_be_refreshed',
-          'This channel needs to be refreshed to display analytics'
-        )}
-      </p>
+      {refreshNeeded ? (
+        <p className="text-[15px] text-newTableText text-center mb-[12px]">
+          {t(
+            'this_channel_needs_to_be_refreshed',
+            'This channel needs to be refreshed to display analytics'
+          )}
+        </p>
+      ) : (
+        <>
+          <p className="text-[15px] text-newTextColor font-[600] text-center mb-[6px]">
+            {t('no_analytics_data_yet', 'No analytics data for this period yet')}
+          </p>
+          <p className="text-[13px] text-newTableText text-center mb-[16px] max-w-[460px]">
+            {t(
+              'no_analytics_data_hint',
+              'New channels and new videos can take up to 48 hours to show analytics. If it stays empty, reconnect the channel and approve every permission.'
+            )}
+          </p>
+        </>
+      )}
       <button
         onClick={onRefresh}
-        className="inline-flex items-center gap-[6px] px-[16px] py-[8px] text-[14px] font-medium text-white bg-[#FF5227] hover:bg-[#B84123] rounded-[8px] transition-colors"
+        className={clsx(
+          'inline-flex items-center gap-[6px] px-[16px] py-[8px] text-[14px] font-medium rounded-[8px] transition-colors',
+          refreshNeeded
+            ? 'text-white bg-[#FF5227] hover:bg-[#B84123]'
+            : 'text-newTextColor bg-newBgColorInner border border-newTableBorder hover:bg-boxHover'
+        )}
       >
         <svg
           width="16"
@@ -161,7 +184,9 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
         </svg>
-        {t('refresh_channel', 'Refresh Channel')}
+        {refreshNeeded
+          ? t('refresh_channel', 'Refresh Channel')
+          : t('reconnect_channel', 'Reconnect Channel')}
       </button>
     </div>
   );
@@ -239,7 +264,10 @@ export const RenderAnalytics: FC<{
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
       {data?.length === 0 && (
-        <EmptyState onRefresh={refreshChannel(integration as any)} />
+        <EmptyState
+          onRefresh={refreshChannel(integration as any)}
+          refreshNeeded={!!integration?.refreshNeeded}
+        />
       )}
       {data?.map((item: AnalyticsDataItem, index: number) => (
         <AnalyticsCard

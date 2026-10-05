@@ -52,6 +52,7 @@ import {
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useDebounce } from 'use-debounce';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
@@ -681,6 +682,7 @@ export const MultiMediaComponent: FC<{
   const user = useUser();
   const modals = useModals();
   const t = useT();
+  const { plontoKey } = useVariables();
   useEffect(() => {
     if (value) {
       setCurrentMedia(value);
@@ -841,19 +843,21 @@ export const MultiMediaComponent: FC<{
                   </div>
                 </div>
               </div>
-              <div
-                onClick={designMedia}
-                className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
-              >
-                <div className="flex gap-[5px] items-center">
-                  <div>
-                    <DesignMediaIcon />
-                  </div>
-                  <div className="text-[10px] font-[600] iconBreak:hidden block">
-                    {t('design_media', 'Design Media')}
+              {!!plontoKey && (
+                <div
+                  onClick={designMedia}
+                  className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                >
+                  <div className="flex gap-[5px] items-center">
+                    <div>
+                      <DesignMediaIcon />
+                    </div>
+                    <div className="text-[10px] font-[600] iconBreak:hidden block">
+                      {t('design_media', 'Design Media')}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <ThirdPartyMedia allData={allData} onChange={changeMedia} />
 
@@ -913,6 +917,7 @@ export const MediaComponent: FC<{
     props;
   const { getValues } = useSettings();
   const user = useUser();
+  const { plontoKey } = useVariables();
   useEffect(() => {
     const settings = getValues()[props.name];
     if (settings) {
@@ -987,9 +992,11 @@ export const MediaComponent: FC<{
       )}
       <div className="flex gap-[5px]">
         <Button onClick={showModal}>{t('select', 'Select')}</Button>
-        <Button onClick={showDesignModal} className="!bg-customColor45">
-          {t('editor', 'Editor')}
-        </Button>
+        {!!plontoKey && (
+          <Button onClick={showDesignModal} className="!bg-customColor45">
+            {t('editor', 'Editor')}
+          </Button>
+        )}
         <Button secondary={true} onClick={clearMedia}>
           {t('clear', 'Clear')}
         </Button>
