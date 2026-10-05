@@ -148,6 +148,7 @@ const initialState = {
   tab: 0 as 0,
   isCreateSet: false,
   current: 'global',
+  repeater: undefined as number | undefined,
   locked: false,
   hide: false,
   integrations: [] as Integrations[],
