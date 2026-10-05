@@ -209,7 +209,8 @@ export const MediaBox: FC<{
   standalone?: boolean;
   type?: 'image' | 'video';
   closeModal: () => void;
-}> = ({ type, standalone, setMedia }) => {
+  onCreatePost?: (media: Media) => void;
+}> = ({ type, standalone, setMedia, onCreatePost }) => {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
@@ -455,7 +456,7 @@ export const MediaBox: FC<{
             <div className="flex-1 text-newTextColor/[0.8]">
               {t(
                 'media_library_next_steps',
-                'Your uploads are saved here. To publish one, create a post in the Calendar and click "Insert Media", or attach it to a message in the Agent.'
+                'Your uploads are saved here. Click "Create Post" on any media to schedule it, or attach it to a message in the Agent.'
               )}
             </div>
             <Link
@@ -580,6 +581,18 @@ export const MediaBox: FC<{
                       />
                     )}
                     <div className="absolute bottom-[10px] end-[10px] z-[100]">{media.originalName}</div>
+                    {!!onCreatePost && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreatePost(media);
+                        }}
+                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                      >
+                        <PlusIcon size={10} />
+                        {t('create_new_post', 'Create Post')}
+                      </button>
+                    )}
                     <div className="w-full h-full rounded-[6px] overflow-hidden relative">
                       <div className="absolute z-[20] left-[50%] top-[50%] -translate-x-[50%] -translate-y-[50%]">
                         <div
