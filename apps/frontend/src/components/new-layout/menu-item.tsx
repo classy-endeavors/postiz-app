@@ -4,22 +4,30 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import Link from 'next/link';
 
-export const MenuItem: FC<{ label: string; icon: ReactNode; path: string; onClick?: () => void }> = ({
-  label,
-  icon,
-  path,
-  onClick,
-}) => {
+export const MenuItem: FC<{
+  label: string;
+  icon: ReactNode;
+  path: string;
+  onClick?: () => void;
+  badge?: ReactNode;
+}> = ({ label, icon, path, onClick, badge }) => {
   const currentPath = usePathname();
   const isActive = currentPath.indexOf(path) === 0;
 
   const className = clsx(
-    'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] hover:text-textItemFocused hover:bg-boxFocused transition-colors',
-    isActive ? 'text-textItemFocused bg-boxFocused' : 'text-textItemBlur'
+    'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] border-[1.5px] hover:text-textItemFocused hover:bg-boxFocused transition-colors',
+    isActive
+      ? 'text-textItemFocused bg-boxFocused border-btnPrimary'
+      : 'text-textItemBlur border-transparent'
   );
 
   const inner = (
     <>
+      {badge !== undefined && (
+        <div className="absolute -top-[6px] -end-[6px] min-w-[22px] h-[18px] px-[5px] rounded-full bg-newButter text-newTextColor border-[1.5px] border-newOutline text-[10px] font-[700] leading-[15px] text-center">
+          {badge}
+        </div>
+      )}
       <div className="custom:scale-90 transition-transform">{icon}</div>
       <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center">
         {label}

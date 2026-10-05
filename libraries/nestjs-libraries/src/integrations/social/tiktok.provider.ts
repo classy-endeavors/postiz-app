@@ -239,7 +239,7 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       return {
         type: 'bad-body' as const,
         value:
-          'You have to upload the picture/video to Postiz when sending a URL',
+          'You have to upload the picture/video to AI Zyntra when sending a URL',
       };
     }
 
@@ -1073,10 +1073,45 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
             totalShares += video.share_count || 0;
           }
 
+          const percentage = (value: number) =>
+            String(totalViews ? +((value / totalViews) * 100).toFixed(2) : 0);
+
           result.push({
-            label: 'Views',
+            label: 'Recent Views',
             percentageChange: 0,
             data: [{ total: String(totalViews), date: today }],
+          });
+
+          result.push({
+            label: 'Avg Views per Video',
+            percentageChange: 0,
+            data: [
+              {
+                total: String(Math.round(totalViews / videoDetails.length)),
+                date: today,
+              },
+            ],
+          });
+
+          result.push({
+            label: 'Like Ratio',
+            average: true,
+            format: 'percentage',
+            percentageChange: 0,
+            data: [{ total: percentage(totalLikes), date: today }],
+          });
+
+          result.push({
+            label: 'Engagement Rate',
+            average: true,
+            format: 'percentage',
+            percentageChange: 0,
+            data: [
+              {
+                total: percentage(totalLikes + totalComments + totalShares),
+                date: today,
+              },
+            ],
           });
 
           result.push({

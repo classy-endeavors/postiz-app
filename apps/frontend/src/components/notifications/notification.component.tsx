@@ -140,17 +140,12 @@ const NotificationComponent = () => {
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          {data && data.total > 0 && (
-            <circle
-              cx="17.0625"
-              cy="5"
-              r="4"
-              fill="#FF3EA2"
-              stroke="#1A1919"
-              strokeWidth="2"
-            />
-          )}
         </svg>
+        {data && data.total > 0 && (
+          <div className="absolute -top-[7px] -end-[9px] min-w-[18px] h-[18px] px-[4px] rounded-full bg-red-600 text-white text-[11px] font-[700] leading-[18px] text-center border-2 border-newBgColorInner box-content">
+            {data.total > 99 ? '99+' : data.total}
+          </div>
+        )}
       </div>
       {show && <NotificationOpenComponent />}
     </div>

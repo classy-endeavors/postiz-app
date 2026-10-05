@@ -39,12 +39,15 @@ import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { ExistingDataContextProvider } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import { useCoinsBalance } from '@gitroom/frontend/components/coins/use.coins.balance';
+import Link from 'next/link';
 
 export const AgentChat: FC = () => {
   const { backendUrl } = useVariables();
   const params = useParams<{ id: string }>();
   const { properties } = useContext(PropertiesContext);
   const t = useT();
+  const { data: coins } = useCoinsBalance();
 
   return (
     <CopilotKit
@@ -52,7 +55,7 @@ export const AgentChat: FC = () => {
       credentials="include"
       runtimeUrl={backendUrl + '/copilot/agent'}
       useSingleEndpoint={true}
-      showDevConsole={false}
+      enableInspector={false}
       agent="postiz"
       properties={{
         integrations: properties,
@@ -69,12 +72,23 @@ export const AgentChat: FC = () => {
         }
         className="trz agent bg-newBgColorInner flex flex-col gap-[15px] transition-all flex-1 items-center relative"
       >
+        {coins !== undefined && coins < 1 && (
+          <div className="absolute top-[16px] z-[10] flex items-center gap-[12px] px-[16px] py-[10px] rounded-[12px] bg-newButter border-[1.5px] border-newOutline shadow-hardSm text-[14px]">
+            {t(
+              'out_of_coins_agent',
+              'You are out of Zyntra Coins, each message costs 1 coin.'
+            )}
+            <Link href="/coins" className="font-[700] underline">
+              {t('get_more_coins', 'Get more coins')}
+            </Link>
+          </div>
+        )}
         <div className="absolute left-0 w-full h-full pb-[20px]">
           <CopilotChat
             className="w-full h-full"
             labels={{
               title: t('your_assistant', 'Your Assistant'),
-              initial: t('agent_welcome_message', `Hello, I am your Postiz agent 🙌🏻.
+              initial: t('agent_welcome_message', `Hello, I am your AI Zyntra agent 🙌🏻.
               
 I can schedule a post or multiple posts to multiple channels and generate pictures and videos.
 
@@ -190,6 +204,7 @@ const NewInput: FC<InputProps> = (props) => {
   const [media, setMedia] = useState([] as { path: string; id: string }[]);
   const [value, setValue] = useState('');
   const { properties } = useContext(PropertiesContext);
+  const { mutate: reloadCoins } = useCoinsBalance();
   return (
     <>
       <MediaPortal
@@ -232,6 +247,10 @@ Use the following social media platforms: ${JSON.stringify(
           );
           setValue('');
           setMedia([]);
+          Promise.resolve(send).then(
+            () => reloadCoins(),
+            () => reloadCoins()
+          );
           return send;
         }}
       />

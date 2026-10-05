@@ -40,6 +40,15 @@ function getDateRange(
   }
 }
 
+const navButtonClass =
+  'cursor-pointer text-newTextColor rtl:rotate-180 w-[34px] h-[34px] flex items-center justify-center rounded-[10px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hardSm hover:-translate-y-[1px] transition-transform';
+const segmentGroupClass =
+  'flex flex-row p-[4px] border-[1.5px] border-newOutline rounded-full bg-newButter text-[13px] font-heading font-[700] shadow-hardSm';
+const segmentItemClass =
+  'cursor-pointer text-center rounded-full transition-colors';
+const segmentActiveClass = 'bg-newTextColor text-newBgColorInner';
+const segmentIdleClass = 'text-textItemBlur hover:text-newTextColor';
+
 export const Filters = () => {
   const calendar = useCalendar();
   const t = useT();
@@ -160,11 +169,11 @@ export const Filters = () => {
       return;
     }
 
-    const range = getDateRange('week');
+    const range = getDateRange('month');
     calendar.setFilters({
       startDate: range.startDate,
       endDate: range.endDate,
-      display: 'week',
+      display: 'month',
       customer: calendar.customer,
     });
   }, [calendar]);
@@ -289,12 +298,22 @@ export const Filters = () => {
   return (
     <div className="text-textColor flex flex-col md:flex-row gap-[8px] items-center select-none">
       {!isListView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px]">
-          <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
-            <div
-              onClick={previous}
-              className="cursor-pointer text-textColor rtl:rotate-180 px-[9px] bg-newBgColorInner h-full flex items-center justify-center hover:text-textItemFocused hover:bg-boxFocused"
-            >
+        <div className="flex flex-grow flex-row items-center gap-[16px]">
+          <div className="flex flex-col min-w-[230px]">
+            <div className="font-heading font-[800] text-[20px] tracking-[-0.01em] whitespace-nowrap">
+              {getDisplayText()}
+            </div>
+            {calendar.display === 'month' && (
+              <div className="text-[12px] text-textItemBlur">
+                {t(
+                  'calendar_month_hint',
+                  'Use Detail on a day for the full status per channel.'
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-[6px]">
+            <div onClick={previous} className={navButtonClass}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="8"
@@ -311,15 +330,13 @@ export const Filters = () => {
                 />
               </svg>
             </div>
-            <div className="min-w-[200px] text-center bg-newBgColorInner h-full flex items-center justify-center">
-              <div className="py-[3px] px-[9px] rounded-[5px] transition-all text-[14px]">
-                {getDisplayText()}
-              </div>
-            </div>
             <div
-              onClick={next}
-              className="cursor-pointer text-textColor rtl:rotate-180 px-[9px] bg-newBgColorInner h-full flex items-center justify-center hover:text-textItemFocused hover:bg-boxFocused"
+              onClick={setToday}
+              className="cursor-pointer h-[34px] px-[14px] flex items-center justify-center rounded-[12px] border-[1.5px] border-newOutline bg-newBgColorInner text-newTextColor text-[13.5px] font-heading font-[700] shadow-hardSm hover:-translate-y-[1px] transition-transform"
             >
+              {t('today', 'Today')}
+            </div>
+            <div onClick={next} className={navButtonClass}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="8"
@@ -335,16 +352,6 @@ export const Filters = () => {
                   strokeLinejoin="round"
                 />
               </svg>
-            </div>
-          </div>
-          <div className="flex-1 text-[14px] font-[500]">
-            <div className="text-center flex h-[42px]">
-              <div
-                onClick={setToday}
-                className="hover:text-textItemFocused hover:bg-boxFocused py-[3px] px-[9px] flex justify-center items-center rounded-[8px] transition-all cursor-pointer text-[14px] bg-newBgColorInner border border-newTableBorder"
-              >
-                {t('today', 'Today')}
-              </div>
             </div>
           </div>
         </div>
@@ -408,15 +415,15 @@ export const Filters = () => {
               </svg>
             </div>
           </div>
-          <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
+          <div className={segmentGroupClass}>
             {listStateOptions.map((option) => (
               <div
                 key={option.value}
                 onClick={setListStateFilter(option.value)}
                 className={clsx(
-                  'pt-[6px] pb-[5px] cursor-pointer min-w-[80px] px-[12px] text-center rounded-[6px]',
-                  calendar.listState === option.value &&
-                    'text-textItemFocused bg-boxFocused'
+                  'py-[6px] min-w-[80px] px-[12px]',
+                  segmentItemClass,
+                  calendar.listState === option.value ? segmentActiveClass : segmentIdleClass
                 )}
               >
                 {option.label}
@@ -432,11 +439,12 @@ export const Filters = () => {
         integrations={calendar.integrations}
       />
       {!isListView && (
-        <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
+        <div className={segmentGroupClass}>
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] text-center rounded-[6px]',
-              calendar.display === 'day' && 'text-textItemFocused bg-boxFocused'
+              'py-[6px] w-[74px]',
+              segmentItemClass,
+              calendar.display === 'day' ? segmentActiveClass : segmentIdleClass
             )}
             onClick={setDay}
           >
@@ -444,8 +452,9 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] text-center rounded-[6px]',
-              calendar.display === 'week' && 'text-textItemFocused bg-boxFocused'
+              'py-[6px] w-[74px]',
+              segmentItemClass,
+              calendar.display === 'week' ? segmentActiveClass : segmentIdleClass
             )}
             onClick={setWeek}
           >
@@ -453,8 +462,9 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] text-center rounded-[6px]',
-              calendar.display === 'month' && 'text-textItemFocused bg-boxFocused'
+              'py-[6px] w-[74px]',
+              segmentItemClass,
+              calendar.display === 'month' ? segmentActiveClass : segmentIdleClass
             )}
             onClick={setMonth}
           >
@@ -462,12 +472,13 @@ export const Filters = () => {
           </div>
         </div>
       )}
-      <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
+      <div className={segmentGroupClass}>
         <div
           onClick={setCalendarView}
           className={clsx(
-            'pt-[6px] pb-[5px] cursor-pointer flex justify-center items-center w-[34px] text-center rounded-[6px]',
-            !isListView && 'text-textItemFocused bg-boxFocused'
+            'py-[6px] flex justify-center items-center w-[34px]',
+            segmentItemClass,
+            !isListView ? segmentActiveClass : segmentIdleClass
           )}
         >
           {/*calendar*/}
@@ -490,8 +501,9 @@ export const Filters = () => {
         <div
           onClick={setList}
           className={clsx(
-            'pt-[6px] pb-[5px] flex justify-center items-center cursor-pointer w-[34px] text-center rounded-[6px]',
-            isListView && 'text-textItemFocused bg-boxFocused'
+            'py-[6px] flex justify-center items-center w-[34px]',
+            segmentItemClass,
+            isListView ? segmentActiveClass : segmentIdleClass
           )}
         >
           {/*list*/}

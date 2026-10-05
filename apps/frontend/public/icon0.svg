@@ -1,0 +1,13 @@
+<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="30" height="30" rx="9" fill="#FF5227"/>
+  <g transform="translate(5 5) scale(0.833333)">
+    <path
+      d="M4 5h11L9 12h11L7 21l2.5-6.5H4.5Z"
+      stroke="#FFFFFF"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+  </g>
+</svg>

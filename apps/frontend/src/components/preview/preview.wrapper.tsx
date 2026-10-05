@@ -28,7 +28,7 @@ export const PreviewWrapper = ({ children }: { children: ReactNode }) => {
         credentials="include"
         runtimeUrl={backendUrl + '/copilot/chat'}
         useSingleEndpoint={true}
-        showDevConsole={false}
+        enableInspector={false}
       >
         <MantineWrapper>
           <Toaster />

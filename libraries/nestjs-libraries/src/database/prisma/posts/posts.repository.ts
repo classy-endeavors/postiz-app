@@ -197,6 +197,12 @@ export class PostsRepository {
       },
     });
 
+    return this.expandRecurringPosts(list, endDate);
+  }
+
+  private expandRecurringPosts<
+    T extends { publishDate: Date; intervalInDays: number | null }
+  >(list: T[], endDate: Date) {
     return list.reduce((all, post) => {
       if (!post.intervalInDays) {
         return [...all, post];
@@ -218,6 +224,71 @@ export class PostsRepository {
 
       return [...all, ...addMorePosts];
     }, [] as any[]);
+  }
+
+  async getDayPosts(orgId: string, query: GetPostsDto) {
+    const startDate = dayjs.utc(query.startDate).toDate();
+    const endDate = dayjs.utc(query.endDate).toDate();
+
+    const list = await this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [
+          {
+            publishDate: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          {
+            intervalInDays: {
+              not: null,
+            },
+          },
+        ],
+        integration: {
+          deletedAt: null,
+          organizationId: orgId,
+          ...(query.customer ? { customerId: query.customer } : {}),
+        },
+        deletedAt: null,
+        parentPostId: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        image: true,
+        publishDate: true,
+        releaseURL: true,
+        state: true,
+        error: true,
+        group: true,
+        intervalInDays: true,
+        tags: {
+          where: {
+            tag: {
+              deletedAt: null,
+            },
+          },
+          select: {
+            tag: true,
+          },
+        },
+        integration: {
+          select: {
+            id: true,
+            providerIdentifier: true,
+            name: true,
+            picture: true,
+          },
+        },
+      },
+    });
+
+    return this.expandRecurringPosts(list, endDate)
+      .filter((post) => dayjs.utc(post.publishDate).isSameOrAfter(startDate))
+      .sort((a, b) => dayjs(a.publishDate).diff(b.publishDate));
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {

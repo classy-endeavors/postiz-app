@@ -24,6 +24,7 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import utc from 'dayjs/plugin/utc';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
+import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import {
@@ -73,7 +74,8 @@ export class PostsService {
     private _shortLinkService: ShortLinkService,
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _coinsService: CoinsService
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -340,6 +342,10 @@ export class PostsService {
     return minifyPosts({
       posts: await this._postRepository.getPosts(orgId, query),
     });
+  }
+
+  getDayPosts(orgId: string, query: GetPostsDto) {
+    return this._postRepository.getDayPosts(orgId, query);
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
@@ -931,6 +937,21 @@ export class PostsService {
     keepGroup = false
   ): Promise<any[]> {
     const postList = [];
+    // Scheduling a new post or a draft costs coins, editing a scheduled one is free
+    const toCharge = new Set<(typeof body.posts)[number]>();
+    if (body.type === 'schedule' || body.type === 'now') {
+      for (const post of body.posts) {
+        const existing = post.value?.[0]?.id
+          ? await this._postRepository.getPostById(post.value[0].id, orgId)
+          : null;
+        if (!existing || existing.state === 'DRAFT') {
+          toCharge.add(post);
+        }
+      }
+      if (toCharge.size) {
+        await this._coinsService.checkCoins(orgId, 'post', toCharge.size);
+      }
+    }
     for (const post of body.posts) {
       if (
         (body.type === 'schedule' || body.type === 'now') &&
@@ -975,6 +996,18 @@ export class PostsService {
 
       if (!posts?.length) {
         return [] as any[];
+      }
+
+      if (toCharge.has(post)) {
+        const integration = await this._integrationService.getIntegrationById(
+          orgId,
+          post.integration.id
+        );
+        await this._coinsService.chargePost(
+          orgId,
+          posts[0].id,
+          integration?.name
+        );
       }
 
       const existingIds = (post.value || []).map((p) => p.id).filter(Boolean);
@@ -1167,7 +1200,18 @@ export class PostsService {
     }
 
     const state: State = status === 'draft' ? 'DRAFT' : 'QUEUE';
+    const charge = state === 'QUEUE' && getPostById.state === 'DRAFT';
+    if (charge) {
+      await this._coinsService.checkCoins(orgId, 'post');
+    }
     await this._postRepository.changeState(id, state);
+    if (charge) {
+      await this._coinsService.chargePost(
+        orgId,
+        id,
+        getPostById.integration?.name
+      );
+    }
 
     try {
       await this.startWorkflow(
@@ -1275,11 +1319,8 @@ export class PostsService {
                   id: integration.id,
                 },
                 settings: {
-                  __type: integration.providerIdentifier as any,
-                  title: '',
-                  tags: [],
-                  subreddit: [],
-                },
+                  __type: integration.providerIdentifier,
+                } as any,
                 value: [
                   ...toPost.list.map((l) => ({
                     id: '',

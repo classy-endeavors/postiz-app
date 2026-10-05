@@ -19,6 +19,10 @@ import { TypedSearchAttributes } from '@temporalio/common';
 import {
   organizationId,
 } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
+import {
+  chatOpenAIConfig,
+  dalleConfig,
+} from '@gitroom/nestjs-libraries/openai/ai.config';
 const parser = new Parser();
 
 interface WorkflowChannelsState {
@@ -36,15 +40,11 @@ interface WorkflowChannelsState {
 }
 
 const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'gpt-4.1',
+  ...chatOpenAIConfig,
   temperature: 0.7,
 });
 
-const dalle = new DallEAPIWrapper({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'chatgpt-image-latest',
-});
+const dalle = new DallEAPIWrapper(dalleConfig);
 
 const generateContent = z.object({
   socialMediaPostContent: z
@@ -275,11 +275,8 @@ export class AutopostService {
       tags: [],
       posts: state.integrations.map((i) => ({
         settings: {
-          __type: i.providerIdentifier as any,
-          title: '',
-          tags: [],
-          subreddit: [],
-        },
+          __type: i.providerIdentifier,
+        } as any,
         group: makeId(10),
         integration: { id: i.id },
         value: [

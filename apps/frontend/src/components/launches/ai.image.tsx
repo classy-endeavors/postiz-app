@@ -7,6 +7,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { useToaster } from '@gitroom/react/toaster/toaster';
+import { mutate } from 'swr';
 const list = [
   'Realistic',
   'Cartoon',
@@ -50,11 +51,10 @@ const AiImageModal: FC<{
     close();
     setLocked(true);
     try {
-      const image = await (
-        await fetch('/media/generate-image-with-prompt', {
-          method: 'POST',
-          body: JSON.stringify({
-            prompt: `
+      const response = await fetch('/media/generate-image-with-prompt', {
+        method: 'POST',
+        body: JSON.stringify({
+          prompt: `
 <!-- description -->
 ${prompt}
 <!-- /description -->
@@ -64,13 +64,25 @@ ${style}
 <!-- /style -->
 
 `,
-          }),
-        })
-      ).json();
-      if (image) {
+        }),
+      });
+      const image = await response.json().catch(() => null);
+      if (response.ok && image?.id && image?.path) {
         onChange(image);
+        mutate('/coins/balance');
+      } else if (response.status !== 402) {
+        toaster.show(
+          image?.message ||
+            t('ai_image_failed', 'Could not generate the image, please try again'),
+          'warning'
+        );
       }
-    } catch (e) {}
+    } catch (e) {
+      toaster.show(
+        t('ai_image_failed', 'Could not generate the image, please try again'),
+        'warning'
+      );
+    }
     setLocked(false);
     setLoading(false);
   }, [prompt, style, onChange]);
@@ -99,7 +111,7 @@ ${style}
               className={clsx(
                 'cursor-pointer rounded-[4px] px-[10px] h-[30px] flex items-center text-[12px] border',
                 style === p
-                  ? 'bg-[#612BD3] border-[#612BD3] text-white'
+                  ? 'bg-[#FF5227] border-[#FF5227] text-white'
                   : 'bg-newColColor border-newBgLineColor'
               )}
             >

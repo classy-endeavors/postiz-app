@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
-import { openai } from '@ai-sdk/openai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import {
+  aiConfig,
+  isCustomAiEndpoint,
+  isGeminiEndpoint,
+} from '@gitroom/nestjs-libraries/openai/ai.config';
 import { Memory } from '@mastra/memory';
 import { pStore } from '@gitroom/nestjs-libraries/chat/mastra.store';
 import { array, object, string } from 'zod';
@@ -12,6 +18,18 @@ import dayjs from 'dayjs';
 export const AgentState = object({
   proverbs: array(string()).default([]),
 });
+
+const openai = createOpenAI({
+  apiKey: aiConfig.apiKey,
+  baseURL: aiConfig.baseURL,
+});
+
+// OpenAI-compatible endpoints only implement Chat Completions, not the Responses API
+const agentModel = isGeminiEndpoint
+  ? createGoogleGenerativeAI({ apiKey: aiConfig.apiKey })(aiConfig.agentModel)
+  : isCustomAiEndpoint
+  ? openai.chat(aiConfig.agentModel)
+  : openai(aiConfig.agentModel);
 
 const renderArray = (list: string[], show: boolean) => {
   if (!show) return '';
@@ -88,9 +106,10 @@ export class LoadToolsService {
       - To find or inspect existing posts, use postsListTool with a UTC start and end date - it returns every post scheduled in that window. To cover "all my upcoming posts", pass a wide window starting now.
       - To change the provider settings of an existing post that was not published yet (scheduled or draft), first find it with postsListTool, then use postSettingsTool with the post's id. It only updates the settings - the content and the publish date stay as they are - and only the keys you pass are changed (get them with the integrationSchema tool). Show the user which post and which settings will change and get their confirmation first.
       - Never open the "modal with populated content" to edit an existing post - that modal only CREATES a new post, so using it to edit would duplicate the post. It is only for brand new posts.
-      - You can create, schedule and update posts, but you CANNOT delete posts - there is no delete capability. Never offer to delete a post. If the user asks you to delete one, tell them deletion is a destructive action and they should delete it themselves in the Postiz app (the calendar).
+      - You can create, schedule and update posts, but you CANNOT delete posts - there is no delete capability. Never offer to delete a post. If the user asks you to delete one, tell them deletion is a destructive action and they should delete it themselves in the AI Zyntra app (the calendar).
       - Between tools, we will reference things like: [output:name] and [input:name] to set the information right.
       - When outputting a date for the user, make sure it's human readable with time
+      - When you show the user an image (for example the output of generateImageTool), always use markdown image syntax: ![short description](path), never a plain link
       - The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can\'t have u and strong together), don't use a "code" box
       ${renderArray(
         [
@@ -100,7 +119,7 @@ export class LoadToolsService {
       )}
 `;
       },
-      model: openai('gpt-5.2'),
+      model: agentModel,
       tools,
       memory: new Memory({
         storage: pStore,

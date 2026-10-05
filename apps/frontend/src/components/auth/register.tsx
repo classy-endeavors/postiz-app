@@ -158,14 +158,17 @@ export function RegisterAfter({
       <form className="flex-1 flex" onSubmit={form.handleSubmit(onSubmit)}>
         <div className="flex flex-col flex-1">
           <div>
-            <h1 className="text-[40px] font-[500] -tracking-[0.8px] text-start cursor-pointer">
-              {t('sign_up', 'Sign Up')}
+            <h1 className="text-[32px] -tracking-[0.8px] leading-[1.15] text-start">
+              {t('create_your_account', 'Create your account')}
             </h1>
+            <div className="text-[14px] text-textItemBlur mt-[6px]">
+              {t(
+                'sign_up_subtitle',
+                'Start free with 100 Zyntra Coins every month.'
+              )}
+            </div>
           </div>
-          <div className="text-[14px] mt-[32px] mb-[12px]">
-            {t('continue_with', 'Continue With')}
-          </div>
-          <div className="flex flex-col text-[14px]">
+          <div className="flex flex-col text-[14px] mt-[24px]">
             {!isAfterProvider &&
               (!isGeneral ? (
                 <GithubProvider />
@@ -182,26 +185,30 @@ export function RegisterAfter({
                 </div>
               ))}
             {!isAfterProvider && (
-              <div className="h-[20px] mb-[24px] mt-[24px] relative">
-                <div className="absolute w-full h-[1px] bg-fifth top-[50%] -translate-y-[50%]" />
-                <div
-                  className={`absolute z-[1] justify-center items-center w-full start-0 -top-[4px] flex`}
-                >
-                  <div className="px-[16px]">{t('or', 'or')}</div>
-                </div>
+              <div className="flex items-center gap-[12px] my-[18px] text-[12px] text-textItemBlur">
+                <div className="flex-1 h-[1px] bg-newTableBorder" />
+                {t('or', 'or')}
+                <div className="flex-1 h-[1px] bg-newTableBorder" />
               </div>
             )}
-            <div className="flex flex-col gap-[12px]">
+            <div className="flex flex-col gap-[4px]">
               <div className="text-textColor">
                 {!isAfterProvider && (
-                  <>
-                    <Input
-                      label="Email"
-                      translationKey="label_email"
-                      {...form.register('email')}
-                      type="email"
-                      placeholder={t('email_address', 'Email Address')}
-                    />
+                  <Input
+                    label="Email"
+                    translationKey="label_email"
+                    {...form.register('email')}
+                    type="email"
+                    placeholder={t('email_address', 'Email Address')}
+                  />
+                )}
+                <div
+                  className={clsx(
+                    'grid gap-[12px]',
+                    !isAfterProvider && 'grid-cols-2'
+                  )}
+                >
+                  {!isAfterProvider && (
                     <Input
                       label="Password"
                       translationKey="label_password"
@@ -210,25 +217,25 @@ export function RegisterAfter({
                       type="password"
                       placeholder={t('label_password', 'Password')}
                     />
-                  </>
-                )}
-                <Input
-                  label="Company"
-                  translationKey="label_company"
-                  {...form.register('company')}
-                  autoComplete="off"
-                  type="text"
-                  placeholder={t('label_company', 'Company')}
-                />
+                  )}
+                  <Input
+                    label="Company"
+                    translationKey="label_company"
+                    {...form.register('company')}
+                    autoComplete="off"
+                    type="text"
+                    placeholder={t('label_company', 'Company')}
+                  />
+                </div>
               </div>
-              <div className={clsx('text-[12px]')}>
+              <div className={clsx('text-[12px] text-textItemBlur')}>
                 {t(
                   'by_registering_you_agree_to_our',
                   'By registering you agree to our'
                 )}
                 &nbsp;
                 <a
-                  href={`https://postiz.com/terms`}
+                  href={`https://aizyntra.com/terms`}
                   className="underline hover:font-bold"
                   rel="nofollow"
                 >
@@ -237,7 +244,7 @@ export function RegisterAfter({
                 &nbsp;
                 {t('and', 'and')}&nbsp;
                 <a
-                  href={`https://postiz.com/privacy`}
+                  href={`https://aizyntra.com/privacy`}
                   rel="nofollow"
                   className="underline hover:font-bold"
                 >
@@ -245,27 +252,25 @@ export function RegisterAfter({
                 </a>
                 &nbsp;
               </div>
-              <div className="text-center mt-6">
-                <div className="w-full flex">
-                  <Button
-                    type="submit"
-                    className="flex-1 rounded-[10px] !h-[52px]"
-                    loading={loading}
-                  >
-                    {t('create_account', 'Create Account')}
-                  </Button>
-                </div>
-                <p className="mt-4 text-sm">
-                  {t('already_have_an_account', 'Already Have An Account?')}
-                  &nbsp;
-                  <Link
-                    href="/auth/login"
-                    className="underline  cursor-pointer"
-                  >
-                    {t('sign_in', 'Sign In')}
-                  </Link>
-                </p>
+              <div className="w-full flex mt-[12px]">
+                <Button
+                  type="submit"
+                  className="flex-1 rounded-[10px] !h-[46px]"
+                  loading={loading}
+                >
+                  {t('create_account', 'Create Account')}
+                </Button>
               </div>
+              <p className="mt-[16px] text-[14px] text-center">
+                {t('already_have_an_account', 'Already Have An Account?')}
+                &nbsp;
+                <Link
+                  href="/auth/login"
+                  className="font-[600] text-btnPrimary hover:underline"
+                >
+                  {t('sign_in', 'Sign In')}
+                </Link>
+              </p>
             </div>
           </div>
         </div>

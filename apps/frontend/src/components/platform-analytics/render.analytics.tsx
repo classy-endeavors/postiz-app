@@ -5,13 +5,42 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import clsx from 'clsx';
 
 interface AnalyticsDataItem {
   label: string;
   data: Array<{ total: number; date: string }>;
   average?: boolean;
+  format?: 'percentage' | 'duration';
   percentageChange?: number;
 }
+
+const formatTotal = (item: AnalyticsDataItem) => {
+  const sum = item.data.reduce((acc, curr) => acc + Number(curr.total || 0), 0);
+  const value = item.average ? sum / (item.data.length || 1) : sum;
+  if (item.format === 'duration') {
+    const seconds = Math.round(value);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+  if (item.average) {
+    return value.toFixed(2) + '%';
+  }
+  return new Intl.NumberFormat().format(Math.round(value));
+};
+
+const StatTile: FC<{ item: AnalyticsDataItem; total: string }> = ({
+  item,
+  total,
+}) => (
+  <div className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner px-[16px] py-[14px] flex flex-col gap-[6px]">
+    <div className="text-[11.5px] font-[700] uppercase tracking-[0.04em] text-textItemBlur">
+      {item.label}
+    </div>
+    <div className="font-heading font-[800] text-[28px] leading-[1.1] tracking-[-0.01em]">
+      {total}
+    </div>
+  </div>
+);
 
 const TrendIndicator: FC<{ value: number; average?: boolean }> = ({
   value,
@@ -56,33 +85,21 @@ const AnalyticsCard: FC<{
   const colorVariants = ['purple', 'green', 'blue'] as const;
   const color = colorVariants[index % colorVariants.length];
 
-  const hasDataPoints = item.data.length >= 1;
-
   return (
     <div className="group relative">
-      <div
-        className={`
-          flex flex-col h-full
-          bg-newTableHeader
-          border border-newTableBorder
-          rounded-[12px]
-          overflow-hidden
-          transition-all duration-200
-          hover:border-[#612bd3]/50
-        `}
-      >
+      <div className="flex flex-col h-full bg-newBgColorInner border-[1.5px] border-newSep rounded-[14px] overflow-hidden transition-colors duration-200 hover:border-newOutline">
         {/* Header */}
         <div className="flex items-center justify-between px-[16px] pt-[14px] pb-[8px]">
           <div className="flex items-center gap-[10px]">
             <div
               className={`
                 w-[8px] h-[8px] rounded-full
-                ${color === 'purple' ? 'bg-[#612bd3]' : ''}
+                ${color === 'purple' ? 'bg-[#FF5227]' : ''}
                 ${color === 'green' ? 'bg-[#32d583]' : ''}
                 ${color === 'blue' ? 'bg-[#1d9bf0]' : ''}
               `}
             />
-            <span className="text-[15px] font-medium text-newTableText">
+            <span className="text-[11.5px] font-[700] uppercase tracking-[0.04em] text-textItemBlur">
               {item.label}
             </span>
           </div>
@@ -91,42 +108,30 @@ const AnalyticsCard: FC<{
           )}
         </div>
 
-        {/* Content */}
-        {hasDataPoints ? (
-          <>
-            {/* Chart */}
-            <div className="flex-1 px-[12px] py-[8px]">
-              <div className="h-[120px] relative">
-                <ChartSocial data={item.data} color={color} key={`chart-${index}`} />
-              </div>
-            </div>
-
-            {/* Value */}
-            <div className="px-[16px] pb-[14px]">
-              <div className="text-[36px] leading-[42px] font-semibold tracking-tight">
-                {total}
-              </div>
-            </div>
-          </>
-        ) : (
-          /* Single value display */
-          <div className="flex-1 flex flex-col items-center justify-center py-[32px] px-[16px]">
-            <div className="text-[48px] leading-[56px] font-semibold tracking-tight">
-              {total}
-            </div>
+        <div className="flex-1 px-[12px] py-[8px]">
+          <div className="h-[120px] relative">
+            <ChartSocial data={item.data} color={color} key={`chart-${index}`} />
           </div>
-        )}
+        </div>
+        <div className="px-[16px] pb-[14px]">
+          <div className="font-heading font-[800] text-[30px] leading-[1.15] tracking-[-0.01em]">
+            {total}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
+const EmptyState: FC<{ onRefresh: () => void; refreshNeeded: boolean }> = ({
+  onRefresh,
+  refreshNeeded,
+}) => {
   const t = useT();
 
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-[48px] px-[24px] bg-newTableHeader border border-newTableBorder rounded-[12px]">
-      <div className="w-[48px] h-[48px] mb-[16px] rounded-full bg-[#612bd3]/10 flex items-center justify-center">
+      <div className="w-[48px] h-[48px] mb-[16px] rounded-full bg-[#FF5227]/10 flex items-center justify-center">
         <svg
           width="24"
           height="24"
@@ -134,21 +139,40 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="text-[#612bd3]"
+          className="text-[#FF5227]"
         >
           <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           <path d="M12 8v4l2 2" />
         </svg>
       </div>
-      <p className="text-[15px] text-newTableText text-center mb-[12px]">
-        {t(
-          'this_channel_needs_to_be_refreshed',
-          'This channel needs to be refreshed to display analytics'
-        )}
-      </p>
+      {refreshNeeded ? (
+        <p className="text-[15px] text-newTableText text-center mb-[12px]">
+          {t(
+            'this_channel_needs_to_be_refreshed',
+            'This channel needs to be refreshed to display analytics'
+          )}
+        </p>
+      ) : (
+        <>
+          <p className="font-heading text-[15px] text-newTextColor font-[700] text-center mb-[6px]">
+            {t('no_analytics_data_yet', 'No analytics data for this period yet')}
+          </p>
+          <p className="text-[13px] text-newTableText text-center mb-[16px] max-w-[460px]">
+            {t(
+              'no_analytics_data_hint',
+              'New channels and new videos can take up to 48 hours to show analytics. If it stays empty, reconnect the channel and approve every permission.'
+            )}
+          </p>
+        </>
+      )}
       <button
         onClick={onRefresh}
-        className="inline-flex items-center gap-[6px] px-[16px] py-[8px] text-[14px] font-medium text-white bg-[#612bd3] hover:bg-[#5023b8] rounded-[8px] transition-colors"
+        className={clsx(
+          'inline-flex items-center gap-[6px] px-[16px] py-[8px] text-[14px] font-medium rounded-[8px] transition-colors',
+          refreshNeeded
+            ? 'text-white bg-[#FF5227] hover:bg-[#B84123]'
+            : 'text-newTextColor bg-newBgColorInner border border-newTableBorder hover:bg-boxHover'
+        )}
       >
         <svg
           width="16"
@@ -161,7 +185,9 @@ const EmptyState: FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
           <path d="M23 4v6h-6M1 20v-6h6" />
           <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
         </svg>
-        {t('refresh_channel', 'Refresh Channel')}
+        {refreshNeeded
+          ? t('refresh_channel', 'Refresh Channel')
+          : t('reconnect_channel', 'Reconnect Channel')}
       </button>
     </div>
   );
@@ -216,17 +242,16 @@ export const RenderAnalytics: FC<{
 
   const t = useT();
 
-  const totals = useMemo(() => {
-    return data?.map((p: AnalyticsDataItem) => {
-      const value =
-        (p?.data.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0) || 0) /
-        (p.average ? p.data.length : 1);
-      if (p.average) {
-        return value.toFixed(2) + '%';
-      }
-      return new Intl.NumberFormat().format(Math.round(value));
-    });
-  }, [data]);
+  const stats = useMemo(
+    () =>
+      ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length === 1),
+    [data]
+  );
+  const series = useMemo(
+    () =>
+      ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length > 1),
+    [data]
+  );
 
   if (loading) {
     return (
@@ -236,19 +261,38 @@ export const RenderAnalytics: FC<{
     );
   }
 
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
-      {data?.length === 0 && (
-        <EmptyState onRefresh={refreshChannel(integration as any)} />
-      )}
-      {data?.map((item: AnalyticsDataItem, index: number) => (
-        <AnalyticsCard
-          key={`analytics-${index}`}
-          item={item}
-          total={totals[index]}
-          index={index}
+  if (!stats.length && !series.length) {
+    return (
+      <div className="grid grid-cols-1">
+        <EmptyState
+          onRefresh={refreshChannel(integration as any)}
+          refreshNeeded={!!integration?.refreshNeeded}
         />
-      ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-[16px]">
+      {!!stats.length && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+          {stats.map((item) => (
+            <StatTile key={item.label} item={item} total={formatTotal(item)} />
+          ))}
+        </div>
+      )}
+      {!!series.length && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+          {series.map((item, index) => (
+            <AnalyticsCard
+              key={item.label}
+              item={item}
+              total={formatTotal(item)}
+              index={index}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

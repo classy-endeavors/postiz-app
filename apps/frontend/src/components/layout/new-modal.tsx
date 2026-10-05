@@ -199,7 +199,10 @@ export const Component: FC<{
                 !modal.removeLayout && 'gap-[40px] p-[32px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',
                 modal.size ? '' : 'min-w-[600px]',
-                modal.fullScreen && 'h-full'
+                modal.fullScreen && 'h-full',
+                !modal.removeLayout &&
+                  !modal.fullScreen &&
+                  'border-[1.5px] border-newOutline shadow-hard'
               )}
               {...((!!modal.size || !!modal.height || !!modal.maxSize) && {
                 style: {
@@ -211,7 +214,7 @@ export const Component: FC<{
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center">
-                <div className="text-[24px] font-[600] flex-1">
+                <div className="text-[24px] font-heading font-[800] tracking-[-0.01em] flex-1">
                   {modal.title}
                 </div>
                 {typeof modal.withCloseButton === 'undefined' ||

@@ -104,17 +104,25 @@ function LayoutContextInner(params: { children: ReactNode }) {
       }
 
       if (response.status === 402) {
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => ({}));
+        if (body.coins) {
+          if (
+            await deleteDialog(
+              body.message,
+              'Get more coins',
+              'Out of Zyntra Coins'
+            )
+          ) {
+            window.location.href = '/coins';
+            return false;
+          }
+          return true;
+        }
         if (
-          await deleteDialog(
-            (
-              await response
-                .clone()
-                .json()
-                .catch(() => ({}))
-            ).message,
-            'Move to billing',
-            'Payment Required'
-          )
+          await deleteDialog(body.message, 'Move to billing', 'Payment Required')
         ) {
           window.open('/billing', '_blank');
           return false;

@@ -6,25 +6,41 @@ import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
 import LayoutContext from '@gitroom/frontend/components/layout/layout.context';
 import { ReactNode } from 'react';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Bricolage_Grotesque, Instrument_Sans } from 'next/font/google';
 import clsx from 'clsx';
+import { cookies } from 'next/headers';
 import { VariableContextComponent } from '@gitroom/react/helpers/variable.context';
 import UtmSaver from '@gitroom/helpers/utils/utm.saver';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500'],
+const instrumentSans = Instrument_Sans({
+  weight: ['400', '500', '600', '700'],
   style: ['normal', 'italic'],
   subsets: ['latin'],
 });
 
+const bricolageGrotesque = Bricolage_Grotesque({
+  weight: ['500', '700', '800'],
+  subsets: ['latin'],
+  variable: '--font-heading',
+});
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies();
+  const mode = cookieStore.get('mode')?.value === 'dark' ? 'dark' : 'light';
   return (
     <html>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon0.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
       </head>
       <body
-        className={clsx(jakartaSans.className, 'dark text-primary !bg-primary')}
+        className={clsx(
+          instrumentSans.className,
+          bricolageGrotesque.variable,
+          mode,
+          'text-primary !bg-primary'
+        )}
       >
         <VariableContextComponent
           language="en"
@@ -39,7 +55,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           discordUrl={process.env.NEXT_PUBLIC_DISCORD_SUPPORT!}
           frontEndUrl={process.env.FRONTEND_URL!}
           isGeneral={!!process.env.IS_GENERAL}
-          genericOauth={!!process.env.POSTIZ_GENERIC_OAUTH}
+          genericOauth={process.env.POSTIZ_GENERIC_OAUTH === 'true'}
           oauthLogoUrl={process.env.NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL!}
           oauthDisplayName={process.env.NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME!}
           uploadDirectory={process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY!}

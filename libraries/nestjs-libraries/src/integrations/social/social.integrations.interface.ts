@@ -54,6 +54,8 @@ export interface AnalyticsData {
   label: string;
   data: Array<{ total: string; date: string }>;
   percentageChange: number;
+  average?: boolean;
+  format?: 'percentage' | 'duration';
 }
 
 

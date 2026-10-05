@@ -7,6 +7,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  button {
+    font-family: var(--font-heading), 'Segoe UI', sans-serif;
+  }
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -323,7 +337,7 @@ body * {
 }
 //
 //:root {
-//  --copilot-kit-primary-color: #612ad5 !important;
+//  --copilot-kit-primary-color: #FF5227 !important;
 //  --copilot-kit-background-color: #0b0f1c !important;
 //  --copilot-kit-separator-color: #1f2941 !important;
 //  --copilot-kit-contrast-color: #ffffff !important;
@@ -592,7 +606,7 @@ html[dir='rtl'] [dir='ltr'] {
 //
 
 .ProseMirror {
-  font-family: Arial;
+  font-family: inherit;
 }
 
 .ProseMirror:focus {
@@ -601,7 +615,7 @@ html[dir='rtl'] [dir='ltr'] {
 
 .ProseMirror .mention {
   font-weight: bold;
-  color: #ae8afc;
+  color: #FCA18A;
 }
 
 .ProseMirror ul,
@@ -704,7 +718,7 @@ html[dir='rtl'] [dir='ltr'] {
     background-color: var(--purple-light);
     border-radius: 0.4rem;
     box-decoration-break: clone;
-    color: #ae8afc;
+    color: #FCA18A;
     &::after {
       content: '\200B';
     }

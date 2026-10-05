@@ -16,12 +16,17 @@ import {
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { Organization } from '@prisma/client';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
+import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { MastraAgent } from '@ag-ui/mastra';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { Request, Response } from 'express';
 import { RequestContext } from '@mastra/core/di';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import {
+  aiConfig,
+  createOpenAIClient,
+} from '@gitroom/nestjs-libraries/openai/ai.config';
 
 export type ChannelsContext = {
   integrations: string;
@@ -39,14 +44,38 @@ const copilotCors = () => ({
   credentials: !process.env.NOT_SECURED,
 });
 
+// Runs triggered by tool results or reconnects are free, only a message the
+// user typed costs coins
+const isUserMessage = (req: Request) =>
+  req?.body?.method === 'agent/run' &&
+  req?.body?.body?.messages?.at?.(-1)?.role === 'user';
+
+const userMessageText = (req: Request): string => {
+  const content = req?.body?.body?.messages?.at?.(-1)?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  return Array.isArray(content)
+    ? content
+        .filter((part: any) => part?.type === 'text')
+        .map((part: any) => part.text)
+        .join(' ')
+    : '';
+};
+
 @Controller('/copilot')
 export class CopilotController {
   constructor(
     private _subscriptionService: SubscriptionService,
-    private _mastraService: MastraService
+    private _mastraService: MastraService,
+    private _coinsService: CoinsService
   ) {}
   @Post('/chat')
-  chatAgent(@Req() req: Request, @Res() res: Response) {
+  chatAgent(
+    @Req() req: Request,
+    @Res() res: Response,
+    @GetOrgFromRequest() organization: Organization
+  ) {
     if (
       process.env.OPENAI_API_KEY === undefined ||
       process.env.OPENAI_API_KEY === ''
@@ -60,11 +89,21 @@ export class CopilotController {
       cors: copilotCors(),
       runtime: new CopilotRuntime(),
       serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
+        openai: createOpenAIClient(),
+        model: aiConfig.textModel,
       }),
     });
 
-    return copilotRuntimeHandler(req, res);
+    if (!isUserMessage(req)) {
+      return copilotRuntimeHandler(req, res);
+    }
+
+    return this._coinsService.spend(
+      organization.id,
+      'message',
+      async () => copilotRuntimeHandler(req, res),
+      userMessageText(req)
+    );
   }
 
   @Post('/agent')
@@ -106,11 +145,21 @@ export class CopilotController {
       cors: copilotCors(),
       runtime,
       serviceAdapter: new OpenAIAdapter({
-        model: 'gpt-4.1',
+        openai: createOpenAIClient(),
+        model: aiConfig.textModel,
       }),
     });
 
-    return copilotRuntimeHandler(req, res);
+    if (!isUserMessage(req)) {
+      return copilotRuntimeHandler(req, res);
+    }
+
+    return this._coinsService.spend(
+      organization.id,
+      'message',
+      async () => copilotRuntimeHandler(req, res),
+      userMessageText(req)
+    );
   }
 
   @Get('/credits')

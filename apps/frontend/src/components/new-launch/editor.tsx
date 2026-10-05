@@ -407,7 +407,7 @@ export const EditorWrapper: FC<{
               )}
             </div>
             <div>
-              <div className="text-white rounded-[8px] h-[44px] px-[20px] bg-[#D82D7E] cursor-pointer flex justify-center items-center">
+              <div className="text-white rounded-[8px] h-[44px] px-[20px] bg-[#E23E14] cursor-pointer flex justify-center items-center">
                 {t('edit_content', 'Edit content')}
               </div>
             </div>
@@ -471,7 +471,7 @@ export const EditorWrapper: FC<{
                             onClick={goBackToGlobal}
                           >
                             <div className="flex gap-[6px] items-center">
-                              <div className="w-[8px] h-[8px] rounded-full bg-[#FC69FF]" />
+                              <div className="w-[8px] h-[8px] rounded-full bg-[#FF8A65]" />
                               <div className="text-[14px] font-[600]">
                                 {t(
                                   'editing_a_specific_network',
@@ -826,8 +826,9 @@ export const Editor: FC<{
                           <EmojiPicker
                             height={400}
                             theme={
-                              (localStorage.getItem('mode') as Theme) ||
-                              Theme.DARK
+                              document.body.classList.contains('dark')
+                                ? Theme.DARK
+                                : Theme.LIGHT
                             }
                             onEmojiClick={(e) => {
                               addText(e.emoji);

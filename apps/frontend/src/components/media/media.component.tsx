@@ -24,6 +24,7 @@ import clsx from 'clsx';
 import { VideoFrame } from '@gitroom/react/helpers/video.frame';
 import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { AiImage } from '@gitroom/frontend/components/launches/ai.image';
 import { DropFiles } from '@gitroom/frontend/components/layout/drop.files';
@@ -52,6 +53,7 @@ import {
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useDebounce } from 'use-debounce';
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
@@ -207,7 +209,8 @@ export const MediaBox: FC<{
   standalone?: boolean;
   type?: 'image' | 'video';
   closeModal: () => void;
-}> = ({ type, standalone, setMedia }) => {
+  onCreatePost?: (media: Media) => void;
+}> = ({ type, standalone, setMedia, onCreatePost }) => {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
@@ -353,17 +356,17 @@ export const MediaBox: FC<{
         title: '',
         top: 10,
         children: (
-          <div className="w-full h-full p-[50px]">
+          <div className="w-full h-full p-[50px] flex justify-center items-center">
             {hasExtension(media.path, 'mp4') ? (
-              <VideoFrame
-                autoplay={true}
-                url={mediaDirectory.set(media.path)}
-              />
+              <div className="w-full h-[75vh] [&_video]:object-contain">
+                <VideoFrame
+                  autoplay={true}
+                  url={mediaDirectory.set(media.path)}
+                />
+              </div>
             ) : (
               <img
-                width="100%"
-                height="100%"
-                className="w-full h-full max-h-[100%] max-w-[100%] object-cover"
+                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
                 src={mediaDirectory.set(media.path)}
                 alt="media"
               />
@@ -433,7 +436,7 @@ export const MediaBox: FC<{
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('search_media_by_name', 'Search by file name')}
-              className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#612BD3]"
+              className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#FF5227]"
             />
           </div>
           <input
@@ -448,6 +451,22 @@ export const MediaBox: FC<{
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
         </div>
+        {standalone && !!data?.results?.length && (
+          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
+            <div className="flex-1 text-newTextColor/[0.8]">
+              {t(
+                'media_library_next_steps',
+                'Your uploads are saved here. Click "Create Post" on any media to schedule it, or attach it to a message in the Agent.'
+              )}
+            </div>
+            <Link
+              href="/launches"
+              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap"
+            >
+              {t('go_to_calendar', 'Go to Calendar')}
+            </Link>
+          </div>
+        )}
         <div className="w-full pointer-events-none relative mt-[5px] mb-[5px]">
           <div className="w-full h-[46px] overflow-hidden absolute left-0 bg-newBgColorInner uppyChange">
             <Dashboard
@@ -546,13 +565,13 @@ export const MediaBox: FC<{
                     className={clsx(
                       'w-full h-full rounded-[6px] border-[4px] relative',
                       !!selected.find((p) => p.id === media.id)
-                        ? 'border-[#612BD3]'
+                        ? 'border-[#FF5227]'
                         : 'border-transparent'
                     )}
                     onClick={addRemoveSelected(media)}
                   >
                     {!!selected.find((p: any) => p.id === media.id) ? (
-                      <div className="text-white flex z-[101] justify-center items-center text-[14px] font-[500] w-[24px] h-[24px] rounded-full bg-[#612BD3] absolute -bottom-[10px] -end-[10px]">
+                      <div className="text-white flex z-[101] justify-center items-center text-[14px] font-[500] w-[24px] h-[24px] rounded-full bg-[#FF5227] absolute -bottom-[10px] -end-[10px]">
                         {selected.findIndex((z: any) => z.id === media.id) + 1}
                       </div>
                     ) : (
@@ -562,6 +581,18 @@ export const MediaBox: FC<{
                       />
                     )}
                     <div className="absolute bottom-[10px] end-[10px] z-[100]">{media.originalName}</div>
+                    {!!onCreatePost && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreatePost(media);
+                        }}
+                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                      >
+                        <PlusIcon size={10} />
+                        {t('create_new_post', 'Create Post')}
+                      </button>
+                    )}
                     <div className="w-full h-full rounded-[6px] overflow-hidden relative">
                       <div className="absolute z-[20] left-[50%] top-[50%] -translate-x-[50%] -translate-y-[50%]">
                         <div
@@ -618,7 +649,7 @@ export const MediaBox: FC<{
               <button
                 onClick={standalone ? () => {} : addMedia}
                 disabled={selected.length === 0}
-                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] px-[20px] items-center justify-center bg-[#612BD3] flex rounded-[10px]"
+                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] px-[20px] items-center justify-center bg-[#FF5227] flex rounded-[10px]"
               >
                 {t('add_selected_media', 'Add selected media')}
               </button>
@@ -681,6 +712,7 @@ export const MultiMediaComponent: FC<{
   const user = useUser();
   const modals = useModals();
   const t = useT();
+  const { plontoKey } = useVariables();
   useEffect(() => {
     if (value) {
       setCurrentMedia(value);
@@ -841,19 +873,21 @@ export const MultiMediaComponent: FC<{
                   </div>
                 </div>
               </div>
-              <div
-                onClick={designMedia}
-                className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
-              >
-                <div className="flex gap-[5px] items-center">
-                  <div>
-                    <DesignMediaIcon />
-                  </div>
-                  <div className="text-[10px] font-[600] iconBreak:hidden block">
-                    {t('design_media', 'Design Media')}
+              {!!plontoKey && (
+                <div
+                  onClick={designMedia}
+                  className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                >
+                  <div className="flex gap-[5px] items-center">
+                    <div>
+                      <DesignMediaIcon />
+                    </div>
+                    <div className="text-[10px] font-[600] iconBreak:hidden block">
+                      {t('design_media', 'Design Media')}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <ThirdPartyMedia allData={allData} onChange={changeMedia} />
 
@@ -913,6 +947,7 @@ export const MediaComponent: FC<{
     props;
   const { getValues } = useSettings();
   const user = useUser();
+  const { plontoKey } = useVariables();
   useEffect(() => {
     const settings = getValues()[props.name];
     if (settings) {
@@ -987,9 +1022,11 @@ export const MediaComponent: FC<{
       )}
       <div className="flex gap-[5px]">
         <Button onClick={showModal}>{t('select', 'Select')}</Button>
-        <Button onClick={showDesignModal} className="!bg-customColor45">
-          {t('editor', 'Editor')}
-        </Button>
+        {!!plontoKey && (
+          <Button onClick={showDesignModal} className="!bg-customColor45">
+            {t('editor', 'Editor')}
+          </Button>
+        )}
         <Button secondary={true} onClick={clearMedia}>
           {t('clear', 'Clear')}
         </Button>

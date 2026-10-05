@@ -56,52 +56,7 @@ export const ContinueIntegration: FC<{
     },
     [logged, push]
   );
-  const modifiedParams = useMemo(() => {
-    if (provider === 'mewe') {
-      return {
-        state: searchParams.state || '',
-        code: searchParams.loginRequestToken || '',
-        refresh: searchParams.refresh || '',
-      };
-    }
-    if (provider === 'x') {
-      return {
-        state: searchParams.oauth_token || '',
-        code: searchParams.oauth_verifier || '',
-        refresh: searchParams.refresh || '',
-      };
-    }
-
-    if (provider === 'tiktok-business') {
-      // The TikTok Business API redirects back with `auth_code` instead of `code`
-      return {
-        state: searchParams.state || '',
-        code: searchParams.auth_code || searchParams.code || '',
-        refresh: searchParams.refresh || '',
-      };
-    }
-
-    if (provider === 'vk') {
-      return {
-        ...searchParams,
-        state: searchParams.state || '',
-        code: searchParams.code + '&&&&' + searchParams.device_id,
-      };
-    }
-
-    if (provider === 'mewe') {
-      const hash =
-        typeof window !== 'undefined' ? window.location.hash.substring(1) : '';
-      const hashParams = new URLSearchParams(hash);
-      return {
-        state: hashParams.get('state') || searchParams.state || '',
-        code: hashParams.get('loginRequestToken') || '',
-        refresh: searchParams.refresh || '',
-      };
-    }
-
-    return searchParams;
-  }, []);
+  const modifiedParams = useMemo(() => searchParams, []);
 
   useEffect(() => {
     (async () => {
@@ -267,13 +222,8 @@ export const ContinueIntegration: FC<{
 
   const providerDisplayName = useMemo(() => {
     const names: Record<string, string> = {
-      facebook: 'Facebook',
-      instagram: 'Instagram',
-      'linkedin-page': 'LinkedIn',
       youtube: 'YouTube',
-      gmb: 'Google Business',
-      tumblr: 'Tumblr',
-      'tiktok-business': 'TikTok Business',
+      tiktok: 'TikTok',
     };
     return names[provider] || provider;
   }, [provider]);
@@ -284,8 +234,8 @@ export const ContinueIntegration: FC<{
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
         {/* Background gradient decoration */}
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#612BD3] rounded-full blur-[120px]" />
-          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FC69FF] rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#FF5227] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FF8A65] rounded-full blur-[120px]" />
         </div>
 
         <div className="relative z-10 text-center">
@@ -323,8 +273,8 @@ export const ContinueIntegration: FC<{
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
         {/* Background gradient decoration */}
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#612BD3] rounded-full blur-[120px]" />
-          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FC69FF] rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#FF5227] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FF8A65] rounded-full blur-[120px]" />
         </div>
 
         {/* Content */}
@@ -381,8 +331,8 @@ export const ContinueIntegration: FC<{
       <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
         {/* Background gradient decoration */}
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#612BD3] rounded-full blur-[120px]" />
-          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FC69FF] rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#FF5227] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FF8A65] rounded-full blur-[120px]" />
         </div>
 
         <div className="relative z-10 text-center">
@@ -420,8 +370,8 @@ export const ContinueIntegration: FC<{
     <div className="flex flex-1 items-center justify-center text-white relative overflow-hidden">
       {/* Background gradient decoration */}
       <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#612BD3] rounded-full blur-[120px]" />
-        <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FC69FF] rounded-full blur-[120px]" />
+        <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[#FF5227] rounded-full blur-[120px]" />
+        <div className="absolute bottom-[20%] right-[10%] w-[250px] h-[250px] bg-[#FF8A65] rounded-full blur-[120px]" />
       </div>
 
       <div className="relative z-10 text-center">
@@ -433,7 +383,7 @@ export const ContinueIntegration: FC<{
         </div>
         {/* Loading spinner */}
         <div className="mt-[32px] flex justify-center">
-          <div className="w-[48px] h-[48px] border-[3px] border-[#612BD3] border-t-transparent rounded-full animate-spin" />
+          <div className="w-[48px] h-[48px] border-[3px] border-[#FF5227] border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
     </div>
