@@ -32,7 +32,7 @@ export default async function AuthLayout({
             now.
           </div>
           <div className="text-center text-[18px] text-textItemBlur mt-[20px] max-w-[520px]">
-            Plan, schedule and publish to TikTok and YouTube from one calendar,
+            Plan, schedule and publish to TikTok, YouTube and Instagram from one calendar,
             with AI that writes in your voice.
           </div>
         </div>
