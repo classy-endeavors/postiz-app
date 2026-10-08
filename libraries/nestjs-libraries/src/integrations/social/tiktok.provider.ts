@@ -231,7 +231,8 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     ) {
       return {
         type: 'bad-body' as const,
-        value: 'App not approved for public posting, contact support',
+        value:
+          'TikTok only allows private posts until this app passes its audit: set your TikTok account to Private and choose "Only me" in the post settings',
       };
     }
 
