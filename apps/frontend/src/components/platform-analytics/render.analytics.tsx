@@ -229,7 +229,11 @@ export const RenderAnalytics: FC<{
       async () => {
         const { url } = await (
           await fetch(
-            `/integrations/social/${integrationData.identifier}?refresh=${integrationData.internalId}`,
+            `/integrations/social/${
+              integrationData.identifier
+            }?refresh=${integrationData.internalId}&redirectUrl=${encodeURIComponent(
+              '/analytics'
+            )}`,
             {
               method: 'GET',
             }

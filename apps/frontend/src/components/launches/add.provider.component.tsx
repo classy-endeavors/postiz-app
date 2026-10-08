@@ -18,7 +18,11 @@ import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
 const resolver = classValidatorResolver(ApiKeyDto);
 
-export const useAddProvider = (update?: () => void, invite?: boolean) => {
+export const useAddProvider = (
+  update?: () => void,
+  invite?: boolean,
+  redirectUrl?: string
+) => {
   const modal = useModals();
   const fetch = useFetch();
   return useCallback(async () => {
@@ -27,10 +31,43 @@ export const useAddProvider = (update?: () => void, invite?: boolean) => {
       title: 'Add Channel',
       withCloseButton: true,
       children: (
-        <AddProviderComponent invite={!!invite} update={update} {...data} />
+        <AddProviderComponent
+          invite={!!invite}
+          update={update}
+          redirectUrl={redirectUrl}
+          {...data}
+        />
       ),
     });
   }, []);
+};
+export const TopBarAddChannel: FC = () => {
+  const add = useAddProvider();
+  const t = useT();
+
+  return (
+    <button
+      onClick={add}
+      className="text-white whitespace-nowrap h-[36px] px-[14px] rounded-[8px] bg-btnPrimary flex items-center gap-[6px] text-[14px] font-[600] outline-none"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="16"
+        height="16"
+        viewBox="0 0 21 20"
+        fill="none"
+      >
+        <path
+          d="M10.5001 4.16699V15.8337M4.66675 10.0003H16.3334"
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {t('add_channel', 'Add Channel')}
+    </button>
+  );
 };
 export const AddProviderButton: FC<{
   update?: () => void;
@@ -293,8 +330,9 @@ export const AddProviderComponent: FC<{
   update?: () => void;
   onboarding?: boolean;
   isMobile?: boolean;
+  redirectUrl?: string;
 }> = (props) => {
-  const { update, social, article, onboarding, isMobile } = props;
+  const { update, social, article, onboarding, isMobile, redirectUrl } = props;
   const toaster = useToaster();
   const router = useRouter();
   const fetch = useFetch();
@@ -325,6 +363,8 @@ export const AddProviderComponent: FC<{
             onboardingParam,
             isMobile
               ? `redirectUrl=${encodeURIComponent('postiz://integrations')}`
+              : redirectUrl
+              ? `redirectUrl=${encodeURIComponent(redirectUrl)}`
               : '',
           ]
             .filter(Boolean)

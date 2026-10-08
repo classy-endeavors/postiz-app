@@ -39,6 +39,7 @@ import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-c
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
+import { TopBarAddChannel } from '@gitroom/frontend/components/launches/add.provider.component';
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
@@ -112,7 +113,8 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         <div className="text-[24px] font-heading font-[800] tracking-[-0.01em] flex flex-1">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] text-textItemBlur">
+                        <div className="flex gap-[20px] items-center text-textItemBlur">
+                          <TopBarAddChannel />
                           <StreakComponent />
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <OrganizationSelector />
