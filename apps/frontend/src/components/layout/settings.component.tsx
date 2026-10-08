@@ -10,7 +10,6 @@ import React, {
   useState,
 } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
-import { showMediaBox } from '@gitroom/frontend/components/media/media.component';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { classValidatorResolver } from '@hookform/resolvers/class-validator';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
@@ -33,6 +32,7 @@ import { SVGLine } from '@gitroom/frontend/components/launches/launches.componen
 import { GlobalSettings } from '@gitroom/frontend/components/settings/global.settings';
 import { ApprovedAppsComponent } from '@gitroom/frontend/components/approved-apps/approved-apps.component';
 import { ChannelsSettings } from '@gitroom/frontend/components/settings/channels.settings';
+import { ProfileSettings } from '@gitroom/frontend/components/settings/profile.settings';
 export const SettingsPopup: FC<{
   getRef?: Ref<any>;
 }> = (props) => {
@@ -48,7 +48,6 @@ export const SettingsPopup: FC<{
   const form = useForm({
     resolver,
   });
-  const picture = form.watch('picture');
   const modal = useModals();
   const close = useCallback(() => {
     return modal.closeAll();
@@ -61,20 +60,16 @@ export const SettingsPopup: FC<{
     form.setValue('bio', personal.bio || '');
     form.setValue('picture', personal.picture);
   }, []);
-  const openMedia = useCallback(() => {
-    showMediaBox((values) => {
-      form.setValue('picture', values);
-    });
-  }, []);
-  const remove = useCallback(() => {
-    form.setValue('picture', null);
-  }, []);
-
   const submit = useCallback(async (val: any) => {
-    await fetch('/user/personal', {
+    const res = await fetch('/user/personal', {
       method: 'POST',
       body: JSON.stringify(val),
     });
+    if (!res.ok) {
+      toast.show(t('profile_update_failed', 'Could not update profile'), 'warning');
+      return;
+    }
+    swr.mutate('personal');
     if (getRef) {
       return;
     }
@@ -82,11 +77,18 @@ export const SettingsPopup: FC<{
     close();
   }, []);
 
-  const [tab, setTab] = useState('global_settings');
+  const [tab, setTab] = useState(url.get('tab') || 'global_settings');
+  useEffect(() => {
+    const queryTab = url.get('tab');
+    if (queryTab) {
+      setTab(queryTab);
+    }
+  }, [url]);
 
   const t = useT();
   const list = useMemo(() => {
     const arr = [];
+    arr.push({ tab: 'profile', label: t('profile', 'Profile') });
     arr.push({ tab: 'global_settings', label: t('global_settings', 'Global Settings') });
     arr.push({ tab: 'channels', label: t('channels', 'Channels') });
     // Populate tabs based on user permissions
@@ -112,6 +114,12 @@ export const SettingsPopup: FC<{
 
     return arr;
   }, [user, isGeneral, showLogout, t]);
+
+  useEffect(() => {
+    if (!list.some((p) => p.tab === tab)) {
+      setTab('global_settings');
+    }
+  }, [list, tab]);
 
   useEffect(() => {
     loadProfile();
@@ -170,6 +178,11 @@ export const SettingsPopup: FC<{
                 !getRef && 'rounded-[4px]'
               )}
             >
+              {tab === 'profile' && (
+                <div>
+                  <ProfileSettings />
+                </div>
+              )}
               {tab === 'global_settings' && (
                 <div>
                   <GlobalSettings />
