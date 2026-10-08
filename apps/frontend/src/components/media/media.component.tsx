@@ -204,6 +204,34 @@ export const showMediaBox = (
 };
 const CHUNK_SIZE = 1024 * 1024;
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 1024; // 1 GB
+export const useMediaPreview = () => {
+  const modals = useModals();
+  const mediaDirectory = useMediaDirectory();
+  return useCallback(
+    (path: string) => {
+      modals.openModal({
+        title: '',
+        top: 10,
+        children: (
+          <div className="w-full h-full p-[50px] flex justify-center items-center">
+            {hasExtension(path, 'mp4') ? (
+              <div className="w-full h-[75vh] [&_video]:object-contain">
+                <VideoFrame autoplay={true} url={mediaDirectory.set(path)} />
+              </div>
+            ) : (
+              <img
+                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
+                src={mediaDirectory.set(path)}
+                alt="media"
+              />
+            )}
+          </div>
+        ),
+      });
+    },
+    [modals, mediaDirectory]
+  );
+};
 export const MediaBox: FC<{
   setMedia: (params: { id: string; path: string }[]) => void;
   standalone?: boolean;
@@ -349,33 +377,13 @@ export const MediaBox: FC<{
     [toaster, t]
   );
 
+  const preview = useMediaPreview();
   const maximize = useCallback(
     (media: Media) => async (e: any) => {
       e.stopPropagation();
-      modals.openModal({
-        title: '',
-        top: 10,
-        children: (
-          <div className="w-full h-full p-[50px] flex justify-center items-center">
-            {hasExtension(media.path, 'mp4') ? (
-              <div className="w-full h-[75vh] [&_video]:object-contain">
-                <VideoFrame
-                  autoplay={true}
-                  url={mediaDirectory.set(media.path)}
-                />
-              </div>
-            ) : (
-              <img
-                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
-                src={mediaDirectory.set(media.path)}
-                alt="media"
-              />
-            )}
-          </div>
-        ),
-      });
+      preview(media.path);
     },
-    []
+    [preview]
   );
 
   const deleteImage = useCallback(
@@ -721,6 +729,7 @@ export const MultiMediaComponent: FC<{
 
   const [currentMedia, setCurrentMedia] = useState(value);
   const mediaDirectory = useMediaDirectory();
+  const preview = useMediaPreview();
   const changeMedia = useCallback(
     (
       m:
@@ -834,18 +843,27 @@ export const MultiMediaComponent: FC<{
                             ),
                           });
                         }}
-                        className="absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] bg-black/80 rounded-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-[9]"
+                        title={t('media_settings', 'Media Settings')}
+                        className="absolute -end-[6px] -bottom-[6px] bg-black/80 rounded-full opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-[20]"
                       >
-                        <MediaSettingsIcon className="cursor-pointer relative z-[200]" />
-                      </div>
-                      {hasExtension(media?.path, 'mp4') ? (
-                        <VideoFrame url={mediaDirectory.set(media?.path)} />
-                      ) : (
-                        <img
-                          className="w-full h-full object-cover rounded-[4px]"
-                          src={mediaDirectory.set(media?.path)}
+                        <MediaSettingsIcon
+                          size={20}
+                          className="cursor-pointer relative"
                         />
-                      )}
+                      </div>
+                      <div
+                        onClick={() => preview(media.path)}
+                        className="w-full h-full"
+                      >
+                        {hasExtension(media?.path, 'mp4') ? (
+                          <VideoFrame url={mediaDirectory.set(media?.path)} />
+                        ) : (
+                          <img
+                            className="w-full h-full object-cover rounded-[4px]"
+                            src={mediaDirectory.set(media?.path)}
+                          />
+                        )}
+                      </div>
                     </div>
 
                     <CloseCircleIcon

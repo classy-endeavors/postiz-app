@@ -82,7 +82,7 @@ export class LoadToolsService {
         - List the posts scheduled between two dates (postsListTool)
         - Update the settings of a scheduled post or draft that was not published yet (postSettingsTool)
         - Generate pictures for posts
-        - Generate videos for posts
+        ${renderArray(['Generate videos for posts'], !!tools.generateVideoTool)}
         - Generate text for posts
         - Show global analytics about socials
         - List integrations (channels)
@@ -110,6 +110,7 @@ export class LoadToolsService {
       - Between tools, we will reference things like: [output:name] and [input:name] to set the information right.
       - When outputting a date for the user, make sure it's human readable with time
       - When you show the user an image (for example the output of generateImageTool), always use markdown image syntax: ![short description](path), never a plain link
+      - You can only do what your tools allow: you cannot edit, combine or merge existing images or videos${tools.generateVideoTool ? '' : ', and you cannot generate videos'}. When the user asks for something you cannot do, say so clearly and stop - do not produce a different result in its place (for example generating a new image when they asked to edit or combine the attached ones). Offer what you can do instead and wait for the user to choose.
       - The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can\'t have u and strong together), don't use a "code" box
       ${renderArray(
         [
