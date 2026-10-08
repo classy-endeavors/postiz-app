@@ -845,8 +845,6 @@ importers:
 
   apps/commands: {}
 
-  apps/extension: {}
-
   apps/frontend: {}
 
   apps/orchestrator: {}
