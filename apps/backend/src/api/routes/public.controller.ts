@@ -28,6 +28,8 @@ import { OnlyURL } from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
 import { isSafePublicHttpsUrl } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.url.validator';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
+import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
+import { ApproveCoinsDto } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
 
 const pump = promisify(pipeline);
 
@@ -38,7 +40,8 @@ export class PublicController {
     private _trackService: TrackService,
     private _agentGraphInsertService: AgentGraphInsertService,
     private _postsService: PostsService,
-    private _subscriptionService: SubscriptionService
+    private _subscriptionService: SubscriptionService,
+    private _coinsService: CoinsService
   ) {}
   @Post('/agent')
   async createAgent(@Body() body: { text: string; apiKey: string }) {
@@ -244,5 +247,10 @@ export class PublicController {
     try {
       await pump(Readable.fromWeb(r.body as any), res);
     } catch (err) {}
+  }
+
+  @Get('/coins/approve')
+  approveCoins(@Query() query: ApproveCoinsDto) {
+    return this._coinsService.approveRequest(query);
   }
 }

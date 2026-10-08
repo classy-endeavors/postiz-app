@@ -41,11 +41,19 @@ export const getTemporalModule = (
             { identifier: 'main', maxConcurrentJob: undefined },
             ...socialIntegrationList,
           ]
-            .filter((f) => f.identifier.indexOf('-') === -1)
             .map((integration) => ({
               integration,
               taskQueue: integration.identifier.split('-')[0],
             }))
+            // One worker per queue, configured by the provider named like the
+            // queue, or by the first variant when that provider isn't listed
+            // (e.g. only instagram-standalone), so no queue is left unserved
+            .filter(
+              ({ integration, taskQueue }, index, all) =>
+                integration.identifier === taskQueue ||
+                (!all.some((p) => p.integration.identifier === taskQueue) &&
+                  all.findIndex((p) => p.taskQueue === taskQueue) === index)
+            )
             .filter(({ taskQueue }) => !excludeQueues.includes(taskQueue))
             .map(({ integration, taskQueue }) => {
               // Split the per-provider cap across the servers sharing this
