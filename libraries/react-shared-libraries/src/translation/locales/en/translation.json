@@ -804,5 +804,19 @@
   "no_posts_on_this_day": "No posts on this day.",
   "post_publish_error": "An error occurred while publishing this post",
   "calendar_month_hint": "Use Detail on a day for the full status per channel.",
-  "calendar_day_detail_hint": "Full status per channel for this day. Open a post in the editor to change or reschedule it."
+  "calendar_day_detail_hint": "Full status per channel for this day. Open a post in the editor to change or reschedule it.",
+  "profile": "Profile",
+  "profile_description": "Your name and picture are shown to your team.",
+  "change_picture": "Change picture",
+  "upload_picture": "Upload picture",
+  "full_name": "Full name",
+  "your_name": "Your name",
+  "email": "Email",
+  "bio": "Bio",
+  "bio_placeholder": "A few words about you",
+  "save_profile": "Save profile",
+  "my_profile": "My Profile",
+  "no_name_yet": "No name yet",
+  "profile_update_failed": "Could not update profile",
+  "invalid_picture": "Please choose a valid image"
 }

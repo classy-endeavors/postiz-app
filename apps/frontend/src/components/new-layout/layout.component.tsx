@@ -40,6 +40,7 @@ import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/se
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 import { TopBarAddChannel } from '@gitroom/frontend/components/launches/add.provider.component';
+import { ProfileMenu } from '@gitroom/frontend/components/layout/profile.menu';
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
@@ -126,6 +127,8 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <AttachToFeedbackIcon />
                           <NotificationComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <ProfileMenu />
                         </div>
                       </div>
                       <div className="flex flex-1 gap-[1px]">{children}</div>
