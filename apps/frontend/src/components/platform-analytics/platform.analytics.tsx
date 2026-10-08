@@ -10,18 +10,17 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
 import { Select } from '@gitroom/react/form/select';
 import { Button } from '@gitroom/react/form/button';
-import { useRouter } from 'next/navigation';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import useCookie from 'react-use-cookie';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
 const allowedIntegrations = ['tiktok', 'youtube', 'instagram-standalone'];
 export const PlatformAnalytics = () => {
   const fetch = useFetch();
   const t = useT();
-  const router = useRouter();
   const { disableXAnalytics } = useVariables();
 
   const [current, setCurrent] = useState(0);
@@ -29,6 +28,7 @@ export const PlatformAnalytics = () => {
   const [refresh, setRefresh] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
   const toaster = useToaster();
+  const addChannel = useAddProvider(undefined, false, '/analytics');
   const load = useCallback(async () => {
     const int = (
       await (await fetch('/integrations/list')).json()
@@ -118,12 +118,7 @@ export const PlatformAnalytics = () => {
           {t('supported', 'Supported:')}
           {allowedIntegrations.map((p) => capitalize(p)).join(', ')}
         </div>
-        <Button onClick={() => router.push('/launches')}>
-          {t(
-            'go_to_the_calendar_to_add_channels',
-            'Go to the calendar to add channels'
-          )}
-        </Button>
+        <Button onClick={addChannel}>{t('add_channel', 'Add Channel')}</Button>
       </div>
     );
   }

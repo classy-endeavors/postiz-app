@@ -18,7 +18,11 @@ import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
 const resolver = classValidatorResolver(ApiKeyDto);
 
-export const useAddProvider = (update?: () => void, invite?: boolean) => {
+export const useAddProvider = (
+  update?: () => void,
+  invite?: boolean,
+  redirectUrl?: string
+) => {
   const modal = useModals();
   const fetch = useFetch();
   return useCallback(async () => {
@@ -27,7 +31,12 @@ export const useAddProvider = (update?: () => void, invite?: boolean) => {
       title: 'Add Channel',
       withCloseButton: true,
       children: (
-        <AddProviderComponent invite={!!invite} update={update} {...data} />
+        <AddProviderComponent
+          invite={!!invite}
+          update={update}
+          redirectUrl={redirectUrl}
+          {...data}
+        />
       ),
     });
   }, []);
@@ -293,8 +302,9 @@ export const AddProviderComponent: FC<{
   update?: () => void;
   onboarding?: boolean;
   isMobile?: boolean;
+  redirectUrl?: string;
 }> = (props) => {
-  const { update, social, article, onboarding, isMobile } = props;
+  const { update, social, article, onboarding, isMobile, redirectUrl } = props;
   const toaster = useToaster();
   const router = useRouter();
   const fetch = useFetch();
@@ -325,6 +335,8 @@ export const AddProviderComponent: FC<{
             onboardingParam,
             isMobile
               ? `redirectUrl=${encodeURIComponent('postiz://integrations')}`
+              : redirectUrl
+              ? `redirectUrl=${encodeURIComponent(redirectUrl)}`
               : '',
           ]
             .filter(Boolean)
