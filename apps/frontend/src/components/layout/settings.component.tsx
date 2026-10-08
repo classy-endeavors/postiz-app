@@ -1,4 +1,5 @@
 'use client';
+import 'reflect-metadata';
 
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import React, {

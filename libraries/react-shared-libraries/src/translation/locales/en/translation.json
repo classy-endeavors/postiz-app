@@ -817,5 +817,6 @@
   "save_profile": "Save profile",
   "my_profile": "My Profile",
   "no_name_yet": "No name yet",
-  "profile_update_failed": "Could not update profile"
+  "profile_update_failed": "Could not update profile",
+  "invalid_picture": "Please choose a valid image"
 }

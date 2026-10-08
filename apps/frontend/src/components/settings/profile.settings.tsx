@@ -16,6 +16,7 @@ export const ProfileSettings: FC = () => {
   const form = useFormContext();
   const picture = form.watch('picture');
   const fullname = form.watch('fullname');
+  const pictureError = form.formState.errors.picture as any;
 
   const openMedia = useCallback(() => {
     showMediaBox((value) => {
@@ -58,6 +59,13 @@ export const ProfileSettings: FC = () => {
           )}
         </div>
       </div>
+      {!!pictureError && (
+        <div className="text-red-400 text-[12px] -mt-[12px]">
+          {pictureError.message ||
+            pictureError.path?.message ||
+            t('invalid_picture', 'Please choose a valid image')}
+        </div>
+      )}
       <div className="flex flex-col">
         <Input
           label={t('full_name', 'Full name')}
