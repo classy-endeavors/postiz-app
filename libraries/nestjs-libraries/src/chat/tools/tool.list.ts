@@ -17,6 +17,8 @@ import { PostSettingsTool } from '@gitroom/nestjs-libraries/chat/tools/post.sett
 import { UploadWidgetTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.tool';
 import { UploadWidgetTicketTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.ticket.tool';
 import { UploadWidgetStatusTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.status.tool';
+import { YoutubeDirectPublishTool } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.publish.tool';
+import { YoutubeDirectPublishStatusTool } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.publish.status.tool';
 
 export const toolList = [
   IntegrationListTool,
@@ -38,4 +40,6 @@ export const toolList = [
   UploadWidgetTool,
   UploadWidgetTicketTool,
   UploadWidgetStatusTool,
+  YoutubeDirectPublishTool,
+  YoutubeDirectPublishStatusTool,
 ];
