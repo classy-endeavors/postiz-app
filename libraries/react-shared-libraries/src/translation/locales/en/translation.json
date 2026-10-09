@@ -826,5 +826,7 @@
   "mcp_cap_schedule": "Schedule and list posts",
   "mcp_cap_media": "Upload media from a URL",
   "mcp_cap_images": "Generate images",
-  "mcp_cap_youtube": "Publish to YouTube directly"
+  "mcp_cap_youtube": "Publish to YouTube directly",
+  "api_key": "API Key",
+  "apps": "Apps"
 }

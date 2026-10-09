@@ -807,24 +807,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
 
     if (pendingData.thumbnail) {
-      const { client, youtube } = clientAndYoutube();
-      client.setCredentials({ access_token: accessToken });
-      const youtubeClient = youtube(client);
-
-      await this.runInConcurrent(async () =>
-        youtubeClient.thumbnails.set({
-          videoId,
-          media: {
-            body: (
-              await this.getSsrfSafeAxios()({
-                url: pendingData.thumbnail,
-                method: 'GET',
-                responseType: 'stream',
-              })
-            ).data,
-          },
-        })
-      );
+      await this.setThumbnail(accessToken, videoId, pendingData.thumbnail);
     }
 
     return {
@@ -896,12 +879,33 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
   }
 
-  // Streams a video from a public URL straight to the channel without storing
-  // it. With publishAt the video is uploaded private and YouTube itself
-  // publishes it at that time, so it shows as scheduled in YouTube Studio.
-  async directPublish(
+  async setThumbnail(accessToken: string, videoId: string, url: string) {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: accessToken });
+    const youtubeClient = youtube(client);
+
+    await this.runInConcurrent(async () =>
+      youtubeClient.thumbnails.set({
+        videoId,
+        media: {
+          body: (
+            await this.getSsrfSafeAxios()({
+              url,
+              method: 'GET',
+              responseType: 'stream',
+            })
+          ).data,
+        },
+      })
+    );
+  }
+
+  // Starts streaming a video from a public URL straight to the channel without
+  // storing it; the caller drives finalizePost with the returned pendingData.
+  // With publishAt the video is uploaded private and YouTube itself publishes
+  // it at that time, so it shows as scheduled in YouTube Studio.
+  async startDirectPublish(
     accessToken: string,
-    integration: Integration,
     video: {
       videoUrl: string;
       title: string;
@@ -910,7 +914,6 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       privacy: 'public' | 'private' | 'unlisted';
       madeForKids: boolean;
       publishAt?: string;
-      thumbnailUrl?: string;
       notifySubscribers: boolean;
     }
   ) {
@@ -933,38 +936,13 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       video.notifySubscribers
     );
 
-    let pendingData = {
+    return {
       uploadUri,
       videoSize,
       path: video.videoUrl,
       uploadedBytes: 0,
-      thumbnail: video.thumbnailUrl || '',
+      thumbnail: '',
     };
-    const started = Date.now();
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (Date.now() - started > 2 * 60 * 60 * 1000) {
-        throw new BadBody(
-          this.identifier,
-          '{}',
-          '{}',
-          'The video upload took too long, please try a smaller video'
-        );
-      }
-
-      const finalize = await this.finalizePost(
-        accessToken,
-        pendingData,
-        integration
-      );
-
-      if (finalize.status === 'completed') {
-        return { videoId: finalize.postId, releaseURL: finalize.releaseURL };
-      }
-
-      pendingData = finalize.pendingData;
-    }
   }
 
   async analytics(

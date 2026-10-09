@@ -5,8 +5,10 @@ import { Injectable } from '@nestjs/common';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import {
+  DirectPublishJob,
   youtubeDirectPublishKey,
   youtubeDirectPublishOutput,
+  youtubeDirectPublishTimeout,
 } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.publish.tool';
 
 @Injectable()
@@ -41,17 +43,38 @@ export class YoutubeDirectPublishStatusTool implements AgentToolInterface {
           (context?.requestContext as any)?.get('organization') as string
         );
 
-        const saved = await ioRedis.get(
-          youtubeDirectPublishKey(inputData.jobId)
-        );
-        const job = saved ? JSON.parse(saved) : null;
+        try {
+          const saved = await ioRedis.get(
+            youtubeDirectPublishKey(inputData.jobId)
+          );
+          const job: DirectPublishJob | null = saved ? JSON.parse(saved) : null;
 
-        if (!job || job.organizationId !== org.id) {
-          return { error: 'No YouTube direct publish found for this jobId' };
+          if (!job || job.organizationId !== org.id) {
+            return { error: 'No YouTube direct publish found for this jobId' };
+          }
+
+          const { organizationId, startedAt, ...result } = job;
+
+          // the server restarted mid-upload, the job will never finish
+          if (
+            result.status === 'uploading' &&
+            Date.now() - startedAt > youtubeDirectPublishTimeout + 10 * 60 * 1000
+          ) {
+            return {
+              ...result,
+              status: 'failed' as const,
+              error: 'The upload was interrupted, please publish the video again',
+            };
+          }
+
+          return result;
+        } catch (err) {
+          return {
+            error: `YouTube direct publish lookup failed: ${
+              (err as Error)?.message || 'unknown error'
+            }`,
+          };
         }
-
-        const { organizationId, ...result } = job;
-        return result;
       },
     });
   }

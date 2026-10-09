@@ -8,7 +8,11 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
-import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import { ApplicationFailure } from '@temporalio/activity';
+import {
+  BadBody,
+  RefreshToken,
+} from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { YoutubeProvider } from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
@@ -18,6 +22,8 @@ import { timer } from '@gitroom/helpers/utils/timer';
 export const youtubeDirectPublishKey = (jobId: string) =>
   `youtubeDirectPublish:${jobId}`;
 
+export const youtubeDirectPublishTimeout = 2 * 60 * 60 * 1000;
+
 export const youtubeDirectPublishOutput = z.object({
   jobId: z.string().optional(),
   status: z
@@ -26,11 +32,13 @@ export const youtubeDirectPublishOutput = z.object({
   videoId: z.string().optional(),
   url: z.string().optional(),
   publishAt: z.string().optional(),
+  warning: z.string().optional(),
   error: z.string().optional(),
 });
 
-type DirectPublishJob = z.infer<typeof youtubeDirectPublishOutput> & {
+export type DirectPublishJob = z.infer<typeof youtubeDirectPublishOutput> & {
   organizationId: string;
+  startedAt: number;
 };
 
 @Injectable()
@@ -53,25 +61,52 @@ export class YoutubeDirectPublishTool implements AgentToolInterface {
     );
   }
 
-  // Runs outside the tool call, an upload can take longer than the MCP client waits
-  private async publish(
-    jobId: string,
+  // Keeps the same resumable session across token refreshes and transient
+  // Google errors, finalizePost probes the session for the offset to resume from
+  private async upload(
+    provider: YoutubeProvider,
     integration: Integration,
-    video: Parameters<YoutubeProvider['directPublish']>[2]
+    video: Parameters<YoutubeProvider['startDirectPublish']>[1]
   ) {
-    const provider = this._integrationManager.getSocialIntegration(
-      'youtube'
-    ) as YoutubeProvider;
+    let pendingData:
+      | Awaited<ReturnType<YoutubeProvider['startDirectPublish']>>
+      | undefined;
     let refreshed = false;
+    let retries = 0;
+    const started = Date.now();
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
-      let uploaded: { videoId: string; releaseURL: string };
-      try {
-        uploaded = await provider.directPublish(
-          integration.token,
-          integration,
-          video
+      if (Date.now() - started > youtubeDirectPublishTimeout) {
+        throw new BadBody(
+          'youtube',
+          '{}',
+          '{}',
+          'The video upload took too long, please try a smaller video'
         );
+      }
+
+      try {
+        if (!pendingData) {
+          pendingData = await provider.startDirectPublish(
+            integration.token,
+            video
+          );
+        }
+
+        const finalize = await provider.finalizePost(
+          integration.token,
+          pendingData,
+          integration
+        );
+        refreshed = false;
+        retries = 0;
+
+        if (finalize.status === 'completed') {
+          return { videoId: finalize.postId, url: finalize.releaseURL };
+        }
+
+        pendingData = finalize.pendingData;
       } catch (err) {
         if (err instanceof RefreshToken && !refreshed) {
           refreshed = true;
@@ -88,37 +123,98 @@ export class YoutubeDirectPublishTool implements AgentToolInterface {
             integration.organizationId,
             integration
           );
+          throw err;
         }
 
+        if (!(err instanceof ApplicationFailure) && retries < 5) {
+          retries++;
+          await timer(15000);
+          continue;
+        }
+
+        throw err;
+      }
+    }
+  }
+
+  // Runs outside the tool call, an upload can take longer than the MCP client waits
+  private async publish(
+    jobId: string,
+    integration: Integration,
+    video: Parameters<YoutubeProvider['startDirectPublish']>[1] & {
+      thumbnailUrl?: string;
+    },
+    startedAt: number
+  ) {
+    const job = {
+      organizationId: integration.organizationId,
+      jobId,
+      startedAt,
+    };
+
+    try {
+      const provider = this._integrationManager.getSocialIntegration(
+        'youtube'
+      ) as YoutubeProvider;
+
+      let uploaded: { videoId: string; url: string };
+      try {
+        uploaded = await this.upload(provider, integration, video);
+      } catch (err) {
+        console.error('youtubeDirectPublishTool upload failed', err);
         await this.saveJob(jobId, {
-          organizationId: integration.organizationId,
-          jobId,
+          ...job,
           status: 'failed',
           error:
             err instanceof RefreshToken
               ? 'The YouTube channel needs to be reconnected in AI Zyntra'
-              : err instanceof Error && err.message
+              : err instanceof ApplicationFailure && err.message
               ? err.message
-              : 'Unexpected error while uploading to YouTube',
+              : 'Unexpected error while uploading to YouTube, please try again',
         });
         return;
       }
 
-      await this._coinsService.chargePost(
-        integration.organizationId,
-        `youtube-direct-${jobId}`,
-        integration.name
-      );
+      let warning: string | undefined;
+      if (video.thumbnailUrl) {
+        try {
+          await provider.setThumbnail(
+            integration.token,
+            uploaded.videoId,
+            video.thumbnailUrl
+          );
+        } catch (err) {
+          console.error('youtubeDirectPublishTool thumbnail failed', err);
+          warning =
+            'The video was uploaded but YouTube did not accept the thumbnail, custom thumbnails need a verified channel and a jpg or png under 2MB';
+        }
+      }
 
       await this.saveJob(jobId, {
-        organizationId: integration.organizationId,
-        jobId,
+        ...job,
         status: video.publishAt ? 'scheduled' : 'published',
         videoId: uploaded.videoId,
-        url: uploaded.releaseURL,
+        url: uploaded.url,
         ...(video.publishAt ? { publishAt: video.publishAt } : {}),
+        ...(warning ? { warning } : {}),
       });
-      return;
+
+      try {
+        await this._coinsService.chargePost(
+          integration.organizationId,
+          `youtube-direct-${jobId}`,
+          integration.name
+        );
+      } catch (err) {
+        console.error('youtubeDirectPublishTool charge failed', err);
+      }
+    } catch (err) {
+      console.error('youtubeDirectPublishTool failed', err);
+      await this.saveJob(jobId, {
+        ...job,
+        status: 'failed',
+        error: 'Unexpected error while uploading to YouTube, please try again',
+      }).catch(() => undefined);
     }
   }
 
@@ -255,23 +351,30 @@ Small videos usually finish within the call. If the status is "uploading", call 
         }
 
         const jobId = makeId(16);
+        const startedAt = Date.now();
         await this.saveJob(jobId, {
           organizationId: org.id,
           jobId,
+          startedAt,
           status: 'uploading',
         });
 
-        const job = this.publish(jobId, integration, {
-          videoUrl: inputData.videoUrl,
-          title: inputData.title,
-          description: inputData.description,
-          tags: inputData.tags,
-          privacy: inputData.privacy,
-          madeForKids: inputData.madeForKids,
-          publishAt,
-          thumbnailUrl: inputData.thumbnailUrl,
-          notifySubscribers: inputData.notifySubscribers,
-        }).catch(() => undefined);
+        const job = this.publish(
+          jobId,
+          integration,
+          {
+            videoUrl: inputData.videoUrl,
+            title: inputData.title,
+            description: inputData.description,
+            tags: inputData.tags,
+            privacy: inputData.privacy,
+            madeForKids: inputData.madeForKids,
+            publishAt,
+            thumbnailUrl: inputData.thumbnailUrl,
+            notifySubscribers: inputData.notifySubscribers,
+          },
+          startedAt
+        );
 
         await Promise.race([job, timer(50000)]);
 
@@ -280,7 +383,7 @@ Small videos usually finish within the call. If the status is "uploading", call 
           return { jobId, status: 'uploading' as const };
         }
 
-        const { organizationId, ...result } = JSON.parse(
+        const { organizationId, startedAt: _, ...result } = JSON.parse(
           saved
         ) as DirectPublishJob;
 

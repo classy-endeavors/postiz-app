@@ -731,7 +731,7 @@ const McpHero = ({ orgName }: { orgName?: string }) => {
             {capabilities.map((capability) => (
               <span
                 key={capability}
-                className="flex items-center gap-[6px] h-[30px] px-[12px] rounded-full border border-newBorder bg-newBgColorInnerInner text-[13px] font-[500]"
+                className="flex items-center gap-[6px] h-[30px] px-[12px] rounded-full border border-newBorder bg-newBgColorInner text-[13px] font-[500]"
               >
                 <svg
                   width="12"
