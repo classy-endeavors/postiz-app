@@ -17,7 +17,12 @@ import useCookie from 'react-use-cookie';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
-const allowedIntegrations = ['tiktok', 'youtube', 'instagram-standalone'];
+const allowedIntegrations = [
+  'tiktok',
+  'youtube',
+  'instagram-standalone',
+  'linkedin-page',
+];
 export const PlatformAnalytics = () => {
   const fetch = useFetch();
   const t = useT();
@@ -74,7 +79,9 @@ export const PlatformAnalytics = () => {
         value: t('30_days', '30 Days'),
       });
     }
-    if (currentIntegration.identifier === 'youtube') {
+    if (
+      ['youtube', 'linkedin-page'].indexOf(currentIntegration.identifier) !== -1
+    ) {
       arr.push({
         key: 90,
         value: t('90_days', '90 Days'),

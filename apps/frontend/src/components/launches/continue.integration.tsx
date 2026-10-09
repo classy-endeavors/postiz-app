@@ -224,6 +224,8 @@ export const ContinueIntegration: FC<{
     const names: Record<string, string> = {
       youtube: 'YouTube',
       tiktok: 'TikTok',
+      linkedin: 'LinkedIn',
+      'linkedin-page': 'LinkedIn',
     };
     return names[provider] || provider;
   }, [provider]);
