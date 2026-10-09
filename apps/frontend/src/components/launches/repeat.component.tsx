@@ -9,6 +9,10 @@ import clsx from 'clsx';
 import { RepeatIcon, DropdownArrowIcon } from '@gitroom/frontend/components/ui/icons';
 const getList = (t: (key: string, fallback: string) => string) => [
   {
+    value: null,
+    label: t('repeat_off', 'Off'),
+  },
+  {
     value: 1,
     label: t('day', 'Day'),
   },
@@ -43,10 +47,6 @@ const getList = (t: (key: string, fallback: string) => string) => [
   {
     value: 30,
     label: t('month', 'Month'),
-  },
-  {
-    value: null,
-    label: t('cancel', 'Cancel'),
   },
 ];
 export const RepeatComponent: FC<{
@@ -90,7 +90,7 @@ export const RepeatComponent: FC<{
         <div className="cursor-pointer">
           {repeat
             ? `${t('repeat_post_every_label', 'Repeat Post Every')} ${everyLabel}`
-            : t('repeat_post_every', 'Repeat Post Every...')}
+            : `${t('repeat', 'Repeat')}: ${t('repeat_off', 'Off')}`}
         </div>
         <div className="cursor-pointer">
           <DropdownArrowIcon rotated={isOpen} />
@@ -105,7 +105,10 @@ export const RepeatComponent: FC<{
                 setIsOpen(false);
               }}
               key={p.label}
-              className="h-[40px] py-[8px] px-[20px] -mx-[12px] hover:bg-newBgColor"
+              className={clsx(
+                'cursor-pointer h-[40px] py-[8px] px-[20px] -mx-[12px] hover:bg-newBgColor',
+                (repeat || null) === p.value && 'text-[#FF5227] font-[700]'
+              )}
             >
               {p.label}
             </div>
