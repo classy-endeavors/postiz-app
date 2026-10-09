@@ -496,7 +496,7 @@ const McpSection = ({
 
 const PublicApiContent = () => {
   const user = useUser();
-  const { backendUrl, frontEndUrl, mcpUrl } = useVariables();
+  const { frontEndUrl } = useVariables();
   const toaster = useToaster();
   const fetch = useFetch();
   const decision = useDecisionModal();
@@ -527,8 +527,6 @@ const PublicApiContent = () => {
   if (!user || !user.publicApi) {
     return null;
   }
-
-  const mcpBase = mcpUrl || backendUrl;
 
   return (
     <div className="flex flex-col gap-[40px]">
@@ -665,8 +663,94 @@ const PublicApiContent = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      <McpSection user={user} mcpBase={mcpBase} />
+const McpConnectContent = () => {
+  const user = useUser();
+  const { backendUrl, mcpUrl } = useVariables();
+
+  if (!user || !user.publicApi) {
+    return null;
+  }
+
+  return <McpSection user={user} mcpBase={mcpUrl || backendUrl} />;
+};
+
+const McpHero = ({ orgName }: { orgName?: string }) => {
+  const t = useT();
+  const capabilities = [
+    t('mcp_cap_schedule', 'Schedule and list posts'),
+    t('mcp_cap_media', 'Upload media from a URL'),
+    t('mcp_cap_images', 'Generate images'),
+    t('mcp_cap_youtube', 'Publish to YouTube directly'),
+  ];
+
+  return (
+    <div className="relative overflow-hidden rounded-[16px] border border-newBorder bg-newBgColorInner p-[24px]">
+      <div className="pointer-events-none absolute -top-[120px] -end-[80px] w-[320px] h-[320px] rounded-full bg-[#FF5227]/20 blur-[70px]" />
+      <div className="pointer-events-none absolute -bottom-[140px] start-[30%] w-[260px] h-[260px] rounded-full bg-[#FF8A3D]/10 blur-[70px]" />
+      <div className="relative flex items-start gap-[18px]">
+        <div className="shrink-0 w-[56px] h-[56px] rounded-[16px] bg-gradient-to-br from-[#FF5227] to-[#FF8A3D] text-white flex items-center justify-center shadow-[0_10px_30px_rgba(255,82,39,0.35)]">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 22v-5" />
+            <path d="M9 8V2" />
+            <path d="M15 8V2" />
+            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+          </svg>
+        </div>
+        <div className="flex flex-col gap-[6px] min-w-0">
+          <div className="flex flex-wrap items-center gap-[10px]">
+            <h3 className="text-[24px] font-[700] leading-[1.2]">
+              {t('mcp', 'MCP')}
+            </h3>
+            <span className="text-[12px] font-[600] px-[10px] py-[3px] rounded-full bg-[#FF5227]/15 text-[#FF5227]">
+              {t('model_context_protocol', 'Model Context Protocol')}
+            </span>
+            {!!orgName && (
+              <span className="text-[13px] text-textItemBlur">{orgName}</span>
+            )}
+          </div>
+          <div className="text-[14px] text-textItemBlur max-w-[680px] leading-[1.6]">
+            {t(
+              'mcp_hero_description',
+              'Connect Cursor, Claude, ChatGPT and other AI assistants to AI Zyntra, then ask them to plan, create and publish your posts.'
+            )}
+          </div>
+          <div className="flex flex-wrap gap-[8px] mt-[10px]">
+            {capabilities.map((capability) => (
+              <span
+                key={capability}
+                className="flex items-center gap-[6px] h-[30px] px-[12px] rounded-full border border-newBorder bg-newBgColorInner text-[13px] font-[500]"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#FF5227"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {capability}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -675,7 +759,7 @@ export const PublicComponent = () => {
   const t = useT();
   const fetch = useFetch();
   const user = useUser();
-  const [subTab, setSubTab] = useState<'api' | 'developer'>('api');
+  const [subTab, setSubTab] = useState<'mcp' | 'api' | 'developer'>('mcp');
   const loadOrganizations = useCallback(async () => {
     return await (await fetch('/user/organizations')).json();
   }, []);
@@ -691,30 +775,30 @@ export const PublicComponent = () => {
   }, [organizations, user?.orgId]);
 
   return (
-    <div className="flex flex-col gap-[20px]">
-      <h3 className="text-[20px]">
-        {t('developers', 'Developers')}
-        {currentOrg?.name ? ` - ${currentOrg.name}` : ''}
-      </h3>
-      <div className="flex gap-[6px]">
-        {(['api', 'developer'] as const).map((tab) => (
+    <div className="flex flex-col gap-[24px]">
+      <McpHero orgName={currentOrg?.name} />
+      <div className="self-start flex gap-[4px] p-[4px] rounded-[12px] border border-newBorder bg-newBgColorInner">
+        {(['mcp', 'api', 'developer'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
             className={clsx(
-              'cursor-pointer px-[20px] h-[44px] text-[15px] font-[600] rounded-[8px] transition-colors',
+              'cursor-pointer px-[18px] h-[38px] text-[14px] font-[600] rounded-[8px] transition-all',
               subTab === tab
-                ? 'bg-[#FF5227] text-white'
-                : 'bg-btnSimple text-customColor18 hover:bg-boxHover hover:text-textColor'
+                ? 'bg-[#FF5227] text-white shadow-[0_4px_14px_rgba(255,82,39,0.35)]'
+                : 'text-textItemBlur hover:bg-boxHover hover:text-newTextColor'
             )}
             onClick={() => setSubTab(tab)}
           >
-            {tab === 'api'
-              ? t('access', 'Access')
+            {tab === 'mcp'
+              ? t('connect', 'Connect')
+              : tab === 'api'
+              ? t('api_key', 'API Key')
               : t('apps', 'Apps')}
           </button>
         ))}
       </div>
+      {subTab === 'mcp' && <McpConnectContent />}
       {subTab === 'api' && <PublicApiContent />}
       {subTab === 'developer' && <DeveloperComponent />}
     </div>

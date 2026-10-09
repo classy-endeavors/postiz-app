@@ -158,6 +158,17 @@ export class CoinsRepository {
     });
   }
 
+  getTransaction(id: string) {
+    return this._coins.model.coinTransaction.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   removeTransaction(organizationId: string, id: string) {
     return this._coins.model.coinTransaction.deleteMany({
       where: {

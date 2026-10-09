@@ -548,23 +548,24 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     );
   }
 
-  async postPending(
-    id: string,
+  // Start a resumable upload session: nothing exists on the channel until
+  // the final byte is received, so nothing here is irreversible yet - the
+  // bytes themselves are streamed by finalizePost.
+  private async startUploadSession(
     accessToken: string,
-    postDetails: PostDetails[],
-    integration: Integration
-  ): Promise<PostResponse[]> {
-    const [firstPost, ...comments] = postDetails;
-
-    const { settings }: { settings: YoutubeSettingsDto } = firstPost;
-    const path = firstPost?.media?.[0]?.path!;
-    const videoSize = await this.youtubeMediaSize(path);
-
-    // Start a resumable upload session: nothing exists on the channel until
-    // the final byte is received, so nothing here is irreversible yet - the
-    // bytes themselves are streamed by finalizePost, outside this activity.
+    videoSize: number,
+    video: {
+      snippet: { title: string; description?: string; tags?: string[] };
+      status: {
+        privacyStatus: string;
+        selfDeclaredMadeForKids: boolean;
+        publishAt?: string;
+      };
+    },
+    notifySubscribers = true
+  ) {
     const session = await this.fetch(
-      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=id,snippet,status&notifySubscribers=true',
+      `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=id,snippet,status&notifySubscribers=${notifySubscribers}`,
       {
         method: 'POST',
         headers: {
@@ -573,19 +574,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           'X-Upload-Content-Type': 'video/mp4',
           'X-Upload-Content-Length': String(videoSize),
         },
-        body: JSON.stringify({
-          snippet: {
-            title: settings.title,
-            description: firstPost?.message,
-            ...(settings?.tags?.length
-              ? { tags: settings.tags.map((p) => p.label) }
-              : {}),
-          },
-          status: {
-            privacyStatus: settings.type,
-            selfDeclaredMadeForKids: settings.selfDeclaredMadeForKids === 'yes',
-          },
-        }),
+        body: JSON.stringify(video),
       }
     );
 
@@ -598,6 +587,35 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
         'Could not start the video upload, please try again'
       );
     }
+
+    return uploadUri;
+  }
+
+  async postPending(
+    id: string,
+    accessToken: string,
+    postDetails: PostDetails[],
+    integration: Integration
+  ): Promise<PostResponse[]> {
+    const [firstPost, ...comments] = postDetails;
+
+    const { settings }: { settings: YoutubeSettingsDto } = firstPost;
+    const path = firstPost?.media?.[0]?.path!;
+    const videoSize = await this.youtubeMediaSize(path);
+
+    const uploadUri = await this.startUploadSession(accessToken, videoSize, {
+      snippet: {
+        title: settings.title,
+        description: firstPost?.message,
+        ...(settings?.tags?.length
+          ? { tags: settings.tags.map((p) => p.label) }
+          : {}),
+      },
+      status: {
+        privacyStatus: settings.type,
+        selfDeclaredMadeForKids: settings.selfDeclaredMadeForKids === 'yes',
+      },
+    });
 
     return [
       {
@@ -789,24 +807,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
 
     if (pendingData.thumbnail) {
-      const { client, youtube } = clientAndYoutube();
-      client.setCredentials({ access_token: accessToken });
-      const youtubeClient = youtube(client);
-
-      await this.runInConcurrent(async () =>
-        youtubeClient.thumbnails.set({
-          videoId,
-          media: {
-            body: (
-              await this.getSsrfSafeAxios()({
-                url: pendingData.thumbnail,
-                method: 'GET',
-                responseType: 'stream',
-              })
-            ).data,
-          },
-        })
-      );
+      await this.setThumbnail(accessToken, videoId, pendingData.thumbnail);
     }
 
     return {
@@ -876,6 +877,72 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
 
       pendingData = finalize.pendingData;
     }
+  }
+
+  async setThumbnail(accessToken: string, videoId: string, url: string) {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: accessToken });
+    const youtubeClient = youtube(client);
+
+    await this.runInConcurrent(async () =>
+      youtubeClient.thumbnails.set({
+        videoId,
+        media: {
+          body: (
+            await this.getSsrfSafeAxios()({
+              url,
+              method: 'GET',
+              responseType: 'stream',
+            })
+          ).data,
+        },
+      })
+    );
+  }
+
+  // Starts streaming a video from a public URL straight to the channel without
+  // storing it; the caller drives finalizePost with the returned pendingData.
+  // With publishAt the video is uploaded private and YouTube itself publishes
+  // it at that time, so it shows as scheduled in YouTube Studio.
+  async startDirectPublish(
+    accessToken: string,
+    video: {
+      videoUrl: string;
+      title: string;
+      description?: string;
+      tags?: string[];
+      privacy: 'public' | 'private' | 'unlisted';
+      madeForKids: boolean;
+      publishAt?: string;
+      notifySubscribers: boolean;
+    }
+  ) {
+    const videoSize = await this.youtubeMediaSize(video.videoUrl);
+    const uploadUri = await this.startUploadSession(
+      accessToken,
+      videoSize,
+      {
+        snippet: {
+          title: video.title,
+          description: video.description,
+          ...(video.tags?.length ? { tags: video.tags } : {}),
+        },
+        status: {
+          privacyStatus: video.publishAt ? 'private' : video.privacy,
+          selfDeclaredMadeForKids: video.madeForKids,
+          ...(video.publishAt ? { publishAt: video.publishAt } : {}),
+        },
+      },
+      video.notifySubscribers
+    );
+
+    return {
+      uploadUri,
+      videoSize,
+      path: video.videoUrl,
+      uploadedBytes: 0,
+      thumbnail: '',
+    };
   }
 
   async analytics(

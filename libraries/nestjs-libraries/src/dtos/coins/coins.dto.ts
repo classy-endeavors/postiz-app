@@ -37,6 +37,30 @@ export class RequestCoinsDto {
   message?: string;
 }
 
+export class ApproveCoinsDto {
+  @IsString()
+  @IsDefined()
+  requestId: string;
+
+  @IsString()
+  @IsDefined()
+  organizationId: string;
+
+  @IsString()
+  @IsDefined()
+  userId: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  @Transform(({ value }) => parseInt(value, 10))
+  amount: number;
+
+  @IsString()
+  @IsDefined()
+  code: string;
+}
+
 export class GrantCoinsDto {
   @IsString()
   @IsDefined()

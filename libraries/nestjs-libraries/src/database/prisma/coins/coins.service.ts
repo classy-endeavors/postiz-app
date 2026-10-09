@@ -2,12 +2,16 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { Organization, User } from '@prisma/client';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { CoinsRepository } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.repository';
+import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 import {
+  ApproveCoinsDto,
   CoinsHistoryDto,
   RequestCoinsDto,
 } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
 dayjs.extend(utc);
 
@@ -27,7 +31,10 @@ const DESCRIPTIONS: Record<CoinAction, string> = {
 
 @Injectable()
 export class CoinsService {
-  constructor(private _coinsRepository: CoinsRepository) {}
+  constructor(
+    private _coinsRepository: CoinsRepository,
+    private _notificationService: NotificationService
+  ) {}
 
   // Every month that started since the last grant gets its own row, keyed by
   // the month, so unused coins carry forward and a grant is never doubled
@@ -176,6 +183,81 @@ export class CoinsService {
     );
   }
 
+  // Signs everything in the link, so the amount or the receiver can't be edited
+  private approvalCode(
+    requestId: string,
+    organizationId: string,
+    userId: string,
+    amount: number
+  ) {
+    return createHmac('sha256', process.env.ZYNTRA_COINS_APPROVAL_CODE!)
+      .update(`${requestId}:${organizationId}:${userId}:${amount}`)
+      .digest('hex');
+  }
+
+  private approvalUrl(organizationId: string, userId: string, amount: number) {
+    if (!process.env.ZYNTRA_COINS_APPROVAL_CODE) {
+      return '';
+    }
+
+    const requestId = makeId(20);
+    const params = new URLSearchParams({
+      requestId,
+      organizationId,
+      userId,
+      amount: String(amount),
+      code: this.approvalCode(requestId, organizationId, userId, amount),
+    });
+
+    return `${process.env.NEXT_PUBLIC_BACKEND_URL}/public/coins/approve?${params}`;
+  }
+
+  async approveRequest(query: ApproveCoinsDto) {
+    if (!process.env.ZYNTRA_COINS_APPROVAL_CODE) {
+      throw new HttpException('Coin approvals are not available', 503);
+    }
+
+    const expected = Buffer.from(
+      this.approvalCode(
+        query.requestId,
+        query.organizationId,
+        query.userId,
+        query.amount
+      )
+    );
+    const received = Buffer.from(query.code);
+    if (
+      expected.length !== received.length ||
+      !timingSafeEqual(expected, received)
+    ) {
+      throw new HttpException('Invalid approval code', 403);
+    }
+
+    // The transaction id is the request, so opening the link again grants nothing
+    const id = `request-${query.requestId}`;
+    if (await this._coinsRepository.getTransaction(id)) {
+      return `This request was already approved, ${query.amount} Zyntra Coins were granted before.`;
+    }
+
+    await this._coinsRepository.addTransactionOnce(
+      id,
+      query.organizationId,
+      query.amount,
+      'admin_grant',
+      'Coin request approved by the AI Zyntra team'
+    );
+
+    await this._notificationService.inAppNotification(
+      query.organizationId,
+      'Coin request approved',
+      `Your request for ${query.amount} Zyntra Coins was approved, they are in your balance now`
+    );
+
+    return `Approved ${query.amount} Zyntra Coins. New balance: ${await this.getBalance(
+      query.organizationId
+    )}`;
+  }
+
   async requestCoins(org: Organization, user: User, body: RequestCoinsDto) {
     if (!process.env.ZYNTRA_COINS_DISCORD_WEBHOOK) {
       Logger.warn('ZYNTRA_COINS_DISCORD_WEBHOOK is not set, coin requests are not delivered');
@@ -190,6 +272,7 @@ export class CoinsService {
     }
 
     const balance = await this.getBalance(org.id);
+    const approveUrl = this.approvalUrl(org.id, user.id, body.amount);
     const response = await fetch(process.env.ZYNTRA_COINS_DISCORD_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -199,6 +282,7 @@ export class CoinsService {
         embeds: [
           {
             title: `${body.amount} Zyntra Coins requested`,
+            ...(approveUrl ? { url: approveUrl } : {}),
             color: 0xff5a2c,
             fields: [
               { name: 'User', value: user.email || '-', inline: true },
@@ -207,6 +291,9 @@ export class CoinsService {
               { name: 'Organization ID', value: org.id },
               ...(body.message
                 ? [{ name: 'Message', value: body.message }]
+                : []),
+              ...(approveUrl
+                ? [{ name: 'Approve (open once to grant)', value: approveUrl }]
                 : []),
             ],
             timestamp: new Date().toISOString(),
