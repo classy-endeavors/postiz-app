@@ -416,7 +416,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         ...(repeater ? { inter: repeater } : {}),
         tags,
         shortLink,
-        date: date.utc().format('YYYY-MM-DDTHH:mm:ss'),
+        date: date.utc().toISOString(),
         posts,
       };
 
