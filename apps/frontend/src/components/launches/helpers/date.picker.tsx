@@ -31,7 +31,7 @@ const TimePartSelect: FC<{
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const typed = useRef('');
-  const typedTimer = useRef<number>();
+  const typedTimer = useRef<number | undefined>(undefined);
   const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
   const max = options[options.length - 1];
 
