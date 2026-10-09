@@ -28,8 +28,8 @@ export class LinkedinPageProvider
   override scopes = [
     'openid',
     'profile',
+    'email',
     'w_member_social',
-    'r_basicprofile',
     'rw_organization_admin',
     'w_organization_social',
     'r_organization_social',
@@ -59,14 +59,6 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    const { vanityName } = await (
-      await fetch('https://api.linkedin.com/v2/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
-
     const {
       name,
       sub: id,
@@ -78,6 +70,22 @@ export class LinkedinPageProvider
         },
       })
     ).json();
+
+    let vanityName = id;
+    try {
+      const me = await (
+        await fetch('https://api.linkedin.com/v2/me', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+      ).json();
+      if (me?.vanityName) {
+        vanityName = me.vanityName;
+      }
+    } catch {
+      // ignore
+    }
 
     return {
       id,
@@ -123,7 +131,9 @@ export class LinkedinPageProvider
   override async generateAuthUrl() {
     const state = makeSecureId(6);
     const codeVerifier = makeSecureId(30);
-    const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&prompt=none&client_id=${
+    // Do not use prompt=none here: LinkedIn fails first-time consent with
+    // "Bummer, something went wrong" when silent auth cannot complete.
+    const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${
       process.env.LINKEDIN_CLIENT_ID
     }&redirect_uri=${encodeURIComponent(
       `${process.env.FRONTEND_URL}/integrations/social/linkedin-page`
@@ -251,13 +261,21 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    const { vanityName } = await (
-      await fetch('https://api.linkedin.com/v2/me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-    ).json();
+    let vanityName = id;
+    try {
+      const me = await (
+        await fetch('https://api.linkedin.com/v2/me', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+      ).json();
+      if (me?.vanityName) {
+        vanityName = me.vanityName;
+      }
+    } catch {
+      // ignore
+    }
 
     return {
       // namespaced placeholder so the in-between row never collides with the
