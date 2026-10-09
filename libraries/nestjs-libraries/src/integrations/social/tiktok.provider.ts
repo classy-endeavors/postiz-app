@@ -723,6 +723,7 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   // never hold the whole file in memory: a ranged GET for remote URLs, a ranged
   // read stream for local files.
   private async tiktokChunkStream(path: string, start: number, end: number) {
+    path = this.resolveOwnedMediaPath(path);
     if (path.indexOf('http') === 0) {
       // identity encoding so the store keeps content-length and can answer
       // with the requested range, matching every other media read
@@ -842,7 +843,9 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   ): Promise<PostResponse[]> {
     const [firstPost] = postDetails;
     const isPhoto = !hasExtension(firstPost?.media?.[0]?.path, 'mp4');
-    const videoPath = firstPost?.media?.[0]?.path!;
+    const videoPath = this.resolveOwnedMediaPath(
+      firstPost?.media?.[0]?.path!
+    );
 
     // For videos we only need the total size up front (HEAD / statSync) so we
     // can init the upload; the bytes themselves are streamed later, never fully
