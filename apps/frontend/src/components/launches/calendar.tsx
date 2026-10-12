@@ -308,10 +308,13 @@ export const DayView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative min-w-0">
-      <div className="absolute inset-0 flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute inset-0 flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor px-[4px] phone:px-0">
         {options.map((option) => (
-          <Fragment key={option[0].time}>
-            <div className="text-center text-[14px] phone:text-[12px] min-h-[21px] shrink-0 px-[8px]">
+          <div
+            key={option[0].time}
+            className="flex flex-col gap-[8px] mb-[20px] shrink-0 min-w-0"
+          >
+            <div className="text-center text-[14px] phone:text-[12px] leading-[20px] py-[4px] shrink-0 relative z-[2] text-newTextColor">
               {newDayjs()
                 .utc()
                 .startOf('day')
@@ -319,7 +322,8 @@ export const DayView = () => {
                 .local()
                 .format(isUSCitizen() ? 'hh:mm A' : 'LT')}
             </div>
-            <div className="min-h-[60px] rounded-[10px] flex justify-center items-center gap-[10px] mb-[20px] min-w-0 px-[4px] phone:px-0">
+            {/* pt keeps absolute error badges from covering the time label */}
+            <div className="min-h-[60px] rounded-[10px] flex justify-center items-stretch gap-[10px] min-w-0 pt-[8px]">
               <CalendarContext.Provider
                 value={{
                   ...calendar,
@@ -334,7 +338,7 @@ export const DayView = () => {
                 />
               </CalendarContext.Provider>
             </div>
-          </Fragment>
+          </div>
         ))}
       </div>
     </div>
