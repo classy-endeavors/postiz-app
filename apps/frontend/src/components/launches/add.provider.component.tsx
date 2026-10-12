@@ -48,7 +48,8 @@ export const TopBarAddChannel: FC = () => {
   return (
     <button
       onClick={add}
-      className="text-white whitespace-nowrap h-[36px] px-[14px] rounded-[8px] bg-btnPrimary flex items-center gap-[6px] text-[14px] font-[600] outline-none"
+      title={t('add_channel', 'Add Channel')}
+      className="text-white whitespace-nowrap h-[36px] px-[14px] mobile:px-[10px] rounded-[8px] bg-btnPrimary flex items-center gap-[6px] text-[14px] font-[600] outline-none"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -65,7 +66,7 @@ export const TopBarAddChannel: FC = () => {
           strokeLinejoin="round"
         />
       </svg>
-      {t('add_channel', 'Add Channel')}
+      <span className="mobile:hidden">{t('add_channel', 'Add Channel')}</span>
     </button>
   );
 };

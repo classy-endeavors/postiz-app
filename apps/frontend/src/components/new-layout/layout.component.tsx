@@ -1,7 +1,10 @@
 'use client';
 
 import React, { ReactNode, useCallback, useEffect } from 'react';
-import { Logo } from '@gitroom/frontend/components/new-layout/logo';
+import {
+  BrandMark,
+  Logo,
+} from '@gitroom/frontend/components/new-layout/logo';
 const ModeComponent = dynamic(
   () => import('@gitroom/frontend/components/layout/mode.component'),
   {
@@ -31,7 +34,10 @@ import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Impersonate } from '@gitroom/frontend/components/layout/impersonate';
 import { AnnouncementBanner } from '@gitroom/frontend/components/layout/announcement.banner';
 import { Title } from '@gitroom/frontend/components/layout/title';
-import { TopMenu } from '@gitroom/frontend/components/layout/top.menu';
+import {
+  MobileMenu,
+  TopMenu,
+} from '@gitroom/frontend/components/layout/top.menu';
 import { LanguageComponent } from '@gitroom/frontend/components/layout/language.component';
 import NotificationComponent from '@gitroom/frontend/components/notifications/notification.component';
 import { OrganizationSelector } from '@gitroom/frontend/components/layout/organization.selector';
@@ -90,14 +96,14 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <NewSubscription />
             <ContinueProvider />
             <div
-              className="flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]"
+              className="flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] mobile:p-[8px] mobile:pb-[84px]"
             >
               <div>{user?.admin ? <Impersonate /> : <div />}</div>
               <>
                   <AnnouncementBanner />
-                  <div className="flex-1 flex gap-[12px]">
+                  <div className="flex-1 flex gap-[12px] mobile:gap-[8px] min-w-0">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[16px] border-[1.5px] border-newOutline shadow-hard">
+                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[16px] border-[1.5px] border-newOutline shadow-hard mobile:hidden">
                       <div
                         id="left-menu"
                         className={clsx(
@@ -111,31 +117,49 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                        <div className="text-[24px] font-heading font-[800] tracking-[-0.01em] flex flex-1">
+                    <div className="flex-1 min-w-0 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
+                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] mobile:h-[60px] mobile:px-[12px] mobile:gap-[10px] items-center">
+                        <div className="hidden mobile:block">
+                          <BrandMark size={32} />
+                        </div>
+                        <div className="text-[24px] mobile:text-[18px] font-heading font-[800] tracking-[-0.01em] flex flex-1 min-w-0 truncate">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] items-center text-textItemBlur">
+                        <div className="flex gap-[20px] mobile:gap-[14px] items-center text-textItemBlur">
                           <TopBarAddChannel />
-                          <StreakComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <OrganizationSelector />
-                          <div className="hover:text-newTextColor">
-                            <ModeComponent />
+                          <div className="flex gap-[20px] items-center mobile:hidden">
+                            <StreakComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <OrganizationSelector />
+                            <div className="hover:text-newTextColor">
+                              <ModeComponent />
+                            </div>
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <LanguageComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <AttachToFeedbackIcon />
                           </div>
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <LanguageComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <AttachToFeedbackIcon />
                           <NotificationComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
                           <ProfileMenu />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px]">{children}</div>
+                      <div className="flex flex-1 gap-[1px] min-w-0 mobile:flex-col">
+                        {children}
+                      </div>
                     </div>
                   </div>
+                  <MobileMenu
+                    extra={
+                      <>
+                        <div className="hover:text-newTextColor">
+                          <ModeComponent />
+                        </div>
+                        <LanguageComponent />
+                        <StreakComponent />
+                      </>
+                    }
+                  />
               </>
             </div>
           </CheckPayment>

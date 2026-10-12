@@ -460,7 +460,7 @@ export const MediaBox: FC<{
           </div>
         </div>
         {standalone && !!data?.results?.length && (
-          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
+          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px] mobile:flex-col mobile:items-start mobile:text-[13px]">
             <div className="flex-1 text-newTextColor/[0.8]">
               {t(
                 'media_library_next_steps',
@@ -588,7 +588,7 @@ export const MediaBox: FC<{
                         onClick={deleteImage(media)}
                       />
                     )}
-                    <div className="absolute bottom-[10px] end-[10px] z-[100]">{media.originalName}</div>
+                    <div className="absolute bottom-[10px] end-[10px] z-[100] mobile:hidden">{media.originalName}</div>
                     {!!onCreatePost && (
                       <button
                         onClick={(e) => {

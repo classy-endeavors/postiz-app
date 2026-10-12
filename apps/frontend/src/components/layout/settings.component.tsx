@@ -128,20 +128,20 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px]">
-        <div className="flex flex-1 flex-col gap-[15px]">
+      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] mobile:w-full mobile:p-[8px]">
+        <div className="flex flex-1 flex-col gap-[15px] mobile:flex-row mobile:gap-[6px] mobile:overflow-x-auto">
           {list.map(({ tab: tabKey, label }) => (
             <div
               key={tabKey}
               className={clsx(
-                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px]',
-                tabKey === tab && 'bg-boxHover'
+                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px] mobile:shrink-0 mobile:whitespace-nowrap mobile:rounded-[8px] mobile:px-[12px] mobile:py-[8px] mobile:text-[14px]',
+                tabKey === tab && 'bg-boxHover mobile:text-btnPrimary mobile:font-[600]'
               )}
               onClick={() => setTab(tabKey)}
             >
               <div
                 className={clsx(
-                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity',
+                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity mobile:hidden',
                   tabKey === tab && 'opacity-100'
                 )}
               >
@@ -153,7 +153,7 @@ export const SettingsPopup: FC<{
         </div>
         <div>
           {showLogout && (
-            <div className="mt-4">
+            <div className="mt-4 mobile:hidden">
               <LogoutComponent />
             </div>
           )}
@@ -161,13 +161,13 @@ export const SettingsPopup: FC<{
             href="https://github.com/classy-endeavors/postiz-app"
             target="_blank"
             rel="noreferrer"
-            className="block mt-4 text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
+            className="block mt-4 mobile:mt-[6px] mobile:px-[12px] text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
           >
             {t('open_source_licenses', 'Open-source licenses')}
           </a>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(submit)}>
             {!!getRef && (

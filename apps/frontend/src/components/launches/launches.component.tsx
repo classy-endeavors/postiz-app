@@ -27,6 +27,7 @@ import { NewPost } from '@gitroom/frontend/components/launches/new.post';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useIntegrationList } from '@gitroom/frontend/components/launches/helpers/use.integration.list';
 import useCookie from 'react-use-cookie';
+import { useMediaQuery } from '@mantine/hooks';
 import { Onboarding } from '@gitroom/frontend/components/onboarding/onboarding';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { Input } from '@gitroom/react/form/input';
@@ -466,6 +467,9 @@ export const LaunchesComponent = () => {
   const modal = useModals();
   const [reload, setReload] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const isMobile = useMediaQuery('(max-width: 1025px)');
+  const [showChannels, setShowChannels] = useState(false);
+  const collapsed = !isMobile && collapseMenu === '1';
   const [mode] = useCookie('mode', 'light');
   const { isLoading, data: integrations, mutate } = useIntegrationList();
 
@@ -628,23 +632,29 @@ export const LaunchesComponent = () => {
         <div
           className={clsx(
             'flex relative flex-col',
-            collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+            collapsed ? 'group sidebar w-[100px]' : 'w-[260px] mobile:w-full'
           )}
         >
           <div
             className={clsx(
-              'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all absolute start-0 top-0 w-full h-full overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor'
+              'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all absolute start-0 top-0 w-full h-full overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px] mobile:gap-[12px]'
             )}
           >
             <div className="flex items-center">
-              <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
+              <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] mobile:text-[16px] font-[500]">
                 {t('channels')}
+                {isMobile && ` (${sortedIntegrations.length})`}
               </h2>
               <div
                 onClick={() =>
-                  setCollapseMenu(collapseMenu === '1' ? '0' : '1')
+                  isMobile
+                    ? setShowChannels(!showChannels)
+                    : setCollapseMenu(collapseMenu === '1' ? '0' : '1')
                 }
-                className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+                className={clsx(
+                  'group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none transition-transform',
+                  isMobile && (showChannels ? 'rotate-90' : '-rotate-90')
+                )}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -672,8 +682,13 @@ export const LaunchesComponent = () => {
                   billingEnabled && <GeneratorComponent />}
               </div>
             </div>
-            <div className="gap-[32px] flex flex-col select-none flex-1">
-              {sortedIntegrations.length === 0 && collapseMenu === '0' && (
+            <div
+              className={clsx(
+                'gap-[32px] flex flex-col select-none flex-1',
+                isMobile && !showChannels && 'hidden'
+              )}
+            >
+              {sortedIntegrations.length === 0 && !collapsed && (
                 <div className="flex-1 max-h-[500px] justify-center items-center flex">
                   <div className="flex flex-col gap-[12px] text-center">
                     <img
@@ -696,7 +711,7 @@ export const LaunchesComponent = () => {
               )}
               {menuIntegrations.map((menu) => (
                 <MenuGroupComponent
-                  collapsed={collapseMenu === '1'}
+                  collapsed={collapsed}
                   changeItemGroup={changeItemGroup}
                   key={menu.name}
                   group={menu}
@@ -708,7 +723,7 @@ export const LaunchesComponent = () => {
                 />
               ))}
             </div>
-            <div className="mt-[5px] text-center flex flex-col">
+            <div className="mt-[5px] text-center flex flex-col mobile:hidden">
               {billingEnabled && user?.isLifetime && (
                 <div>{capitalize(user?.tier?.current || '')} tier</div>
               )}
@@ -720,8 +735,8 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px]">
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] rounded-[20px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
+        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px] mobile:p-[8px] mobile:min-h-[calc(100vh-160px)]">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] mobile:p-[12px] mobile:gap-[12px] rounded-[20px] mobile:rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
             <CalendarPanel />
           </div>
         </div>
