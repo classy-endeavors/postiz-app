@@ -650,10 +650,10 @@ export const MediaBox: FC<{
           />
         )}
         {!standalone && (
-          <div className="flex justify-end mt-[32px] gap-[8px]">
+          <div className="flex justify-end mt-[32px] phone:mt-[16px] gap-[8px] phone:flex-col-reverse phone:w-full shrink-0">
             <button
               onClick={() => modals.closeCurrent()}
-              className="cursor-pointer h-[52px] px-[20px] items-center justify-center border border-newTextColor/10 flex rounded-[10px]"
+              className="cursor-pointer h-[52px] phone:h-[44px] px-[20px] items-center justify-center border border-newTextColor/10 flex rounded-[10px] phone:w-full"
             >
               {t('cancel', 'Cancel')}
             </button>
@@ -661,7 +661,7 @@ export const MediaBox: FC<{
               <button
                 onClick={standalone ? () => {} : addMedia}
                 disabled={selected.length === 0}
-                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] px-[20px] items-center justify-center bg-[#FF5227] flex rounded-[10px]"
+                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] phone:h-[44px] px-[20px] items-center justify-center bg-[#FF5227] flex rounded-[10px] phone:w-full"
               >
                 {t('add_selected_media', 'Add selected media')}
               </button>
@@ -801,8 +801,8 @@ export const MultiMediaComponent: FC<{
 
   return (
     <>
-      <div className="b1 flex flex-col gap-[8px] rounded-bl-[8px] select-none w-full">
-        <div className="flex gap-[10px] px-[12px]">
+      <div className="b1 flex flex-col gap-[8px] rounded-bl-[8px] select-none w-full min-w-0">
+        <div className="flex gap-[10px] px-[12px] phone:px-0">
           {!!currentMedia && (
             <ReactSortable
               list={currentMedia}
@@ -879,12 +879,12 @@ export const MultiMediaComponent: FC<{
             </ReactSortable>
           )}
         </div>
-        <div className="flex gap-[8px] px-[12px] border-t border-newColColor w-full b1 text-textColor">
+        <div className="flex flex-wrap gap-[8px] px-[12px] phone:px-0 border-t border-newColColor w-full min-w-0 b1 text-textColor">
           {!mediaNotAvailable && (
-            <div className="flex py-[10px] b2 items-center gap-[4px]">
+            <div className="flex py-[10px] phone:py-[6px] b2 items-center gap-[4px] flex-wrap min-w-0">
               <div
                 onClick={showModal}
-                className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                className="cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
               >
                 <div className="flex gap-[8px] items-center">
                   <div>
@@ -898,7 +898,7 @@ export const MultiMediaComponent: FC<{
               {!!plontoKey && (
                 <div
                   onClick={designMedia}
-                  className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                  className="cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
                 >
                   <div className="flex gap-[5px] items-center">
                     <div>
@@ -921,18 +921,18 @@ export const MultiMediaComponent: FC<{
               )}
             </div>
           )}
-          {!mediaNotAvailable && (
-            <div className="text-newColColor h-full flex items-center">
+          {!mediaNotAvailable && !!toolBar && (
+            <div className="text-newColColor h-full flex items-center phone:hidden">
               <VerticalDividerIcon />
             </div>
           )}
           {!!toolBar && (
-            <div className="flex py-[10px] b2 items-center gap-[4px]">
+            <div className="flex py-[10px] phone:py-[6px] b2 items-center gap-[4px]">
               {toolBar}
             </div>
           )}
           {information && (
-            <div className="flex-1 justify-end flex py-[10px] b2 items-center gap-[4px]">
+            <div className="flex-1 justify-end flex py-[10px] phone:py-[6px] b2 items-center gap-[4px]">
               {information}
             </div>
           )}

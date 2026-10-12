@@ -49,7 +49,7 @@ export const MediaPortal: FC<{
   const t = useT();
   if (!waitForClass) return null;
   return (
-    <div className="pl-[14px] pr-[24px] whitespace-nowrap editor rm-bg">
+    <div className="px-[24px] phone:px-[12px] editor rm-bg agent-media w-full min-w-0">
       <MultiMediaComponent
         allData={[{ content: value }]}
         text={value}

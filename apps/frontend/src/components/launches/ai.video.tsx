@@ -213,7 +213,7 @@ export const AiVideo: FC<{
       <div
         onClick={openVideoModal}
         className={clsx(
-          'cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]'
+          'cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]'
         )}
       >
         {loading && (

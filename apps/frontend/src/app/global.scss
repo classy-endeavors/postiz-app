@@ -739,6 +739,12 @@ html[dir='rtl'] [dir='ltr'] {
   .copilotKitInput {
     width: 100% !important;
   }
+
+  @media (max-width: 767px) {
+    .copilotKitInputContainer {
+      padding: 0 12px !important;
+    }
+  }
 }
 .rm-bg .b2 {
   padding-top: 0 !important;
@@ -746,6 +752,15 @@ html[dir='rtl'] [dir='ltr'] {
 .rm-bg .b1 {
   background: transparent !important;
   gap: 0 !important;
+}
+.agent-media.rm-bg {
+  .b1 {
+    border: none !important;
+  }
+
+  .b1 > .border-t {
+    border-top: none !important;
+  }
 }
 
 .copilotKitUserMessage img {

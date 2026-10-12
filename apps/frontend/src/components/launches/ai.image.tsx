@@ -88,8 +88,8 @@ ${style}
   }, [prompt, style, onChange]);
 
   return (
-    <div className="flex flex-col gap-[16px]">
-      <div className="flex flex-col gap-[6px]">
+    <div className="flex flex-col gap-[16px] phone:gap-[12px] w-full min-w-0 max-w-full">
+      <div className="flex flex-col gap-[6px] min-w-0">
         <div className="text-[14px]">{t('prompt', 'Prompt')}</div>
         <textarea
           value={prompt}
@@ -98,18 +98,18 @@ ${style}
             'describe_the_image_you_want_to_generate',
             'Describe the image you want to generate'
           )}
-          className="bg-input min-h-[150px] p-[16px] outline-none border-fifth border rounded-[4px] text-inputText placeholder-inputText"
+          className="bg-input min-h-[150px] phone:min-h-[100px] w-full max-w-full box-border p-[16px] phone:p-[12px] outline-none border-fifth border rounded-[4px] text-inputText placeholder-inputText"
         />
       </div>
-      <div className="flex flex-col gap-[6px]">
+      <div className="flex flex-col gap-[6px] min-w-0">
         <div className="text-[14px]">{t('style', 'Style')}</div>
-        <div className="flex flex-wrap gap-[8px]">
+        <div className="flex flex-wrap gap-[8px] w-full min-w-0">
           {list.map((p) => (
             <div
               key={p}
               onClick={() => setStyle(p)}
               className={clsx(
-                'cursor-pointer rounded-[4px] px-[10px] h-[30px] flex items-center text-[12px] border',
+                'cursor-pointer rounded-[4px] px-[10px] h-[30px] flex items-center text-[12px] border shrink-0',
                 style === p
                   ? 'bg-[#FF5227] border-[#FF5227] text-white'
                   : 'bg-newColColor border-newBgLineColor'
@@ -120,8 +120,8 @@ ${style}
           ))}
         </div>
       </div>
-      <div className="flex">
-        <Button type="button" onClick={generate} className="flex-1">
+      <div className="flex w-full min-w-0 phone:pb-[8px]">
+        <Button type="button" onClick={generate} className="flex-1 w-full">
           {t('generate', 'Generate')}
         </Button>
       </div>
@@ -159,7 +159,7 @@ export const AiImage: FC<{
       <div
         onClick={openImageModal}
         className={clsx(
-          'cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]'
+          'cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]'
         )}
       >
         {loading && (
