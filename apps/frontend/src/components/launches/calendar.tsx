@@ -494,7 +494,7 @@ export const MonthView = () => {
     <div className="flex flex-col text-textColor flex-1 min-w-0">
       <div className="flex-1 flex relative min-w-0">
         <div className="absolute inset-0 min-w-0 overflow-x-auto overflow-y-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
-          <div className="min-w-[640px] phone:min-w-[780px]">
+          <div className="min-w-[640px] phone:min-w-[980px]">
           <div className="grid grid-cols-7 sticky top-0 z-[20] bg-newBgColor border-b-[1.5px] border-newSep">
             {localizedDays.map((day) => (
               <div
@@ -674,15 +674,6 @@ const getStatusLabel = (t: ReturnType<typeof useT>, state: GroupState) =>
     PARTIAL: t('partial', 'Partial'),
     QUEUE: t('scheduled', 'Scheduled'),
     DRAFT: t('draft', 'Draft'),
-  }[state]);
-
-const getShortStatusLabel = (t: ReturnType<typeof useT>, state: GroupState) =>
-  ({
-    PUBLISHED: t('published_short', 'Pub'),
-    ERROR: t('failed_short', 'Fail'),
-    PARTIAL: t('partial_short', 'Part'),
-    QUEUE: t('scheduled_short', 'Sch'),
-    DRAFT: t('draft_short', 'Draft'),
   }[state]);
 
 const getGroupState = (posts: { state: State }[]): GroupState => {
@@ -1493,7 +1484,6 @@ const CalendarItem: FC<{
 
   if (display === 'month') {
     const statusLabel = getStatusLabel(t, state);
-    const shortStatusLabel = getShortStatusLabel(t, state);
     const timeLabel = newDayjs(post.publishDate)
       .local()
       .format(isUSCitizen() ? 'h:mm A' : 'HH:mm');
@@ -1515,7 +1505,7 @@ const CalendarItem: FC<{
               post.error || 'An error occurred while publishing this post',
           })}
           className={clsx(
-            'w-full min-w-0 overflow-hidden flex flex-col gap-[2px] ps-[7px] pe-[6px] py-[5px] phone:ps-[5px] phone:pe-[4px] phone:py-[4px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
+            'w-full min-w-0 overflow-hidden flex flex-col gap-[2px] ps-[7px] pe-[6px] py-[5px] phone:ps-[6px] phone:pe-[5px] phone:py-[4px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
             monthItemTone[state]
           )}
         >
@@ -1538,26 +1528,23 @@ const CalendarItem: FC<{
           </span>
           <span
             className={clsx(
-              'flex items-center gap-[4px] text-[9.5px] phone:text-[9px] font-[700] leading-[1.2] min-w-0 overflow-hidden',
+              'block text-[9.5px] phone:text-[10px] font-[700] leading-[1.25] whitespace-nowrap',
               monthStatusTone[state]
             )}
           >
-            <span className="phone:hidden truncate min-w-0">{statusLabel}</span>
-            <span className="hidden phone:inline truncate min-w-0">
-              {shortStatusLabel}
-            </span>
-            {!!post.tags.length && (
-              <span className="phone:hidden flex items-center gap-[3px] min-w-0 text-textItemBlur">
-                <span
-                  className="w-[6px] h-[6px] rounded-full shrink-0 bg-btnPrimary"
-                  style={{ backgroundColor: post.tags[0].tag.color }}
-                />
-                <span className="truncate">
-                  {post.tags.map((p) => p.tag.name).join(', ')}
-                </span>
-              </span>
-            )}
+            {statusLabel}
           </span>
+          {!!post.tags.length && (
+            <span className="phone:hidden flex items-center gap-[3px] min-w-0 text-textItemBlur text-[9.5px] font-[700]">
+              <span
+                className="w-[6px] h-[6px] rounded-full shrink-0 bg-btnPrimary"
+                style={{ backgroundColor: post.tags[0].tag.color }}
+              />
+              <span className="truncate">
+                {post.tags.map((p) => p.tag.name).join(', ')}
+              </span>
+            </span>
+          )}
         </div>
         {showCreationMethodBadge && (
           <div className="absolute -bottom-[4px] -end-[4px] z-10">

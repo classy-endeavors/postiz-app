@@ -8,7 +8,7 @@ import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
-import { Select } from '@gitroom/react/form/select';
+import { DropdownSelect } from '@gitroom/react/form/dropdown.select';
 import { Button } from '@gitroom/react/form/button';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
@@ -281,21 +281,16 @@ export const PlatformAnalytics = () => {
         </div>
         {!!options.length && (
           <div className="flex-1 flex flex-col gap-[14px] min-w-0">
-            <div className="max-w-[200px]">
-              <Select
-                label=""
-                name="date"
-                disableForm={true}
-                hideErrors={true}
-                onChange={(e) => setKey(+e.target.value)}
-              >
-                {options.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.value}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <DropdownSelect
+              className="max-w-[200px] w-full"
+              name="date"
+              value={String(keys)}
+              onChange={(next) => setKey(+next)}
+              options={options.map((option) => ({
+                value: String(option.key),
+                label: option.value,
+              }))}
+            />
             <div className="flex-1">
               {!!keys && !!currentIntegration && !refresh && (
                 <RenderAnalytics integration={currentIntegration} date={keys} />
