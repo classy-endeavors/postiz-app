@@ -95,71 +95,69 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <PreConditionComponent />
             <NewSubscription />
             <ContinueProvider />
-            <div
-              className="flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] mobile:p-[8px] mobile:pb-[84px]"
-            >
+            <div className="flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] mobile:p-[8px] mobile:pb-[84px]">
               <div>{user?.admin ? <Impersonate /> : <div />}</div>
               <>
-                  <AnnouncementBanner />
-                  <div className="flex-1 flex gap-[12px] mobile:gap-[8px] min-w-0">
-                    <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[16px] border-[1.5px] border-newOutline shadow-hard mobile:hidden">
-                      <div
-                        id="left-menu"
-                        className={clsx(
-                          'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
-                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
-                        )}
-                      >
-                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px]">
-                          <Logo />
-                          <TopMenu />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] mobile:h-[60px] mobile:px-[12px] mobile:gap-[10px] items-center">
-                        <div className="hidden mobile:block">
-                          <BrandMark size={32} />
-                        </div>
-                        <div className="text-[24px] mobile:text-[18px] font-heading font-[800] tracking-[-0.01em] flex flex-1 min-w-0 truncate">
-                          <Title />
-                        </div>
-                        <div className="flex gap-[20px] mobile:gap-[14px] items-center text-textItemBlur">
-                          <TopBarAddChannel />
-                          <div className="flex gap-[20px] items-center mobile:hidden">
-                            <StreakComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <OrganizationSelector />
-                            <div className="hover:text-newTextColor">
-                              <ModeComponent />
-                            </div>
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <LanguageComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <AttachToFeedbackIcon />
-                          </div>
-                          <NotificationComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
-                          <ProfileMenu />
-                        </div>
-                      </div>
-                      <div className="flex flex-1 gap-[1px] min-w-0 mobile:flex-col">
-                        {children}
+                <AnnouncementBanner />
+                <div className="flex-1 flex gap-[12px] mobile:gap-[8px] min-w-0">
+                  <Support />
+                  <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[16px] border-[1.5px] border-newOutline shadow-hard mobile:hidden">
+                    <div
+                      id="left-menu"
+                      className={clsx(
+                        'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
+                        user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
+                      )}
+                    >
+                      <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px]">
+                        <Logo />
+                        <TopMenu />
                       </div>
                     </div>
                   </div>
-                  <MobileMenu
-                    extra={
-                      <>
-                        <div className="hover:text-newTextColor">
-                          <ModeComponent />
+                  <div className="flex-1 min-w-0 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
+                    <div className="flex bg-newBgColorInner h-[80px] px-[20px] mobile:h-[60px] mobile:px-[12px] mobile:gap-[10px] items-center">
+                      <div className="hidden mobile:block">
+                        <BrandMark size={32} />
+                      </div>
+                      <div className="text-[24px] mobile:text-[18px] font-heading font-[800] tracking-[-0.01em] flex flex-1 min-w-0 truncate">
+                        <Title />
+                      </div>
+                      <div className="flex gap-[20px] mobile:gap-[14px] items-center text-textItemBlur">
+                        <TopBarAddChannel />
+                        <div className="flex gap-[20px] items-center mobile:hidden">
+                          <StreakComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <OrganizationSelector />
+                          <div className="hover:text-newTextColor">
+                            <ModeComponent />
+                          </div>
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <LanguageComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <AttachToFeedbackIcon />
                         </div>
-                        <LanguageComponent />
-                        <StreakComponent />
-                      </>
-                    }
-                  />
+                        <NotificationComponent />
+                        <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
+                        <ProfileMenu />
+                      </div>
+                    </div>
+                    <div className="flex flex-1 gap-[1px] min-w-0 mobile:flex-col">
+                      {children}
+                    </div>
+                  </div>
+                </div>
+                <MobileMenu
+                  extra={
+                    <>
+                      <div className="hover:text-newTextColor">
+                        <ModeComponent />
+                      </div>
+                      <LanguageComponent />
+                      <StreakComponent />
+                    </>
+                  }
+                />
               </>
             </div>
           </CheckPayment>

@@ -151,9 +151,7 @@ export const Component: FC<{
           >
             <div
               className={clsx(
-                modal.fullScreen
-                  ? 'w-full h-full flex-1 mobile:!w-full'
-                  : 'mx-auto py-[48px] mobile:py-[8px] mobile:!max-w-[calc(100vw-16px)]'
+                modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
               )}
               {...(modal.size && { style: { width: modal.size } })}
             >
@@ -189,7 +187,7 @@ export const Component: FC<{
               !modal.fullScreen
                 ? modal.top
                   ? ''
-                  : 'min-h-full pt-[100px] pb-[100px] mobile:pt-[8px] mobile:pb-[8px]'
+                  : 'min-h-full pt-[100px] pb-[100px] phone:pt-[24px] phone:pb-[24px]'
                 : 'h-screen',
               modal.size && modal.height
                 ? 'flex justify-center items-center'
@@ -199,10 +197,13 @@ export const Component: FC<{
             <div
               className={clsx(
                 !modal.removeLayout &&
-                  'gap-[40px] p-[32px] mobile:gap-[20px] mobile:p-[16px]',
-                'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] mobile:rounded-[16px] relative mobile:!max-w-[calc(100vw-16px)]',
-                modal.size ? '' : 'min-w-[600px] mobile:min-w-0',
-                modal.fullScreen && 'h-full',
+                  'gap-[40px] p-[32px] phone:gap-[20px] phone:p-[16px]',
+                'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] phone:rounded-[16px] relative max-w-[calc(100vw-24px)] min-w-0',
+                modal.size
+                  ? 'phone:!w-[calc(100vw-16px)] phone:!max-w-[calc(100vw-16px)]'
+                  : 'min-w-[600px] phone:min-w-0 phone:w-[calc(100vw-24px)]',
+                modal.fullScreen &&
+                  'h-full phone:!h-[calc(100dvh-24px)] phone:!max-h-[calc(100dvh-24px)]',
                 !modal.removeLayout &&
                   !modal.fullScreen &&
                   'border-[1.5px] border-newOutline shadow-hard'
@@ -216,8 +217,8 @@ export const Component: FC<{
               })}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center">
-                <div className="text-[24px] mobile:text-[18px] mobile:pe-[32px] font-heading font-[800] tracking-[-0.01em] flex-1">
+              <div className="flex items-center shrink-0">
+                <div className="text-[24px] phone:text-[18px] font-heading font-[800] tracking-[-0.01em] flex-1 pe-[28px]">
                   {modal.title}
                 </div>
                 {typeof modal.withCloseButton === 'undefined' ||
@@ -248,8 +249,8 @@ export const Component: FC<{
               </div>
               <div
                 className={clsx(
-                  'whitespace-pre-line',
-                  !!modal.height && !!modal.size && 'flex flex-1 flex-col'
+                  'whitespace-pre-line min-w-0 overflow-x-hidden',
+                  !!modal.height && !!modal.size && 'flex flex-1 flex-col min-h-0 overflow-y-auto'
                 )}
               >
                 {RenderComponent}

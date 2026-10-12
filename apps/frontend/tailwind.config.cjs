@@ -264,6 +264,9 @@ module.exports = {
         },
       }),
       screens: {
+        phone: {
+          raw: '(max-width: 767px)',
+        },
         mobile: {
           raw: '(max-width: 1025px)',
         },

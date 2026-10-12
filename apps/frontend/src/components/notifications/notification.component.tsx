@@ -2,12 +2,21 @@
 
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import useSWR from 'swr';
-import { FC, useCallback, useState } from 'react';
+import {
+  CSSProperties,
+  FC,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
-import { useClickAway } from '@uidotdev/usehooks';
 import ReactLoading from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+
 function replaceLinks(text: string) {
   const urlRegex =
     /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
@@ -16,6 +25,7 @@ function replaceLinks(text: string) {
     '<a class="cursor-pointer underline font-bold" target="_blank" href="$1">$1</a>'
   );
 }
+
 export const ShowNotification: FC<{
   notification: {
     createdAt: string;
@@ -33,12 +43,12 @@ export const ShowNotification: FC<{
   return (
     <div
       className={clsx(
-        `text-textColor px-[16px] py-[10px] border-b border-tableBorder last:border-b-0 transition-colors`,
+        `text-textColor px-[16px] phone:px-[12px] py-[10px] border-b border-tableBorder last:border-b-0 transition-colors`,
         newNotification && 'font-bold bg-seventh animate-newMessages'
       )}
     >
       <div
-        className="break-words"
+        className="break-words [overflow-wrap:anywhere] [&_a]:break-all"
         dangerouslySetInnerHTML={{
           __html: replaceLinks(notification.content),
         }}
@@ -52,7 +62,48 @@ export const ShowNotification: FC<{
     </div>
   );
 };
-export const NotificationOpenComponent = () => {
+
+const VIEWPORT_PAD = 12;
+const PANEL_GAP = 8;
+
+function getNotificationStyle(anchor: DOMRect): CSSProperties {
+  const isPhone = window.matchMedia('(max-width: 767px)').matches;
+  const top = Math.min(
+    anchor.bottom + PANEL_GAP,
+    window.innerHeight - VIEWPORT_PAD - 8
+  );
+
+  if (isPhone) {
+    return {
+      position: 'fixed',
+      top,
+      left: VIEWPORT_PAD,
+      right: VIEWPORT_PAD,
+      width: 'auto',
+      maxHeight: `min(70dvh, ${window.innerHeight - top - VIEWPORT_PAD}px)`,
+    };
+  }
+
+  const width = Math.min(420, window.innerWidth - VIEWPORT_PAD * 2);
+  const right = Math.min(
+    Math.max(VIEWPORT_PAD, window.innerWidth - anchor.right),
+    window.innerWidth - width - VIEWPORT_PAD
+  );
+
+  return {
+    position: 'fixed',
+    top,
+    right,
+    left: 'auto',
+    width,
+    maxHeight: Math.min(400, window.innerHeight - top - VIEWPORT_PAD),
+  };
+}
+
+export const NotificationOpenComponent: FC<{
+  panelStyle: CSSProperties;
+  panelRef?: RefObject<HTMLDivElement | null>;
+}> = ({ panelStyle, panelRef }) => {
   const fetch = useFetch();
   const loadNotifications = useCallback(async () => {
     return await (await fetch('/notifications/list')).json();
@@ -60,18 +111,19 @@ export const NotificationOpenComponent = () => {
   const t = useT();
 
   const { data, isLoading } = useSWR('notifications', loadNotifications);
-  return (
+
+  const panel = (
     <div
       id="notification-popup"
-      className="opacity-0 animate-normalFadeDown mt-[10px] absolute w-[420px] min-h-[200px] top-[100%] end-0 mobile:fixed mobile:top-[68px] mobile:start-[8px] mobile:end-[8px] mobile:w-auto mobile:max-h-[70vh] mobile:overflow-y-auto bg-third text-textColor rounded-[16px] flex flex-col border border-tableBorder z-[600]"
+      ref={panelRef}
+      style={panelStyle}
+      className="opacity-0 animate-normalFadeDown bg-third text-textColor rounded-[16px] flex flex-col border border-tableBorder z-[600] shadow-hard overflow-hidden"
     >
-      <div
-        className={`p-[16px] border-b border-tableBorder font-bold`}
-      >
+      <div className="p-[16px] phone:p-[12px] border-b border-tableBorder font-bold shrink-0">
         {t('notifications', 'Notifications')}
       </div>
 
-      <div className="flex flex-col max-h-[400px] overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="flex flex-col flex-1 min-h-[160px] overflow-y-auto overflow-x-hidden scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {isLoading && (
           <div className="flex-1 flex justify-center pt-12">
             <ReactLoading type="spin" color="#fff" width={36} height={36} />
@@ -101,14 +153,45 @@ export const NotificationOpenComponent = () => {
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(panel, document.body);
 };
+
 const NotificationComponent = () => {
   const fetch = useFetch();
   const [show, setShow] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
   const loadNotifications = useCallback(async () => {
     return await (await fetch('/notifications')).json();
   }, []);
   const { data, mutate } = useSWR('notifications-list', loadNotifications);
+
+  const syncPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) {
+      return false;
+    }
+    const rect = trigger.getBoundingClientRect();
+    const visible =
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      rect.right > 0 &&
+      rect.left < window.innerWidth;
+    if (!visible) {
+      setShow(false);
+      return false;
+    }
+    setPanelStyle(getNotificationStyle(rect));
+    return true;
+  }, []);
+
   const changeShow = useCallback(() => {
     mutate(
       {
@@ -119,12 +202,51 @@ const NotificationComponent = () => {
         revalidate: false,
       }
     );
-    setShow(!show);
-  }, [show, data]);
-  const ref = useClickAway<HTMLDivElement>(() => setShow(false));
+    if (show) {
+      setShow(false);
+      return;
+    }
+    if (syncPosition()) {
+      setShow(true);
+    }
+  }, [show, data, mutate, syncPosition]);
+
+  useEffect(() => {
+    if (!show) {
+      return;
+    }
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) {
+        return;
+      }
+      if (panelRef.current?.contains(target)) {
+        return;
+      }
+      setShow(false);
+    };
+    const onReposition = () => {
+      syncPosition();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [show, syncPosition]);
+
   return (
-    <div className="relative cursor-pointer select-none" ref={ref}>
-      <div onClick={changeShow}>
+    <div className="relative cursor-pointer select-none shrink-0" ref={triggerRef}>
+      <div
+        onClick={changeShow}
+        className="w-[36px] h-[36px] flex items-center justify-center"
+        aria-label="Notifications"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"
@@ -147,7 +269,9 @@ const NotificationComponent = () => {
           </div>
         )}
       </div>
-      {show && <NotificationOpenComponent />}
+      {show && panelStyle && (
+        <NotificationOpenComponent panelStyle={panelStyle} panelRef={panelRef} />
+      )}
     </div>
   );
 };

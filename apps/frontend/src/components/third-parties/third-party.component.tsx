@@ -11,6 +11,12 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import useCookie from 'react-use-cookie';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
+import {
+  PhoneDrawerBackdrop,
+  PhoneDrawerToggle,
+  phoneSidebarDrawerClass,
+  usePhoneDrawer,
+} from '@gitroom/frontend/components/new-layout/phone-drawer';
 
 export const ThirdPartyMenuComponent: FC<{
   reload: () => void;
@@ -111,13 +117,24 @@ export const ThirdPartyComponent = () => {
     refreshWhenOffline: false,
   });
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const channelsDrawer = usePhoneDrawer();
+  const channelsDrawerId = 'third-party-integrations-drawer';
 
   return (
     <>
+      <PhoneDrawerBackdrop
+        open={channelsDrawer.open}
+        onClose={channelsDrawer.close}
+      />
       <div
+        id={channelsDrawerId}
+        role={channelsDrawer.open ? 'dialog' : undefined}
+        aria-modal={channelsDrawer.open || undefined}
+        aria-label={t('integrations', 'Integrations')}
         className={clsx(
           'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]',
+          phoneSidebarDrawerClass(channelsDrawer.open)
         )}
       >
         <div className="flex gap-[12px] flex-col">
@@ -127,7 +144,7 @@ export const ThirdPartyComponent = () => {
             </h2>
             <div
               onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+              className="phone:hidden group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -145,6 +162,28 @@ export const ThirdPartyComponent = () => {
                 />
               </svg>
             </div>
+            <button
+              type="button"
+              onClick={channelsDrawer.close}
+              aria-label="Close"
+              className="phone:flex hidden text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] items-center justify-center outline-none"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M11 3L3 11M3 3L11 11"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </div>
           <div className="flex flex-col gap-[10px]">
             <div className="flex-1 flex flex-col gap-[14px]">
@@ -200,7 +239,15 @@ export const ThirdPartyComponent = () => {
           </div>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] phone:p-[12px] gap-[12px] min-w-0">
+        <div className="phone:flex hidden">
+          <PhoneDrawerToggle
+            open={channelsDrawer.open}
+            onClick={channelsDrawer.toggle}
+            controls={channelsDrawerId}
+            label={t('integrations', 'Integrations')}
+          />
+        </div>
         <ThirdPartyListComponent reload={mutate} />
       </div>
     </>

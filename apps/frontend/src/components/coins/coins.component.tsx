@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useCallback, useState } from 'react';
+import { FC, useCallback, useEffect, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import dayjs from 'dayjs';
 import clsx from 'clsx';
@@ -10,6 +10,7 @@ import { Input } from '@gitroom/react/form/input';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import { Pagination } from '@gitroom/frontend/components/media/media.component';
 
 interface CoinsResponse {
   balance: number;
@@ -39,6 +40,7 @@ interface CoinsHistoryResponse {
   total: number;
   page: number;
   limit: number;
+  pages: number;
   hasMore: boolean;
 }
 
@@ -71,6 +73,19 @@ const CoinsHistory: FC = () => {
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const { data } = useCoinsHistory(page, filter);
 
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+    if (data.pages === 0 && page !== 0) {
+      setPage(0);
+      return;
+    }
+    if (data.pages > 0 && page >= data.pages) {
+      setPage(data.pages - 1);
+    }
+  }, [data, page]);
+
   const activities: Record<string, string> = {
     message: t('coins_activity_message', 'AI message'),
     image: t('coins_activity_image', 'AI image'),
@@ -83,7 +98,7 @@ const CoinsHistory: FC = () => {
     { value: 'spent', label: t('coins_spent', 'Spent') },
     { value: 'added', label: t('coins_added', 'Added') },
   ];
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
+  const totalPages = data?.pages ?? 0;
   const showBalance = filter === 'all';
   const columns = showBalance
     ? 'grid-cols-[150px_130px_1fr_80px_90px]'
@@ -202,32 +217,8 @@ const CoinsHistory: FC = () => {
         </div>
       </div>
 
-      {!!data && data.total > data.limit && (
-        <div className="flex items-center justify-between">
-          <div className="text-[13px] text-textItemBlur">
-            {t('page_of', 'Page {{page}} of {{total}}', {
-              page: page + 1,
-              total: totalPages,
-            })}
-          </div>
-          <div className="flex gap-[8px]">
-            <Button
-              secondary
-              className="rounded-[8px]"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              {t('previous', 'Previous')}
-            </Button>
-            <Button
-              className="rounded-[8px]"
-              disabled={!data.hasMore}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              {t('next', 'Next')}
-            </Button>
-          </div>
-        </div>
+      {!!data && totalPages > 1 && (
+        <Pagination current={page} totalPages={totalPages} setPage={setPage} />
       )}
     </div>
   );

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import useSWR from 'swr';
-import { Select } from '@gitroom/react/form/select';
+import { DropdownSelect } from '@gitroom/react/form/dropdown.select';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
@@ -38,6 +38,12 @@ const ShortlinkPreferenceComponent = () => {
 
   const [localValue, setLocalValue] = useState<ShortLinkPreference>('ASK');
 
+  const shortlinkOptions = [
+    { value: 'ASK', label: t('shortlink_ask', 'Ask every time') },
+    { value: 'YES', label: t('shortlink_yes', 'Always shortlink') },
+    { value: 'NO', label: t('shortlink_no', 'Never shortlink') },
+  ];
+
   // Sync local state with fetched data
   useEffect(() => {
     if (data?.shortlink) {
@@ -46,8 +52,8 @@ const ShortlinkPreferenceComponent = () => {
   }, [data]);
 
   const handleChange = useCallback(
-    async (event: React.ChangeEvent<HTMLSelectElement>) => {
-      const newValue = event.target.value as ShortLinkPreference;
+    async (next: string) => {
+      const newValue = next as ShortLinkPreference;
 
       // Update local state immediately
       setLocalValue(newValue);
@@ -76,8 +82,8 @@ const ShortlinkPreferenceComponent = () => {
       <div className="mt-[4px] font-heading font-[700] text-[16px]">
         {t('shortlink_settings', 'Shortlink Settings')}
       </div>
-      <div className="flex items-center justify-between gap-[24px]">
-        <div className="flex flex-col flex-1">
+      <div className="flex items-center justify-between gap-[24px] phone:flex-col phone:items-stretch">
+        <div className="flex flex-col flex-1 min-w-0">
           <div className="text-[14px]">
             {t('shortlink_preference', 'Shortlink Preference')}
           </div>
@@ -88,25 +94,13 @@ const ShortlinkPreferenceComponent = () => {
             )}
           </div>
         </div>
-        <div className="w-[200px]">
-          <Select
+        <div className="w-[200px] phone:w-full shrink-0">
+          <DropdownSelect
             name="shortlink"
-            label=""
-            disableForm={true}
-            hideErrors={true}
             value={localValue}
             onChange={handleChange}
-          >
-            <option value="ASK">
-              {t('shortlink_ask', 'Ask every time')}
-            </option>
-            <option value="YES">
-              {t('shortlink_yes', 'Always shortlink')}
-            </option>
-            <option value="NO">
-              {t('shortlink_no', 'Never shortlink')}
-            </option>
-          </Select>
+            options={shortlinkOptions}
+          />
         </div>
       </div>
     </div>
