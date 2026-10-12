@@ -431,14 +431,14 @@ export const MediaBox: FC<{
       <div className="flex flex-col flex-1">
         <div
           className={clsx(
-            'flex items-center gap-[12px] phone:flex-col phone:items-stretch',
+            'flex items-center gap-[12px]',
             !isLoading &&
               !data?.results?.length &&
               !debouncedSearch &&
               'hidden'
           )}
         >
-          <div className="flex-1 min-w-0">
+          <div className="flex-1">
             <input
               type="text"
               value={search}
@@ -454,14 +454,14 @@ export const MediaBox: FC<{
             className="hidden"
             multiple={true}
           />
-          <div className="flex gap-[8px] shrink-0">
+          <div className="flex gap-[8px]">
             {btn}
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
         </div>
         {standalone && !!data?.results?.length && (
-          <div className="flex items-center gap-[12px] phone:flex-col phone:items-stretch mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
-            <div className="flex-1 min-w-0 text-newTextColor/[0.8]">
+          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px] mobile:flex-col mobile:items-start mobile:text-[13px]">
+            <div className="flex-1 text-newTextColor/[0.8]">
               {t(
                 'media_library_next_steps',
                 'Your uploads are saved here. Click "Create Post" on any media to schedule it, or attach it to a message in the Agent.'
@@ -469,7 +469,7 @@ export const MediaBox: FC<{
             </div>
             <Link
               href="/launches"
-              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap shrink-0"
+              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap"
             >
               {t('go_to_calendar', 'Go to Calendar')}
             </Link>
@@ -588,21 +588,17 @@ export const MediaBox: FC<{
                         onClick={deleteImage(media)}
                       />
                     )}
-                    <div className="absolute bottom-[10px] end-[10px] z-[100] max-w-[45%] truncate text-[11px] px-[4px] rounded-[4px] bg-black/50 text-white">
-                      {media.originalName}
-                    </div>
+                    <div className="absolute bottom-[10px] end-[10px] z-[100] mobile:hidden">{media.originalName}</div>
                     {!!onCreatePost && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onCreatePost(media);
                         }}
-                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] phone:px-[8px] rounded-[6px] bg-btnPrimary text-white text-[12px] phone:text-[11px] font-[500] shadow-md max-w-[50%]"
+                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
                       >
                         <PlusIcon size={10} />
-                        <span className="truncate">
-                          {t('create_new_post', 'Create Post')}
-                        </span>
+                        {t('create_new_post', 'Create Post')}
                       </button>
                     )}
                     <div className="w-full h-full rounded-[6px] overflow-hidden relative">
@@ -650,10 +646,10 @@ export const MediaBox: FC<{
           />
         )}
         {!standalone && (
-          <div className="flex justify-end mt-[32px] phone:mt-[16px] gap-[8px] phone:flex-col-reverse phone:w-full shrink-0">
+          <div className="flex justify-end mt-[32px] gap-[8px]">
             <button
               onClick={() => modals.closeCurrent()}
-              className="cursor-pointer h-[52px] phone:h-[44px] px-[20px] items-center justify-center border border-newTextColor/10 flex rounded-[10px] phone:w-full"
+              className="cursor-pointer h-[52px] px-[20px] items-center justify-center border border-newTextColor/10 flex rounded-[10px]"
             >
               {t('cancel', 'Cancel')}
             </button>
@@ -661,7 +657,7 @@ export const MediaBox: FC<{
               <button
                 onClick={standalone ? () => {} : addMedia}
                 disabled={selected.length === 0}
-                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] phone:h-[44px] px-[20px] items-center justify-center bg-[#FF5227] flex rounded-[10px] phone:w-full"
+                className="cursor-pointer text-white disabled:opacity-80 disabled:cursor-not-allowed h-[52px] px-[20px] items-center justify-center bg-[#FF5227] flex rounded-[10px]"
               >
                 {t('add_selected_media', 'Add selected media')}
               </button>
@@ -801,8 +797,8 @@ export const MultiMediaComponent: FC<{
 
   return (
     <>
-      <div className="b1 flex flex-col gap-[8px] rounded-bl-[8px] select-none w-full min-w-0">
-        <div className="flex gap-[10px] px-[12px] phone:px-0">
+      <div className="b1 flex flex-col gap-[8px] rounded-bl-[8px] select-none w-full">
+        <div className="flex gap-[10px] px-[12px]">
           {!!currentMedia && (
             <ReactSortable
               list={currentMedia}
@@ -879,12 +875,12 @@ export const MultiMediaComponent: FC<{
             </ReactSortable>
           )}
         </div>
-        <div className="flex flex-wrap gap-[8px] px-[12px] phone:px-0 border-t border-newColColor w-full min-w-0 b1 text-textColor">
+        <div className="flex gap-[8px] px-[12px] border-t border-newColColor w-full b1 text-textColor">
           {!mediaNotAvailable && (
-            <div className="flex py-[10px] phone:py-[6px] b2 items-center gap-[4px] flex-wrap min-w-0">
+            <div className="flex py-[10px] b2 items-center gap-[4px]">
               <div
                 onClick={showModal}
-                className="cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
               >
                 <div className="flex gap-[8px] items-center">
                   <div>
@@ -898,7 +894,7 @@ export const MultiMediaComponent: FC<{
               {!!plontoKey && (
                 <div
                   onClick={designMedia}
-                  className="cursor-pointer h-[30px] phone:h-[36px] phone:min-w-[36px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
+                  className="cursor-pointer h-[30px] rounded-[6px] justify-center items-center flex bg-newColColor px-[8px]"
                 >
                   <div className="flex gap-[5px] items-center">
                     <div>
@@ -921,18 +917,18 @@ export const MultiMediaComponent: FC<{
               )}
             </div>
           )}
-          {!mediaNotAvailable && !!toolBar && (
-            <div className="text-newColColor h-full flex items-center phone:hidden">
+          {!mediaNotAvailable && (
+            <div className="text-newColColor h-full flex items-center">
               <VerticalDividerIcon />
             </div>
           )}
           {!!toolBar && (
-            <div className="flex py-[10px] phone:py-[6px] b2 items-center gap-[4px]">
+            <div className="flex py-[10px] b2 items-center gap-[4px]">
               {toolBar}
             </div>
           )}
           {information && (
-            <div className="flex-1 justify-end flex py-[10px] phone:py-[6px] b2 items-center gap-[4px]">
+            <div className="flex-1 justify-end flex py-[10px] b2 items-center gap-[4px]">
               {information}
             </div>
           )}

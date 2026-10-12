@@ -367,13 +367,13 @@ const McpSection = ({
             <div className="text-[13px] font-[600] text-customColor18">
               {t('auth_method', 'Authentication')}
             </div>
-            <div className="flex gap-[6px]">
+            <div className="flex gap-[6px] mobile:flex-col">
               {(['oauth', 'apikey'] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   className={clsx(
-                    'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors',
+                    'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors whitespace-nowrap',
                     auth === m
                       ? 'bg-[#FF5227] text-white'
                       : 'bg-btnSimple text-customColor18 hover:bg-boxHover hover:text-textColor'

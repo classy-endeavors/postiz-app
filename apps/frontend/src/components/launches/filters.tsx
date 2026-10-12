@@ -58,23 +58,17 @@ export const Filters = () => {
   dayjs.locale();
 
   // Calculate display date range text
-  const getDisplayText = (compact = false) => {
+  const getDisplayText = () => {
     const startDate = newDayjs(calendar.startDate);
     const endDate = newDayjs(calendar.endDate);
 
     switch (calendar.display) {
       case 'day':
-        return compact
-          ? startDate.format('ddd, M/D')
-          : startDate.format('dddd (L)');
+        return startDate.format('dddd (L)');
       case 'week':
-        return compact
-          ? `${startDate.format('M/D')} – ${endDate.format('M/D')}`
-          : `${startDate.format('L')} - ${endDate.format('L')}`;
+        return `${startDate.format('L')} - ${endDate.format('L')}`;
       case 'month':
-        return compact
-          ? startDate.format('MMM YYYY')
-          : startDate.format('MMMM YYYY');
+        return startDate.format('MMMM YYYY');
       default:
         return '';
     }
@@ -302,16 +296,15 @@ export const Filters = () => {
   }, [calendar]);
 
   return (
-    <div className="text-textColor flex flex-col md:flex-row gap-[8px] items-center phone:items-stretch select-none w-full min-w-0">
+    <div className="text-textColor flex flex-col md:flex-row mobile:flex-row mobile:flex-wrap mobile:justify-center gap-[8px] items-center select-none">
       {!isListView && (
-        <div className="flex flex-grow flex-row phone:flex-wrap items-center gap-[16px] phone:gap-[10px] min-w-0">
-          <div className="flex flex-col min-w-[230px] phone:min-w-0 phone:flex-1">
-            <div className="font-heading font-[800] text-[20px] phone:text-[16px] tracking-[-0.01em] whitespace-nowrap phone:truncate">
-              <span className="phone:hidden">{getDisplayText(false)}</span>
-              <span className="hidden phone:inline">{getDisplayText(true)}</span>
+        <div className="flex flex-grow flex-row items-center gap-[16px] mobile:w-full mobile:justify-between mobile:gap-[8px]">
+          <div className="flex flex-col min-w-[230px] mobile:min-w-0">
+            <div className="font-heading font-[800] text-[20px] mobile:text-[15px] tracking-[-0.01em] whitespace-nowrap mobile:truncate">
+              {getDisplayText()}
             </div>
             {calendar.display === 'month' && (
-              <div className="text-[12px] text-textItemBlur">
+              <div className="text-[12px] text-textItemBlur mobile:hidden">
                 {t(
                   'calendar_month_hint',
                   'Use Detail on a day for the full status per channel.'
@@ -364,7 +357,7 @@ export const Filters = () => {
         </div>
       )}
       {isListView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px]">
+        <div className="flex flex-grow flex-row items-center gap-[10px] mobile:w-full mobile:flex-wrap mobile:justify-center">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previousPage}
@@ -391,7 +384,7 @@ export const Filters = () => {
                 />
               </svg>
             </div>
-            <div className="min-w-[200px] phone:min-w-[120px] text-center bg-newBgColorInner h-full flex items-center justify-center">
+            <div className="min-w-[200px] mobile:min-w-[120px] text-center bg-newBgColorInner h-full flex items-center justify-center">
               <div className="py-[3px] px-[9px] rounded-[5px] transition-all text-[14px]">
                 {t('page', 'Page')} {calendar.listPage + 1} {t('of', 'of')} {Math.max(1, calendar.listTotalPages)}
               </div>
@@ -428,7 +421,7 @@ export const Filters = () => {
                 key={option.value}
                 onClick={setListStateFilter(option.value)}
                 className={clsx(
-                  'py-[6px] min-w-[80px] phone:min-w-[64px] px-[12px] phone:px-[8px]',
+                  'py-[6px] min-w-[80px] px-[12px] mobile:min-w-0 mobile:px-[10px]',
                   segmentItemClass,
                   calendar.listState === option.value ? segmentActiveClass : segmentIdleClass
                 )}
@@ -437,10 +430,9 @@ export const Filters = () => {
               </div>
             ))}
           </div>
-          <div className="flex-1 phone:hidden" />
+          <div className="flex-1 mobile:hidden" />
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-[8px] phone:w-full">
       <SelectCustomer
         customer={calendar.customer as string}
         onChange={(customer: string) => setCustomer(customer)}
@@ -450,7 +442,7 @@ export const Filters = () => {
         <div className={segmentGroupClass}>
           <div
             className={clsx(
-              'py-[6px] w-[74px] phone:w-[56px]',
+              'py-[6px] w-[74px]',
               segmentItemClass,
               calendar.display === 'day' ? segmentActiveClass : segmentIdleClass
             )}
@@ -460,7 +452,7 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'py-[6px] w-[74px] phone:w-[56px]',
+              'py-[6px] w-[74px]',
               segmentItemClass,
               calendar.display === 'week' ? segmentActiveClass : segmentIdleClass
             )}
@@ -470,7 +462,7 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'py-[6px] w-[74px] phone:w-[56px]',
+              'py-[6px] w-[74px]',
               segmentItemClass,
               calendar.display === 'month' ? segmentActiveClass : segmentIdleClass
             )}
@@ -531,7 +523,6 @@ export const Filters = () => {
             />
           </svg>
         </div>
-      </div>
       </div>
     </div>
   );

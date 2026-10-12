@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import clsx from 'clsx';
 import useCookie from 'react-use-cookie';
+import { useMediaQuery } from '@mantine/hooks';
 import useSWR from 'swr';
 import { orderBy } from 'lodash';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
@@ -20,14 +21,8 @@ import { useWaitForClass } from '@gitroom/helpers/utils/use.wait.for.class';
 import { MultiMediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Integration } from '@prisma/client';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import {
-  PhoneDrawerBackdrop,
-  PhoneDrawerToggle,
-  phoneSidebarDrawerClass,
-  usePhoneDrawer,
-} from '@gitroom/frontend/components/new-layout/phone-drawer';
 
 export const MediaPortal: FC<{
   media: { path: string; id: string }[];
@@ -49,7 +44,7 @@ export const MediaPortal: FC<{
   const t = useT();
   if (!waitForClass) return null;
   return (
-    <div className="px-[24px] phone:px-[12px] editor rm-bg agent-media w-full min-w-0">
+    <div className="pl-[14px] pr-[24px] whitespace-nowrap editor rm-bg">
       <MultiMediaComponent
         allData={[{ content: value }]}
         text={value}
@@ -66,12 +61,9 @@ export const MediaPortal: FC<{
   );
 };
 
-export const AgentList: FC<{
-  onChange: (arr: any[]) => void;
-  phoneOpen?: boolean;
-  phoneDrawerId?: string;
-  onPhoneClose?: () => void;
-}> = ({ onChange, phoneOpen = false, phoneDrawerId, onPhoneClose }) => {
+export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
+  onChange,
+}) => {
   const fetch = useFetch();
   const t = useT();
   const [selected, setSelected] = useState([]);
@@ -81,6 +73,8 @@ export const AgentList: FC<{
   }, []);
 
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const isMobile = useMediaQuery('(max-width: 1025px)');
+  const collapsed = !isMobile && collapseMenu === '1';
 
   const { data } = useSWR('integrations', load, {
     revalidateOnFocus: false,
@@ -115,24 +109,19 @@ export const AgentList: FC<{
 
   return (
     <div
-      id={phoneDrawerId}
-      role={phoneOpen ? 'dialog' : undefined}
-      aria-modal={phoneOpen || undefined}
-      aria-label={t('select_channels', 'Select Channels')}
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]',
-        phoneSidebarDrawerClass(phoneOpen)
+        collapsed ? 'group sidebar w-[100px]' : 'w-[260px] mobile:w-full'
       )}
     >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px]">
         <div className="flex items-center">
-          <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500] mb-[15px]">
+          <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] mobile:text-[16px] font-[500] mb-[15px] mobile:mb-[10px]">
             {t('select_channels', 'Select Channels')}
           </h2>
           <div
             onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-            className="phone:hidden -mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+            className="-mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none mobile:hidden"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -150,38 +139,14 @@ export const AgentList: FC<{
               />
             </svg>
           </div>
-          {onPhoneClose && (
-            <button
-              type="button"
-              onClick={onPhoneClose}
-              aria-label="Close"
-              className="phone:flex hidden -mt-3 text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] items-center justify-center outline-none"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 14 14"
-                fill="none"
-              >
-                <path
-                  d="M11 3L3 11M3 3L11 11"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
         </div>
-        <div className={clsx('flex flex-col gap-[15px]')}>
+        <div className="flex flex-col gap-[15px] mobile:flex-row mobile:gap-[12px] mobile:overflow-x-auto mobile:pb-[4px]">
           {sortedIntegrations.map((integration, index) => (
             <div
               onClick={setIntegration(integration)}
               key={integration.id}
               className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] hover:opacity-100 cursor-pointer',
+                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] hover:opacity-100 cursor-pointer mobile:shrink-0 mobile:max-w-[200px] mobile:ps-[12px] mobile:pe-[8px]',
                 !selected.some((p) => p.id === integration.id) && 'opacity-20'
               )}
             >
@@ -237,79 +202,22 @@ export const AgentList: FC<{
 export const PropertiesContext = createContext({ properties: [] });
 export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
   const [properties, setProperties] = useState([]);
-  const t = useT();
-  const channelsDrawer = usePhoneDrawer();
-  const historyDrawer = usePhoneDrawer();
-  const channelsDrawerId = 'agent-channels-drawer';
-  const historyDrawerId = 'agent-history-drawer';
-
-  const openChannels = useCallback(() => {
-    if (channelsDrawer.open) {
-      channelsDrawer.close();
-      return;
-    }
-    historyDrawer.close();
-    channelsDrawer.setOpen(true);
-  }, [channelsDrawer, historyDrawer]);
-
-  const openHistory = useCallback(() => {
-    if (historyDrawer.open) {
-      historyDrawer.close();
-      return;
-    }
-    channelsDrawer.close();
-    historyDrawer.setOpen(true);
-  }, [channelsDrawer, historyDrawer]);
-
-  const closeAll = useCallback(() => {
-    channelsDrawer.close();
-    historyDrawer.close();
-  }, [channelsDrawer, historyDrawer]);
 
   return (
     <PropertiesContext.Provider value={{ properties }}>
-      <PhoneDrawerBackdrop
-        open={channelsDrawer.open || historyDrawer.open}
-        onClose={closeAll}
-      />
-      <AgentList
-        onChange={setProperties}
-        phoneOpen={channelsDrawer.open}
-        phoneDrawerId={channelsDrawerId}
-        onPhoneClose={channelsDrawer.close}
-      />
-      <div className="bg-newBgColorInner flex flex-1 min-w-0 flex-col overflow-x-hidden">
-        <div className="phone:flex hidden gap-[8px] p-[12px] border-b border-newOutline shrink-0">
-          <PhoneDrawerToggle
-            open={channelsDrawer.open}
-            onClick={openChannels}
-            controls={channelsDrawerId}
-            label={t('channels', 'Channels')}
-          />
-          <PhoneDrawerToggle
-            open={historyDrawer.open}
-            onClick={openHistory}
-            controls={historyDrawerId}
-            label={t('history', 'History')}
-          />
-        </div>
-        <div className="flex flex-1 min-w-0 overflow-x-hidden">{children}</div>
+      <AgentList onChange={setProperties} />
+      <div className="bg-newBgColorInner flex flex-1 min-w-0 mobile:order-last mobile:min-h-[calc(100vh-300px)]">
+        {children}
       </div>
-      <Threads
-        phoneOpen={historyDrawer.open}
-        phoneDrawerId={historyDrawerId}
-        onPhoneClose={historyDrawer.close}
-      />
+      <Threads />
     </PropertiesContext.Provider>
   );
 };
 
-const Threads: FC<{
-  phoneOpen?: boolean;
-  phoneDrawerId?: string;
-  onPhoneClose?: () => void;
-}> = ({ phoneOpen = false, phoneDrawerId, onPhoneClose }) => {
+const Threads: FC = () => {
   const fetch = useFetch();
+  const router = useRouter();
+  const pathname = usePathname();
   const t = useT();
   const threads = useCallback(async () => {
     return (await fetch('/copilot/list')).json();
@@ -320,50 +228,16 @@ const Threads: FC<{
 
   return (
     <div
-      id={phoneDrawerId}
-      role={phoneOpen ? 'dialog' : undefined}
-      aria-modal={phoneOpen || undefined}
-      aria-label={t('history', 'History')}
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        'w-[260px]',
-        phoneSidebarDrawerClass(phoneOpen, 'end')
+        'w-[260px] mobile:w-full'
       )}
     >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-        <div className="phone:flex hidden items-center justify-between mb-[12px]">
-          <div className="text-[16px] font-[600]">
-            {t('history', 'History')}
-          </div>
-          {onPhoneClose && (
-            <button
-              type="button"
-              onClick={onPhoneClose}
-              aria-label="Close"
-              className="text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center outline-none"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 14 14"
-                fill="none"
-              >
-                <path
-                  d="M11 3L3 11M3 3L11 11"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-        <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px]">
+      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px] mobile:flex mobile:items-center mobile:gap-[10px]">
+        <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px] mobile:mb-0 mobile:shrink-0">
           <Link
             href={`/agents`}
-            className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none"
+            className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none mobile:min-h-[38px] mobile:max-h-[38px] mobile:ps-[10px] mobile:pe-[14px] mobile:py-0"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -381,16 +255,21 @@ const Threads: FC<{
                 strokeLinejoin="round"
               />
             </svg>
-            <div className="flex-1 text-start text-[16px] group-[.sidebar]:hidden">
-              {t('start_a_new_chat', 'Start a new chat')}
+            <div className="flex-1 text-start text-[16px] mobile:text-[14px] group-[.sidebar]:hidden">
+              <span className="mobile:hidden">
+                {t('start_a_new_chat', 'Start a new chat')}
+              </span>
+              <span className="hidden mobile:inline">
+                {t('new_chat', 'New chat')}
+              </span>
             </div>
           </Link>
         </div>
-        <div className="flex flex-col gap-[1px]">
+        <div className="flex flex-col gap-[1px] mobile:flex-row mobile:gap-[6px] mobile:overflow-x-auto mobile:min-w-0">
           {data?.threads?.map((p: any) => (
             <Link
               className={clsx(
-                'overflow-ellipsis overflow-hidden whitespace-nowrap hover:bg-newBgColor px-[10px] py-[6px] rounded-[10px] cursor-pointer',
+                'overflow-ellipsis overflow-hidden whitespace-nowrap hover:bg-newBgColor px-[10px] py-[6px] rounded-[10px] cursor-pointer mobile:shrink-0 mobile:max-w-[160px] mobile:border mobile:border-newBorder mobile:text-[13px]',
                 p.id === id && 'bg-newBgColor'
               )}
               href={`/agents/${p.id}`}
