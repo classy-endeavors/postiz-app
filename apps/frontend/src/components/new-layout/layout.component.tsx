@@ -116,7 +116,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 bg-newBgLineColor rounded-[16px] border-[1.5px] border-newOutline shadow-hard overflow-hidden flex flex-col gap-[1px] blurMe">
-                    <div className="flex bg-newBgColorInner h-[80px] phone:h-[64px] px-[20px] phone:px-[12px] items-center gap-[12px] min-w-0">
+                    <div className="flex bg-newBgColorInner h-[80px] phone:h-[64px] px-[20px] phone:ps-[12px] phone:pe-[16px] items-center gap-[12px] phone:gap-[8px] min-w-0">
                       <button
                         type="button"
                         className="phone:inline-flex hidden shrink-0 w-[36px] h-[36px] items-center justify-center rounded-[8px] border-[1.5px] border-newOutline bg-newBgColorInner text-newTextColor outline-none"
@@ -145,7 +145,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <Title />
                         </div>
                       </div>
-                      <div className="flex gap-[20px] phone:gap-[10px] items-center text-textItemBlur shrink-0">
+                      <div className="flex gap-[20px] phone:gap-[8px] items-center text-textItemBlur shrink-0">
                         <TopBarAddChannel />
                         <div className="phone:hidden flex gap-[20px] items-center">
                           <StreakComponent />
