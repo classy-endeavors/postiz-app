@@ -494,23 +494,23 @@ export const MonthView = () => {
     <div className="flex flex-col text-textColor flex-1 min-w-0">
       <div className="flex-1 flex relative min-w-0">
         <div className="absolute inset-0 min-w-0 overflow-x-auto overflow-y-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
-          <div className="min-w-[640px] phone:min-w-[560px]">
+          <div className="min-w-[640px] phone:min-w-[780px]">
           <div className="grid grid-cols-7 sticky top-0 z-[20] bg-newBgColor border-b-[1.5px] border-newSep">
             {localizedDays.map((day) => (
               <div
                 key={day}
-                className="py-[10px] px-[6px] text-center text-[10.5px] font-[800] uppercase tracking-[0.06em] text-textItemBlur border-e border-newSep last:border-e-0"
+                className="py-[10px] px-[6px] phone:px-[4px] text-center text-[10.5px] phone:text-[10px] font-[800] uppercase tracking-[0.06em] text-textItemBlur border-e border-newSep last:border-e-0"
               >
                 {day}
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 auto-rows-[minmax(168px,auto)] phone:auto-rows-[minmax(120px,auto)]">
+          <div className="grid grid-cols-7 auto-rows-[minmax(168px,auto)] phone:auto-rows-[minmax(132px,auto)]">
             {calendarDays.map((date, index) => (
               <div
                 key={index}
                 className={clsx(
-                  'flex min-w-0 max-h-[240px] border-e border-b border-newSep [&:nth-child(7n)]:border-e-0',
+                  'flex min-w-0 max-h-[240px] phone:max-h-[200px] overflow-hidden border-e border-b border-newSep [&:nth-child(7n)]:border-e-0',
                   date.day.format('YYYY-MM-DD') === today
                     ? 'bg-newButter shadow-[inset_0_0_0_1.5px_var(--new-outline)]'
                     : date.label !== 'current-month' && 'bg-newBgColor'
@@ -674,6 +674,15 @@ const getStatusLabel = (t: ReturnType<typeof useT>, state: GroupState) =>
     PARTIAL: t('partial', 'Partial'),
     QUEUE: t('scheduled', 'Scheduled'),
     DRAFT: t('draft', 'Draft'),
+  }[state]);
+
+const getShortStatusLabel = (t: ReturnType<typeof useT>, state: GroupState) =>
+  ({
+    PUBLISHED: t('published_short', 'Pub'),
+    ERROR: t('failed_short', 'Fail'),
+    PARTIAL: t('partial_short', 'Part'),
+    QUEUE: t('scheduled_short', 'Sch'),
+    DRAFT: t('draft_short', 'Draft'),
   }[state]);
 
 const getGroupState = (posts: { state: State }[]): GroupState => {
@@ -1188,15 +1197,15 @@ export const CalendarColumn: FC<{
       <div
         ref={drop as any}
         className={clsx(
-          'flex flex-col w-full gap-[6px] px-[6px] pt-[8px] pb-[6px] min-w-0',
+          'flex flex-col w-full gap-[6px] phone:gap-[4px] px-[6px] phone:px-[4px] pt-[8px] phone:pt-[6px] pb-[6px] phone:pb-[4px] min-w-0 overflow-hidden',
           loading && 'animate-pulse',
           canDrop && 'bg-boxFocused'
         )}
       >
-        <div className="flex items-center justify-between gap-[6px] px-[2px] shrink-0">
+        <div className="flex items-center justify-between gap-[4px] px-[2px] shrink-0 min-w-0">
           <span
             className={clsx(
-              'inline-grid place-items-center min-w-[24px] h-[24px] px-[6px] rounded-full text-[12px] font-[800] font-heading leading-none',
+              'inline-grid place-items-center min-w-[24px] h-[24px] phone:min-w-[20px] phone:h-[20px] px-[6px] phone:px-[4px] rounded-full text-[12px] phone:text-[11px] font-[800] font-heading leading-none',
               isToday
                 ? 'bg-newTextColor text-newBgColorInner'
                 : outOfMonth
@@ -1207,12 +1216,12 @@ export const CalendarColumn: FC<{
             {getDate.date()}
           </span>
           {postList.length > 0 && (
-            <span className="text-[10px] font-[700] text-textItemBlur">
+            <span className="text-[10px] font-[700] text-textItemBlur shrink-0">
               {postList.length}
             </span>
           )}
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[4px] pe-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-[4px] phone:gap-[3px] pe-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
           {postList.map((post) => (
             <CalendarItem
               key={post.id}
@@ -1235,7 +1244,7 @@ export const CalendarColumn: FC<{
           {!isBeforeNow && (
             <div
               onClick={integrations.length ? addModal : addProvider}
-              className="group flex-1 min-h-[28px] flex items-center justify-center cursor-pointer rounded-[8px] hover:bg-boxFocused transition-colors"
+              className="group flex-1 min-h-[28px] phone:min-h-[22px] flex items-center justify-center cursor-pointer rounded-[8px] hover:bg-boxFocused transition-colors"
             >
               <span className="hidden group-hover:block text-textItemFocused text-[18px] font-[700] leading-none">
                 +
@@ -1246,7 +1255,7 @@ export const CalendarColumn: FC<{
         <button
           type="button"
           onClick={openDay}
-          className="shrink-0 w-full py-[5px] px-[6px] rounded-[8px] border border-newSep bg-newBgColorInner text-newTextColor text-[10.5px] font-[800] tracking-[0.02em] hover:border-newOutline hover:bg-newBgColor transition-colors"
+          className="shrink-0 w-full py-[5px] phone:py-[4px] px-[6px] phone:px-[4px] rounded-[8px] border border-newSep bg-newBgColorInner text-newTextColor text-[10.5px] phone:text-[9.5px] font-[800] tracking-[0.02em] hover:border-newOutline hover:bg-newBgColor transition-colors truncate"
         >
           {t('detail', 'Detail')}
         </button>
@@ -1484,11 +1493,18 @@ const CalendarItem: FC<{
 
   if (display === 'month') {
     const statusLabel = getStatusLabel(t, state);
+    const shortStatusLabel = getShortStatusLabel(t, state);
+    const timeLabel = newDayjs(post.publishDate)
+      .local()
+      .format(isUSCitizen() ? 'h:mm A' : 'HH:mm');
+    const compactTimeLabel = newDayjs(post.publishDate)
+      .local()
+      .format(isUSCitizen() ? 'h:mma' : 'HH:mm');
     return (
       <div
         // @ts-ignore
         ref={dragRef}
-        className="w-full relative group shrink-0"
+        className="w-full relative group shrink-0 min-w-0"
         style={{ opacity }}
       >
         <div
@@ -1499,46 +1515,48 @@ const CalendarItem: FC<{
               post.error || 'An error occurred while publishing this post',
           })}
           className={clsx(
-            'w-full grid grid-cols-[auto_minmax(0,1fr)] gap-x-[6px] items-start ps-[7px] pe-[6px] py-[5px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
+            'w-full min-w-0 overflow-hidden flex flex-col gap-[2px] ps-[7px] pe-[6px] py-[5px] phone:ps-[5px] phone:pe-[4px] phone:py-[4px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
             monthItemTone[state]
           )}
         >
-          <span className="text-[10px] font-[700] tabular-nums text-textItemBlur leading-[1.35] pt-[1px] whitespace-nowrap">
-            {newDayjs(post.publishDate)
-              .local()
-              .format(isUSCitizen() ? 'h:mm A' : 'HH:mm')}
+          <span className="flex items-center gap-[4px] min-w-0">
+            <img
+              className="w-[14px] h-[14px] min-w-[14px] min-h-[14px] object-contain shrink-0 rounded-[3px]"
+              src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
+              alt={post.integration?.providerIdentifier}
+            />
+            <span className="text-[10px] phone:text-[9px] font-[700] tabular-nums text-textItemBlur leading-[1.2] truncate min-w-0">
+              <span className="phone:hidden">{timeLabel}</span>
+              <span className="hidden phone:inline">{compactTimeLabel}</span>
+            </span>
           </span>
-          <span className="min-w-0 flex flex-col gap-[1px]">
-            <span className="flex items-center gap-[4px] min-w-0">
-              <img
-                className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
-                src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
-                alt={post.integration?.providerIdentifier}
-              />
-              <span className="text-[11px] font-[700] leading-[1.3] truncate text-newTextColor">
-                {stripHtmlValidation('none', post.content, false, true, false) ||
-                  t('no_content', 'no content')}
-              </span>
+          <span className="phone:hidden flex items-center gap-[4px] min-w-0">
+            <span className="text-[11px] font-[700] leading-[1.3] truncate text-newTextColor">
+              {stripHtmlValidation('none', post.content, false, true, false) ||
+                t('no_content', 'no content')}
             </span>
-            <span
-              className={clsx(
-                'flex items-center gap-[4px] text-[9.5px] font-[700] leading-[1.25] min-w-0',
-                monthStatusTone[state]
-              )}
-            >
-              <span className="shrink-0">{statusLabel}</span>
-              {!!post.tags.length && (
-                <span className="flex items-center gap-[3px] min-w-0 text-textItemBlur">
-                  <span
-                    className="w-[6px] h-[6px] rounded-full shrink-0 bg-btnPrimary"
-                    style={{ backgroundColor: post.tags[0].tag.color }}
-                  />
-                  <span className="truncate">
-                    {post.tags.map((p) => p.tag.name).join(', ')}
-                  </span>
+          </span>
+          <span
+            className={clsx(
+              'flex items-center gap-[4px] text-[9.5px] phone:text-[9px] font-[700] leading-[1.2] min-w-0 overflow-hidden',
+              monthStatusTone[state]
+            )}
+          >
+            <span className="phone:hidden truncate min-w-0">{statusLabel}</span>
+            <span className="hidden phone:inline truncate min-w-0">
+              {shortStatusLabel}
+            </span>
+            {!!post.tags.length && (
+              <span className="phone:hidden flex items-center gap-[3px] min-w-0 text-textItemBlur">
+                <span
+                  className="w-[6px] h-[6px] rounded-full shrink-0 bg-btnPrimary"
+                  style={{ backgroundColor: post.tags[0].tag.color }}
+                />
+                <span className="truncate">
+                  {post.tags.map((p) => p.tag.name).join(', ')}
                 </span>
-              )}
-            </span>
+              </span>
+            )}
           </span>
         </div>
         {showCreationMethodBadge && (
