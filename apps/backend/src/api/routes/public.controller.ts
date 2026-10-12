@@ -30,6 +30,8 @@ import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf
 import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { ApproveCoinsDto } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
+import { UpgradesService } from '@gitroom/nestjs-libraries/database/prisma/upgrades/upgrades.service';
+import { ReviewUpgradeDto } from '@gitroom/nestjs-libraries/dtos/upgrades/upgrades.dto';
 
 const pump = promisify(pipeline);
 
@@ -41,7 +43,8 @@ export class PublicController {
     private _agentGraphInsertService: AgentGraphInsertService,
     private _postsService: PostsService,
     private _subscriptionService: SubscriptionService,
-    private _coinsService: CoinsService
+    private _coinsService: CoinsService,
+    private _upgradesService: UpgradesService
   ) {}
   @Post('/agent')
   async createAgent(@Body() body: { text: string; apiKey: string }) {
@@ -252,5 +255,10 @@ export class PublicController {
   @Get('/coins/approve')
   approveCoins(@Query() query: ApproveCoinsDto) {
     return this._coinsService.approveRequest(query);
+  }
+
+  @Get('/upgrade/review')
+  reviewUpgrade(@Query() query: ReviewUpgradeDto) {
+    return this._upgradesService.reviewRequest(query);
   }
 }

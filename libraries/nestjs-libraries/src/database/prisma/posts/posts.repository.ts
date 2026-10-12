@@ -1163,6 +1163,56 @@ export class PostsRepository {
     });
   }
 
+  async getPublishedCounts(orgId: string) {
+    const where = {
+      organizationId: orgId,
+      state: 'PUBLISHED' as const,
+      deletedAt: null,
+      parentPostId: null,
+    };
+    const video = ['.mp4', '.mov', '.webm', '.m4v'].map((extension) => ({
+      image: { contains: extension, mode: 'insensitive' as const },
+    }));
+
+    const [posts, withVideo, withMedia, withTitle, comments, channels, first] =
+      await Promise.all([
+        this._post.model.post.count({ where }),
+        this._post.model.post.count({ where: { ...where, OR: video } }),
+        this._post.model.post.count({
+          where: { ...where, image: { contains: '"path"' } },
+        }),
+        this._post.model.post.count({
+          where: { ...where, title: { not: null }, NOT: { title: '' } },
+        }),
+        this._post.model.post.count({
+          where: {
+            organizationId: orgId,
+            deletedAt: null,
+            parentPost: { state: 'PUBLISHED', deletedAt: null },
+          },
+        }),
+        this._post.model.post.groupBy({
+          by: ['integrationId'],
+          where,
+        }),
+        this._post.model.post.findFirst({
+          where,
+          orderBy: { publishDate: 'asc' },
+          select: { publishDate: true },
+        }),
+      ]);
+
+    return {
+      posts,
+      withVideo,
+      withImages: withMedia - withVideo,
+      withTitle,
+      comments,
+      channels: channels.length,
+      since: first?.publishDate || null,
+    };
+  }
+
   async getPostsSince(orgId: string, since: string) {
     return this._post.model.post.findMany({
       where: {
