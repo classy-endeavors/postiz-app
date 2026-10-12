@@ -307,11 +307,11 @@ export const DayView = () => {
   }, [integrations, posts]);
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+    <div className="flex flex-col gap-[10px] flex-1 relative min-w-0">
+      <div className="absolute inset-0 flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {options.map((option) => (
           <Fragment key={option[0].time}>
-            <div className="text-center text-[14px] min-h-[21px]">
+            <div className="text-center text-[14px] phone:text-[12px] min-h-[21px] shrink-0 px-[8px]">
               {newDayjs()
                 .utc()
                 .startOf('day')
@@ -319,10 +319,7 @@ export const DayView = () => {
                 .local()
                 .format(isUSCitizen() ? 'hh:mm A' : 'LT')}
             </div>
-            <div
-              key={option[0].time}
-              className="min-h-[60px] rounded-[10px] flex justify-center items-center gap-[10px] mb-[20px]"
-            >
+            <div className="min-h-[60px] rounded-[10px] flex justify-center items-center gap-[10px] mb-[20px] min-w-0 px-[4px] phone:px-0">
               <CalendarContext.Provider
                 value={{
                   ...calendar,
@@ -344,8 +341,8 @@ export const DayView = () => {
   );
 };
 export const WeekView = () => {
-  const { startDate, endDate } = useCalendar();
-  const t = useT();
+  const { startDate } = useCalendar();
+  const todayLabel = newDayjs().format('L');
 
   // Use dayjs to get localized day names
   const localizedDays = useMemo(() => {
@@ -358,7 +355,9 @@ export const WeekView = () => {
       const day = weekStart.add(i, 'day');
       days.push({
         name: day.format('dddd'),
+        shortName: day.format('ddd'),
         day: day.format('L'),
+        shortDay: day.format('M/D'),
         date: day,
       });
     }
@@ -366,50 +365,69 @@ export const WeekView = () => {
   }, [i18next.resolvedLanguage, startDate]);
 
   return (
-    <div className="flex flex-col text-textColor flex-1">
-      <div className="flex-1 relative">
-        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(72px,_1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full min-w-0 overflow-x-auto overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-          <div className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"></div>
-          {localizedDays.map((day, index) => (
-            <div
-              key={day.name}
-              className="p-2 text-center bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0 z-[20]"
-            >
-              <div className="text-[14px] font-[500] text-newTableText">
-                {day.name}
-              </div>
-              <div
-                className={clsx(
-                  'text-[14px] font-[600] flex items-center justify-center gap-[6px]',
-                  day.day === newDayjs().format('L') &&
-                    'text-newTableTextFocused'
-                )}
-              >
-                {day.day === newDayjs().format('L') && (
-                  <div className="w-[6px] h-[6px] bg-newTableTextFocused rounded-full" />
-                )}
-                {day.day}
-              </div>
-            </div>
-          ))}
-          {hours.map((hour) => (
-            <Fragment key={hour}>
-              <div className="p-2 pe-4 text-center items-center justify-center flex text-[14px] text-newTableText">
-                {convertTimeFormatBasedOnLocality(hour)}
-              </div>
-              {localizedDays.map((day, indexDay) => (
-                <Fragment
-                  key={`${startDate}-${day.date.format('YYYY-MM-DD')}-${hour}`}
+    <div className="flex flex-col text-textColor flex-1 min-w-0">
+      <div className="flex-1 relative min-w-0">
+        {/* Scroll lives on the wrapper so the grid can keep a real min-width */}
+        <div className="absolute inset-0 overflow-x-auto overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor rounded-[10px]">
+          <div className="grid grid-cols-[112px_repeat(7,minmax(120px,1fr))] phone:grid-cols-[52px_repeat(7,minmax(108px,1fr))] gap-[4px] min-w-[960px] phone:min-w-[808px]">
+            <div className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] phone:h-[52px] rounded-[8px] sticky top-0 start-0"></div>
+            {localizedDays.map((day) => {
+              const isToday = day.day === todayLabel;
+              return (
+                <div
+                  key={day.day}
+                  className="p-2 phone:p-[6px] text-center bg-newTableHeader flex justify-center items-center flex-col h-[62px] phone:h-[52px] rounded-[8px] sticky top-0 z-[20] min-w-0"
                 >
-                  <div className="relative">
+                  <div className="text-[14px] phone:hidden font-[500] text-newTableText truncate w-full">
+                    {day.name}
+                  </div>
+                  <div className="hidden phone:block text-[12px] font-[600] text-newTableText truncate w-full">
+                    {day.shortName}
+                  </div>
+                  <div
+                    className={clsx(
+                      'text-[14px] phone:text-[12px] font-[600] flex items-center justify-center gap-[6px] phone:gap-[4px] min-w-0 w-full',
+                      isToday && 'text-newTableTextFocused'
+                    )}
+                  >
+                    {isToday && (
+                      <div className="w-[6px] h-[6px] shrink-0 bg-newTableTextFocused rounded-full" />
+                    )}
+                    <span className="phone:hidden truncate">{day.day}</span>
+                    <span className="hidden phone:inline truncate">
+                      {day.shortDay}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {hours.map((hour) => (
+              <Fragment key={hour}>
+                <div className="p-2 pe-4 phone:p-1 phone:pe-1 text-center items-center justify-center flex text-[14px] phone:text-[11px] text-newTableText sticky start-0 bg-newBgColorInner z-[10]">
+                  <span className="phone:hidden">
+                    {convertTimeFormatBasedOnLocality(hour)}
+                  </span>
+                  <span className="hidden phone:inline leading-tight">
+                    {isUSCitizen()
+                      ? `${hour % 12 === 0 ? 12 : hour % 12}${
+                          hour >= 12 ? 'p' : 'a'
+                        }`
+                      : `${hour}`}
+                  </span>
+                </div>
+                {localizedDays.map((day) => (
+                  <div
+                    key={`${startDate}-${day.date.format('YYYY-MM-DD')}-${hour}`}
+                    className="relative min-w-0 min-h-[72px]"
+                  >
                     <CalendarColumn
                       getDate={day.date.hour(hour).startOf('hour')}
                     />
                   </div>
-                </Fragment>
-              ))}
-            </Fragment>
-          ))}
+                ))}
+              </Fragment>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -469,10 +487,10 @@ export const MonthView = () => {
   const today = newDayjs().format('YYYY-MM-DD');
 
   return (
-    <div className="flex flex-col text-textColor flex-1">
-      <div className="flex-1 flex relative">
-        <div className="absolute start-0 top-0 w-full h-full min-w-0 overflow-x-auto overflow-y-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
-          <div className="min-w-[560px]">
+    <div className="flex flex-col text-textColor flex-1 min-w-0">
+      <div className="flex-1 flex relative min-w-0">
+        <div className="absolute inset-0 min-w-0 overflow-x-auto overflow-y-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
+          <div className="min-w-[640px] phone:min-w-[560px]">
           <div className="grid grid-cols-7 sticky top-0 z-[20] bg-newBgColor border-b-[1.5px] border-newSep">
             {localizedDays.map((day) => (
               <div
@@ -483,7 +501,7 @@ export const MonthView = () => {
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 auto-rows-[minmax(168px,auto)]">
+          <div className="grid grid-cols-7 auto-rows-[minmax(168px,auto)] phone:auto-rows-[minmax(120px,auto)]">
             {calendarDays.map((date, index) => (
               <div
                 key={index}
@@ -613,7 +631,7 @@ export const CalendarPanel = () => {
   return (
     <>
       <Filters />
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
         <Calendar />
       </div>
     </>
@@ -1330,7 +1348,7 @@ export const CalendarColumn: FC<{
               )}
               {display === 'day' && (
                 <div
-                  className={`w-full h-full rounded-[10px] py-[10px] flex-wrap hover:border hover:border-seventh flex justify-center items-center gap-[20px] opacity-30 grayscale hover:grayscale-0 hover:opacity-100`}
+                  className={`w-full h-full rounded-[10px] py-[10px] phone:py-[6px] flex-wrap hover:border hover:border-seventh flex justify-center items-center gap-[20px] phone:gap-[10px] opacity-30 grayscale hover:grayscale-0 hover:opacity-100`}
                 >
                   {integrations.map((selectedIntegrations) => (
                     <div

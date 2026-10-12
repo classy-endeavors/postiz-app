@@ -58,17 +58,23 @@ export const Filters = () => {
   dayjs.locale();
 
   // Calculate display date range text
-  const getDisplayText = () => {
+  const getDisplayText = (compact = false) => {
     const startDate = newDayjs(calendar.startDate);
     const endDate = newDayjs(calendar.endDate);
 
     switch (calendar.display) {
       case 'day':
-        return startDate.format('dddd (L)');
+        return compact
+          ? startDate.format('ddd, M/D')
+          : startDate.format('dddd (L)');
       case 'week':
-        return `${startDate.format('L')} - ${endDate.format('L')}`;
+        return compact
+          ? `${startDate.format('M/D')} – ${endDate.format('M/D')}`
+          : `${startDate.format('L')} - ${endDate.format('L')}`;
       case 'month':
-        return startDate.format('MMMM YYYY');
+        return compact
+          ? startDate.format('MMM YYYY')
+          : startDate.format('MMMM YYYY');
       default:
         return '';
     }
@@ -301,7 +307,8 @@ export const Filters = () => {
         <div className="flex flex-grow flex-row phone:flex-wrap items-center gap-[16px] phone:gap-[10px] min-w-0">
           <div className="flex flex-col min-w-[230px] phone:min-w-0 phone:flex-1">
             <div className="font-heading font-[800] text-[20px] phone:text-[16px] tracking-[-0.01em] whitespace-nowrap phone:truncate">
-              {getDisplayText()}
+              <span className="phone:hidden">{getDisplayText(false)}</span>
+              <span className="hidden phone:inline">{getDisplayText(true)}</span>
             </div>
             {calendar.display === 'month' && (
               <div className="text-[12px] text-textItemBlur">
