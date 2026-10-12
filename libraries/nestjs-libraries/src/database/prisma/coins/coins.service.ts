@@ -79,9 +79,9 @@ export class CoinsService {
   }
 
   async getHistory(organizationId: string, query: CoinsHistoryDto) {
-    const page = query.page || 0;
+    const page = Math.max(0, query.page || 0);
     const filter = query.filter || 'all';
-    const limit = 20;
+    const limit = 10;
 
     const balance = await this.getBalance(organizationId);
     const { transactions, total } =
@@ -102,6 +102,8 @@ export class CoinsService {
           ))
         : null;
 
+    const pages = Math.ceil(total / limit);
+
     return {
       transactions: transactions.map((transaction) => {
         const row = { ...transaction, balanceAfter };
@@ -113,6 +115,7 @@ export class CoinsService {
       total,
       page,
       limit,
+      pages,
       hasMore: (page + 1) * limit < total,
     };
   }

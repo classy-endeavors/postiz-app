@@ -14,10 +14,14 @@ import { Transform } from 'class-transformer';
 export type CoinsHistoryFilter = 'all' | 'spent' | 'added';
 
 export class CoinsHistoryDto {
+  /** Zero-based page index. Page size is fixed at 10 on the server. */
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }) => {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  })
   page?: number = 0;
 
   @IsOptional()
