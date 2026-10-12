@@ -3,6 +3,7 @@
 import YoutubeProvider from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.provider';
 import TiktokProvider from '@gitroom/frontend/components/new-launch/providers/tiktok/tiktok.provider';
 import InstagramProvider from '@gitroom/frontend/components/new-launch/providers/instagram/instagram.collaborators';
+import LinkedinProvider from '@gitroom/frontend/components/new-launch/providers/linkedin/linkedin.provider';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import React, { FC, forwardRef, useEffect, useImperativeHandle } from 'react';
@@ -24,6 +25,14 @@ export const Providers = [
   {
     identifier: 'instagram-standalone',
     component: InstagramProvider,
+  },
+  {
+    identifier: 'linkedin',
+    component: LinkedinProvider,
+  },
+  {
+    identifier: 'linkedin-page',
+    component: LinkedinProvider,
   },
 ];
 export const ShowAllProviders = forwardRef((props, ref) => {

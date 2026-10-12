@@ -1058,7 +1058,7 @@ export const CalendarColumn: FC<{
       const { status } = await fetch(`/posts/${item.id}/date`, {
         method: 'PUT',
         body: JSON.stringify({
-          date: getDate.utc().format('YYYY-MM-DDTHH:mm:ss'),
+          date: getDate.utc().toISOString(),
           action,
           // published posts always confirm via the modal before reaching here;
           // for QUEUE posts the flag is a no-op on the server

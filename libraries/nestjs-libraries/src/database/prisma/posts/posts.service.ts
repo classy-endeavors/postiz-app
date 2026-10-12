@@ -723,7 +723,8 @@ export class PostsService {
     taskQueue: string,
     postId: string,
     orgId: string,
-    state: State
+    state: State,
+    postNow = false
   ) {
     try {
       const workflows = this._temporalService.client
@@ -751,10 +752,15 @@ export class PostsService {
       return;
     }
 
+    const client = this._temporalService.client.getRawClient();
+    if (postNow && !client) {
+      throw new BadRequestException(
+        'Could not start publishing. The scheduler is not running.'
+      );
+    }
+
     try {
-      await this._temporalService.client
-        .getRawClient()
-        ?.workflow.start('postWorkflowV112', {
+      await client?.workflow.start('postWorkflowV112', {
           workflowId: `post_${postId}`,
           taskQueue: 'main',
           workflowIdConflictPolicy: 'TERMINATE_EXISTING',
@@ -763,6 +769,7 @@ export class PostsService {
               taskQueue: taskQueue,
               postId: postId,
               organizationId: orgId,
+              ...(postNow ? { postNow: true } : {}),
             },
           ],
           typedSearchAttributes: new TypedSearchAttributes([
@@ -776,7 +783,13 @@ export class PostsService {
             },
           ]),
         });
-    } catch (err) {}
+    } catch (err) {
+      if (postNow) {
+        throw new BadRequestException(
+          'Could not start publishing. The scheduler is not running.'
+        );
+      }
+    }
   }
 
   /**
@@ -986,7 +999,7 @@ export class PostsService {
       const { posts } = await this._postRepository.createOrUpdatePost(
         body.type,
         orgId,
-        body.type === 'now' ? dayjs().format('YYYY-MM-DDTHH:mm:00') : body.date,
+        body.type === 'now' ? new Date() : body.date,
         post,
         body.tags,
         creationMethod,
@@ -1016,12 +1029,18 @@ export class PostsService {
       );
 
       if (body.type !== 'update') {
-        this.startWorkflow(
+        const start = this.startWorkflow(
           post.settings.__type.split('-')[0].toLowerCase(),
           posts[0].id,
           orgId,
-          posts[0].state
-        ).catch((err) => {});
+          posts[0].state,
+          body.type === 'now'
+        );
+        if (body.type === 'now') {
+          await start;
+        } else {
+          start.catch(() => {});
+        }
       }
 
       Sentry.metrics.count('post_created', 1);

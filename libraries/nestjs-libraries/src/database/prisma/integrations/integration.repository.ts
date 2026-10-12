@@ -151,10 +151,15 @@ export class IntegrationRepository {
   async updateIntegration(id: string, params: Partial<Integration>) {
     if (
       params.picture &&
-      (params.picture.indexOf(process.env.CLOUDFLARE_BUCKET_URL!) === -1 ||
-        params.picture.indexOf(process.env.FRONTEND_URL!) === -1)
+      params.picture.indexOf(process.env.CLOUDFLARE_BUCKET_URL!) === -1 &&
+      params.picture.indexOf(process.env.FRONTEND_URL!) === -1
     ) {
-      params.picture = await this.storage.uploadSimple(params.picture);
+      params.picture = await this.storage
+        .uploadSimple(params.picture)
+        .catch((err): undefined => {
+          console.log('Failed to upload profile picture:', params.picture, err);
+          return undefined;
+        });
     }
 
     const existing = await this._integration.model.integration.findUnique({

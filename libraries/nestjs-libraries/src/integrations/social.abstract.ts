@@ -236,9 +236,32 @@ export abstract class SocialAbstract {
     return { width, height };
   }
 
+  // Local storage saves media as FRONTEND_URL/uploads/... URLs. Fetching those
+  // hits loopback and is blocked by the SSRF guard, so map our own upload URLs
+  // back to UPLOAD_DIRECTORY the same way LocalStorage.removeFile does.
+  protected resolveOwnedMediaPath(path: string): string {
+    if (!path || path.indexOf('http') !== 0) {
+      return path;
+    }
+
+    const frontend = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+    const uploadDir = process.env.UPLOAD_DIRECTORY;
+    if (!frontend || !uploadDir) {
+      return path;
+    }
+
+    const publicPrefix = `${frontend}/uploads`;
+    if (!path.startsWith(publicPrefix)) {
+      return path;
+    }
+
+    return `${uploadDir}${path.slice(publicPrefix.length).split('?')[0]}`;
+  }
+
   // Resolves the total byte size of the media without loading it into memory:
   // a HEAD request for remote URLs, statSync for local files.
   protected async mediaSize(path: string, identifier = ''): Promise<number> {
+    path = this.resolveOwnedMediaPath(path);
     if (path.indexOf('http') === 0) {
       // the media path is user-influenced, keep the SSRF-safe dispatcher that
       // this.fetch applies to every other outbound request. identity encoding
@@ -276,6 +299,7 @@ export abstract class SocialAbstract {
     end: number,
     identifier = ''
   ): Promise<Buffer> {
+    path = this.resolveOwnedMediaPath(path);
     if (path.indexOf('http') === 0) {
       setHeartbeatDetails(
         `media chunk ${start}-${end} ${stripQuery(path)}`

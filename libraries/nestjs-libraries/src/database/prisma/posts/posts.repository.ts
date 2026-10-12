@@ -560,7 +560,7 @@ export class PostsRepository {
         id,
       },
       data: {
-        publishDate: dayjs(date).toDate(),
+        publishDate: dayjs.utc(date).toDate(),
         // schedule: set state to QUEUE (or DRAFT if it was a draft)
         // update: don't change the state
         ...(action === 'schedule'
@@ -599,7 +599,7 @@ export class PostsRepository {
   async createOrUpdatePost(
     state: 'draft' | 'schedule' | 'now' | 'update',
     orgId: string,
-    date: string,
+    date: string | Date,
     body: PostBody,
     tags: { value: string; label: string }[],
     creationMethod: CreationMethod,
@@ -615,7 +615,7 @@ export class PostsRepository {
 
     for (const value of body.value) {
       const updateData = (type: 'create' | 'update') => ({
-        publishDate: dayjs(date).toDate(),
+        publishDate: date instanceof Date ? date : dayjs.utc(date).toDate(),
         integration: {
           connect: {
             id: body.integration.id,

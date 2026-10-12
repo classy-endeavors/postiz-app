@@ -5,12 +5,16 @@ import { SocialProvider } from '@gitroom/nestjs-libraries/integrations/social/so
 import { YoutubeProvider } from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
 import { TiktokProvider } from '@gitroom/nestjs-libraries/integrations/social/tiktok.provider';
 import { InstagramStandaloneProvider } from '@gitroom/nestjs-libraries/integrations/social/instagram.standalone.provider';
+import { LinkedinProvider } from '@gitroom/nestjs-libraries/integrations/social/linkedin.provider';
+import { LinkedinPageProvider } from '@gitroom/nestjs-libraries/integrations/social/linkedin.page.provider';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 
 export const socialIntegrationList: Array<SocialAbstract & SocialProvider> = [
   new YoutubeProvider(),
   new TiktokProvider(),
   new InstagramStandaloneProvider(),
+  new LinkedinProvider(),
+  new LinkedinPageProvider(),
 ];
 
 @Injectable()
