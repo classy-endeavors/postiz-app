@@ -128,7 +128,7 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px]">
+      <div className="phone:hidden bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px]">
         <div className="flex flex-1 flex-col gap-[15px]">
           {list.map(({ tab: tabKey, label }) => (
             <div
@@ -167,7 +167,35 @@ export const SettingsPopup: FC<{
           </a>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] phone:p-[12px] gap-[12px] min-w-0 overflow-x-hidden">
+        <div className="phone:flex hidden flex-col gap-[12px]">
+          <div className="flex gap-[8px] overflow-x-auto scrollbar scrollbar-thumb-fifth scrollbar-track-transparent pb-[4px]">
+            {list.map(({ tab: tabKey, label }) => (
+              <button
+                type="button"
+                key={tabKey}
+                onClick={() => setTab(tabKey)}
+                className={clsx(
+                  'shrink-0 h-[36px] px-[12px] rounded-[8px] border-[1.5px] text-[13px] font-[600] outline-none whitespace-nowrap',
+                  tabKey === tab
+                    ? 'border-btnPrimary bg-boxFocused text-textItemFocused'
+                    : 'border-newOutline bg-newBgColorInner text-newTextColor'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {showLogout && <LogoutComponent />}
+          <a
+            href="https://github.com/classy-endeavors/postiz-app"
+            target="_blank"
+            rel="noreferrer"
+            className="block text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
+          >
+            {t('open_source_licenses', 'Open-source licenses')}
+          </a>
+        </div>
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(submit)}>
             {!!getRef && (
@@ -175,7 +203,7 @@ export const SettingsPopup: FC<{
             )}
             <div
               className={clsx(
-                'w-full mx-auto gap-[24px] flex flex-col relative',
+                'w-full mx-auto gap-[24px] flex flex-col relative min-w-0',
                 !getRef && 'rounded-[4px]'
               )}
             >

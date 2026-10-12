@@ -818,8 +818,23 @@ html[dir='rtl'] [dir='ltr'] {
 }
 
 .w8-max {
-  width: calc(100% / 6);
-  max-width: calc(100% / 6);
+  width: calc(100% / 2);
+  max-width: calc(100% / 2);
+
+  @media (min-width: 430px) {
+    width: calc(100% / 3);
+    max-width: calc(100% / 3);
+  }
+
+  @media (min-width: 768px) {
+    width: calc(100% / 4);
+    max-width: calc(100% / 4);
+  }
+
+  @media (min-width: 1026px) {
+    width: calc(100% / 6);
+    max-width: calc(100% / 6);
+  }
 }
 
 .withp3 {

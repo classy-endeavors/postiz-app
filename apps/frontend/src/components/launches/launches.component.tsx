@@ -31,6 +31,12 @@ import { Onboarding } from '@gitroom/frontend/components/onboarding/onboarding';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { Input } from '@gitroom/react/form/input';
 import { Button } from '@gitroom/react/form/button';
+import {
+  PhoneDrawerBackdrop,
+  PhoneDrawerToggle,
+  phoneSidebarDrawerClass,
+  usePhoneDrawer,
+} from '@gitroom/frontend/components/new-layout/phone-drawer';
 
 export const SVGLine = () => {
   return (
@@ -467,6 +473,8 @@ export const LaunchesComponent = () => {
   const [reload, setReload] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
   const [mode] = useCookie('mode', 'light');
+  const channelsDrawer = usePhoneDrawer();
+  const channelsDrawerId = 'launches-channels-drawer';
   const { isLoading, data: integrations, mutate } = useIntegrationList();
 
   const totalNonDisabledChannels = useMemo(() => {
@@ -625,10 +633,19 @@ export const LaunchesComponent = () => {
     <DNDProvider>
       <Onboarding />
       <CalendarWeekProvider integrations={sortedIntegrations}>
+        <PhoneDrawerBackdrop
+          open={channelsDrawer.open}
+          onClose={channelsDrawer.close}
+        />
         <div
+          id={channelsDrawerId}
+          role={channelsDrawer.open ? 'dialog' : undefined}
+          aria-modal={channelsDrawer.open || undefined}
+          aria-label={t('channels', 'Channels')}
           className={clsx(
             'flex relative flex-col',
-            collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+            collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]',
+            phoneSidebarDrawerClass(channelsDrawer.open)
           )}
         >
           <div
@@ -644,7 +661,7 @@ export const LaunchesComponent = () => {
                 onClick={() =>
                   setCollapseMenu(collapseMenu === '1' ? '0' : '1')
                 }
-                className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+                className="phone:hidden group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -662,6 +679,28 @@ export const LaunchesComponent = () => {
                   />
                 </svg>
               </div>
+              <button
+                type="button"
+                onClick={channelsDrawer.close}
+                aria-label="Close"
+                className="phone:flex hidden text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] items-center justify-center outline-none"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                >
+                  <path
+                    d="M11 3L3 11M3 3L11 11"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
             <div className="flex flex-col gap-[8px] group-[.sidebar]:mx-auto group-[.sidebar]:w-[44px]">
               <AddProviderButton update={() => update(true)} />
@@ -720,8 +759,16 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px]">
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] rounded-[20px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
+        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px] phone:p-[12px]">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] phone:p-[14px] rounded-[20px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
+            <div className="phone:flex hidden">
+              <PhoneDrawerToggle
+                open={channelsDrawer.open}
+                onClick={channelsDrawer.toggle}
+                controls={channelsDrawerId}
+                label={t('channels', 'Channels')}
+              />
+            </div>
             <CalendarPanel />
           </div>
         </div>

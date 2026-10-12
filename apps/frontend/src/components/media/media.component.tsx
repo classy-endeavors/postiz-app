@@ -431,14 +431,14 @@ export const MediaBox: FC<{
       <div className="flex flex-col flex-1">
         <div
           className={clsx(
-            'flex items-center gap-[12px]',
+            'flex items-center gap-[12px] phone:flex-col phone:items-stretch',
             !isLoading &&
               !data?.results?.length &&
               !debouncedSearch &&
               'hidden'
           )}
         >
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <input
               type="text"
               value={search}
@@ -454,14 +454,14 @@ export const MediaBox: FC<{
             className="hidden"
             multiple={true}
           />
-          <div className="flex gap-[8px]">
+          <div className="flex gap-[8px] shrink-0">
             {btn}
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
         </div>
         {standalone && !!data?.results?.length && (
-          <div className="flex items-center gap-[12px] mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
-            <div className="flex-1 text-newTextColor/[0.8]">
+          <div className="flex items-center gap-[12px] phone:flex-col phone:items-stretch mt-[12px] px-[16px] py-[12px] rounded-[8px] bg-newTextColor/[0.04] text-[14px]">
+            <div className="flex-1 min-w-0 text-newTextColor/[0.8]">
               {t(
                 'media_library_next_steps',
                 'Your uploads are saved here. Click "Create Post" on any media to schedule it, or attach it to a message in the Agent.'
@@ -469,7 +469,7 @@ export const MediaBox: FC<{
             </div>
             <Link
               href="/launches"
-              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap"
+              className="bg-btnSimple changeColor flex h-[36px] px-[14px] justify-center items-center rounded-[8px] whitespace-nowrap shrink-0"
             >
               {t('go_to_calendar', 'Go to Calendar')}
             </Link>
@@ -588,17 +588,21 @@ export const MediaBox: FC<{
                         onClick={deleteImage(media)}
                       />
                     )}
-                    <div className="absolute bottom-[10px] end-[10px] z-[100]">{media.originalName}</div>
+                    <div className="absolute bottom-[10px] end-[10px] z-[100] max-w-[45%] truncate text-[11px] px-[4px] rounded-[4px] bg-black/50 text-white">
+                      {media.originalName}
+                    </div>
                     {!!onCreatePost && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onCreatePost(media);
                         }}
-                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] phone:px-[8px] rounded-[6px] bg-btnPrimary text-white text-[12px] phone:text-[11px] font-[500] shadow-md max-w-[50%]"
                       >
                         <PlusIcon size={10} />
-                        {t('create_new_post', 'Create Post')}
+                        <span className="truncate">
+                          {t('create_new_post', 'Create Post')}
+                        </span>
                       </button>
                     )}
                     <div className="w-full h-full rounded-[6px] overflow-hidden relative">

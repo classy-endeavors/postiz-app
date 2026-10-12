@@ -20,8 +20,14 @@ import { useWaitForClass } from '@gitroom/helpers/utils/use.wait.for.class';
 import { MultiMediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Integration } from '@prisma/client';
 import Link from 'next/link';
-import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import {
+  PhoneDrawerBackdrop,
+  PhoneDrawerToggle,
+  phoneSidebarDrawerClass,
+  usePhoneDrawer,
+} from '@gitroom/frontend/components/new-layout/phone-drawer';
 
 export const MediaPortal: FC<{
   media: { path: string; id: string }[];
@@ -60,9 +66,12 @@ export const MediaPortal: FC<{
   );
 };
 
-export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
-  onChange,
-}) => {
+export const AgentList: FC<{
+  onChange: (arr: any[]) => void;
+  phoneOpen?: boolean;
+  phoneDrawerId?: string;
+  onPhoneClose?: () => void;
+}> = ({ onChange, phoneOpen = false, phoneDrawerId, onPhoneClose }) => {
   const fetch = useFetch();
   const t = useT();
   const [selected, setSelected] = useState([]);
@@ -106,9 +115,14 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
 
   return (
     <div
+      id={phoneDrawerId}
+      role={phoneOpen ? 'dialog' : undefined}
+      aria-modal={phoneOpen || undefined}
+      aria-label={t('select_channels', 'Select Channels')}
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+        collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]',
+        phoneSidebarDrawerClass(phoneOpen)
       )}
     >
       <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
@@ -118,7 +132,7 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
           </h2>
           <div
             onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-            className="-mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+            className="phone:hidden -mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -136,6 +150,30 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
               />
             </svg>
           </div>
+          {onPhoneClose && (
+            <button
+              type="button"
+              onClick={onPhoneClose}
+              aria-label="Close"
+              className="phone:flex hidden -mt-3 text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] items-center justify-center outline-none"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M11 3L3 11M3 3L11 11"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
         </div>
         <div className={clsx('flex flex-col gap-[15px]')}>
           {sortedIntegrations.map((integration, index) => (
@@ -199,20 +237,79 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
 export const PropertiesContext = createContext({ properties: [] });
 export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
   const [properties, setProperties] = useState([]);
+  const t = useT();
+  const channelsDrawer = usePhoneDrawer();
+  const historyDrawer = usePhoneDrawer();
+  const channelsDrawerId = 'agent-channels-drawer';
+  const historyDrawerId = 'agent-history-drawer';
+
+  const openChannels = useCallback(() => {
+    if (channelsDrawer.open) {
+      channelsDrawer.close();
+      return;
+    }
+    historyDrawer.close();
+    channelsDrawer.setOpen(true);
+  }, [channelsDrawer, historyDrawer]);
+
+  const openHistory = useCallback(() => {
+    if (historyDrawer.open) {
+      historyDrawer.close();
+      return;
+    }
+    channelsDrawer.close();
+    historyDrawer.setOpen(true);
+  }, [channelsDrawer, historyDrawer]);
+
+  const closeAll = useCallback(() => {
+    channelsDrawer.close();
+    historyDrawer.close();
+  }, [channelsDrawer, historyDrawer]);
 
   return (
     <PropertiesContext.Provider value={{ properties }}>
-      <AgentList onChange={setProperties} />
-      <div className="bg-newBgColorInner flex flex-1">{children}</div>
-      <Threads />
+      <PhoneDrawerBackdrop
+        open={channelsDrawer.open || historyDrawer.open}
+        onClose={closeAll}
+      />
+      <AgentList
+        onChange={setProperties}
+        phoneOpen={channelsDrawer.open}
+        phoneDrawerId={channelsDrawerId}
+        onPhoneClose={channelsDrawer.close}
+      />
+      <div className="bg-newBgColorInner flex flex-1 min-w-0 flex-col overflow-x-hidden">
+        <div className="phone:flex hidden gap-[8px] p-[12px] border-b border-newOutline shrink-0">
+          <PhoneDrawerToggle
+            open={channelsDrawer.open}
+            onClick={openChannels}
+            controls={channelsDrawerId}
+            label={t('channels', 'Channels')}
+          />
+          <PhoneDrawerToggle
+            open={historyDrawer.open}
+            onClick={openHistory}
+            controls={historyDrawerId}
+            label={t('history', 'History')}
+          />
+        </div>
+        <div className="flex flex-1 min-w-0 overflow-x-hidden">{children}</div>
+      </div>
+      <Threads
+        phoneOpen={historyDrawer.open}
+        phoneDrawerId={historyDrawerId}
+        onPhoneClose={historyDrawer.close}
+      />
     </PropertiesContext.Provider>
   );
 };
 
-const Threads: FC = () => {
+const Threads: FC<{
+  phoneOpen?: boolean;
+  phoneDrawerId?: string;
+  onPhoneClose?: () => void;
+}> = ({ phoneOpen = false, phoneDrawerId, onPhoneClose }) => {
   const fetch = useFetch();
-  const router = useRouter();
-  const pathname = usePathname();
   const t = useT();
   const threads = useCallback(async () => {
     return (await fetch('/copilot/list')).json();
@@ -223,12 +320,46 @@ const Threads: FC = () => {
 
   return (
     <div
+      id={phoneDrawerId}
+      role={phoneOpen ? 'dialog' : undefined}
+      aria-modal={phoneOpen || undefined}
+      aria-label={t('history', 'History')}
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        'w-[260px]'
+        'w-[260px]',
+        phoneSidebarDrawerClass(phoneOpen, 'end')
       )}
     >
       <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        <div className="phone:flex hidden items-center justify-between mb-[12px]">
+          <div className="text-[16px] font-[600]">
+            {t('history', 'History')}
+          </div>
+          {onPhoneClose && (
+            <button
+              type="button"
+              onClick={onPhoneClose}
+              aria-label="Close"
+              className="text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center outline-none"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M11 3L3 11M3 3L11 11"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
         <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px]">
           <Link
             href={`/agents`}

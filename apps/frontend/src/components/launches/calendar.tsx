@@ -368,7 +368,7 @@ export const WeekView = () => {
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 relative">
-        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(0,_1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(72px,_1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full min-w-0 overflow-x-auto overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
           <div className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"></div>
           {localizedDays.map((day, index) => (
             <div
@@ -471,7 +471,8 @@ export const MonthView = () => {
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 flex relative">
-        <div className="absolute start-0 top-0 w-full h-full overflow-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
+        <div className="absolute start-0 top-0 w-full h-full min-w-0 overflow-x-auto overflow-y-auto rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
+          <div className="min-w-[560px]">
           <div className="grid grid-cols-7 sticky top-0 z-[20] bg-newBgColor border-b-[1.5px] border-newSep">
             {localizedDays.map((day) => (
               <div
@@ -500,6 +501,7 @@ export const MonthView = () => {
                 />
               </div>
             ))}
+          </div>
           </div>
         </div>
       </div>

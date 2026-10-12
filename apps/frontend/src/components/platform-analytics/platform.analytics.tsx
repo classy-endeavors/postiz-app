@@ -17,6 +17,12 @@ import useCookie from 'react-use-cookie';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
+import {
+  PhoneDrawerBackdrop,
+  PhoneDrawerToggle,
+  phoneSidebarDrawerClass,
+  usePhoneDrawer,
+} from '@gitroom/frontend/components/new-layout/phone-drawer';
 const allowedIntegrations = [
   'tiktok',
   'youtube',
@@ -32,6 +38,8 @@ export const PlatformAnalytics = () => {
   const [key, setKey] = useState(7);
   const [refresh, setRefresh] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const channelsDrawer = usePhoneDrawer();
+  const channelsDrawerId = 'analytics-channels-drawer';
   const toaster = useToaster();
   const addChannel = useAddProvider(undefined, false, '/analytics');
   const load = useCallback(async () => {
@@ -113,7 +121,7 @@ export const PlatformAnalytics = () => {
         <div>
           <img src="/peoplemarketplace.svg" />
         </div>
-        <div className="text-[48px]">
+        <div className="text-[48px] phone:text-[24px]">
           {t('can_t_show_analytics_yet', "Can't show analytics yet")}
           <br />
           {t(
@@ -131,10 +139,19 @@ export const PlatformAnalytics = () => {
   }
   return (
     <>
+      <PhoneDrawerBackdrop
+        open={channelsDrawer.open}
+        onClose={channelsDrawer.close}
+      />
       <div
+        id={channelsDrawerId}
+        role={channelsDrawer.open ? 'dialog' : undefined}
+        aria-modal={channelsDrawer.open || undefined}
+        aria-label={t('channels', 'Channels')}
         className={clsx(
           'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]',
+          phoneSidebarDrawerClass(channelsDrawer.open)
         )}
       >
         <div className="flex gap-[12px] flex-col">
@@ -144,7 +161,7 @@ export const PlatformAnalytics = () => {
             </h2>
             <div
               onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+              className="phone:hidden group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -162,6 +179,28 @@ export const PlatformAnalytics = () => {
                 />
               </svg>
             </div>
+            <button
+              type="button"
+              onClick={channelsDrawer.close}
+              aria-label="Close"
+              className="phone:flex hidden text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] items-center justify-center outline-none"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+              >
+                <path
+                  d="M11 3L3 11M3 3L11 11"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </div>
           {sortedIntegrations.map((integration, index) => (
             <div
@@ -231,9 +270,17 @@ export const PlatformAnalytics = () => {
           ))}
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] phone:p-[12px] gap-[12px] min-w-0">
+        <div className="phone:flex hidden">
+          <PhoneDrawerToggle
+            open={channelsDrawer.open}
+            onClick={channelsDrawer.toggle}
+            controls={channelsDrawerId}
+            label={t('channels', 'Channels')}
+          />
+        </div>
         {!!options.length && (
-          <div className="flex-1 flex flex-col gap-[14px]">
+          <div className="flex-1 flex flex-col gap-[14px] min-w-0">
             <div className="max-w-[200px]">
               <Select
                 label=""
