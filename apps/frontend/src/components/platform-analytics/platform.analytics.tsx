@@ -14,6 +14,7 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import useCookie from 'react-use-cookie';
+import { useMediaQuery } from '@mantine/hooks';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
@@ -27,6 +28,8 @@ export const PlatformAnalytics = () => {
   const [key, setKey] = useState(7);
   const [refresh, setRefresh] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const isMobile = useMediaQuery('(max-width: 1025px)');
+  const collapsed = !isMobile && collapseMenu === '1';
   const toaster = useToaster();
   const addChannel = useAddProvider(undefined, false, '/analytics');
   const load = useCallback(async () => {
@@ -106,7 +109,7 @@ export const PlatformAnalytics = () => {
         <div>
           <img src="/peoplemarketplace.svg" />
         </div>
-        <div className="text-[48px]">
+        <div className="text-[48px] mobile:text-[24px]">
           {t('can_t_show_analytics_yet', "Can't show analytics yet")}
           <br />
           {t(
@@ -126,18 +129,18 @@ export const PlatformAnalytics = () => {
     <>
       <div
         className={clsx(
-          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
-          collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all mobile:p-[12px]',
+          collapsed ? 'group sidebar w-[100px]' : 'w-[260px] mobile:w-full'
         )}
       >
         <div className="flex gap-[12px] flex-col">
           <div className="flex items-center">
-            <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
+            <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] mobile:text-[16px] font-[500]">
               {t('channels')}
             </h2>
             <div
               onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+              className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none mobile:hidden"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -156,6 +159,7 @@ export const PlatformAnalytics = () => {
               </svg>
             </div>
           </div>
+          <div className="flex flex-col gap-[12px] mobile:flex-row mobile:overflow-x-auto mobile:pb-[4px]">
           {sortedIntegrations.map((integration, index) => (
             <div
               key={integration.id}
@@ -174,7 +178,7 @@ export const PlatformAnalytics = () => {
                 setCurrent(index);
               }}
               className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px]',
+                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] mobile:shrink-0 mobile:max-w-[200px] mobile:ps-[12px] mobile:pe-[8px]',
                 currentIntegration.id !== integration.id &&
                   'opacity-20 hover:opacity-100 cursor-pointer'
               )}
@@ -222,9 +226,10 @@ export const PlatformAnalytics = () => {
               </div>
             </div>
           ))}
+          </div>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
         {!!options.length && (
           <div className="flex-1 flex flex-col gap-[14px]">
             <div className="max-w-[200px]">

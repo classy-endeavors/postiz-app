@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import clsx from 'clsx';
 import useCookie from 'react-use-cookie';
+import { useMediaQuery } from '@mantine/hooks';
 import useSWR from 'swr';
 import { orderBy } from 'lodash';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
@@ -72,6 +73,8 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
   }, []);
 
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
+  const isMobile = useMediaQuery('(max-width: 1025px)');
+  const collapsed = !isMobile && collapseMenu === '1';
 
   const { data } = useSWR('integrations', load, {
     revalidateOnFocus: false,
@@ -108,17 +111,17 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
     <div
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
+        collapsed ? 'group sidebar w-[100px]' : 'w-[260px] mobile:w-full'
       )}
     >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px]">
         <div className="flex items-center">
-          <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500] mb-[15px]">
+          <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] mobile:text-[16px] font-[500] mb-[15px] mobile:mb-[10px]">
             {t('select_channels', 'Select Channels')}
           </h2>
           <div
             onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
-            className="-mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
+            className="-mt-3 group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none mobile:hidden"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -137,13 +140,13 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
             </svg>
           </div>
         </div>
-        <div className={clsx('flex flex-col gap-[15px]')}>
+        <div className="flex flex-col gap-[15px] mobile:flex-row mobile:gap-[12px] mobile:overflow-x-auto mobile:pb-[4px]">
           {sortedIntegrations.map((integration, index) => (
             <div
               onClick={setIntegration(integration)}
               key={integration.id}
               className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] hover:opacity-100 cursor-pointer',
+                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] hover:opacity-100 cursor-pointer mobile:shrink-0 mobile:max-w-[200px] mobile:ps-[12px] mobile:pe-[8px]',
                 !selected.some((p) => p.id === integration.id) && 'opacity-20'
               )}
             >
@@ -203,7 +206,9 @@ export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <PropertiesContext.Provider value={{ properties }}>
       <AgentList onChange={setProperties} />
-      <div className="bg-newBgColorInner flex flex-1">{children}</div>
+      <div className="bg-newBgColorInner flex flex-1 min-w-0 mobile:order-last mobile:min-h-[calc(100vh-300px)]">
+        {children}
+      </div>
       <Threads />
     </PropertiesContext.Provider>
   );
@@ -225,14 +230,14 @@ const Threads: FC = () => {
     <div
       className={clsx(
         'trz bg-newBgColorInner flex flex-col gap-[15px] transition-all relative',
-        'w-[260px]'
+        'w-[260px] mobile:w-full'
       )}
     >
-      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-        <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px]">
+      <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px] mobile:flex mobile:items-center mobile:gap-[10px]">
+        <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px] mobile:mb-0 mobile:shrink-0">
           <Link
             href={`/agents`}
-            className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none"
+            className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none mobile:min-h-[38px] mobile:max-h-[38px] mobile:ps-[10px] mobile:pe-[14px] mobile:py-0"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -250,16 +255,21 @@ const Threads: FC = () => {
                 strokeLinejoin="round"
               />
             </svg>
-            <div className="flex-1 text-start text-[16px] group-[.sidebar]:hidden">
-              {t('start_a_new_chat', 'Start a new chat')}
+            <div className="flex-1 text-start text-[16px] mobile:text-[14px] group-[.sidebar]:hidden">
+              <span className="mobile:hidden">
+                {t('start_a_new_chat', 'Start a new chat')}
+              </span>
+              <span className="hidden mobile:inline">
+                {t('new_chat', 'New chat')}
+              </span>
             </div>
           </Link>
         </div>
-        <div className="flex flex-col gap-[1px]">
+        <div className="flex flex-col gap-[1px] mobile:flex-row mobile:gap-[6px] mobile:overflow-x-auto mobile:min-w-0">
           {data?.threads?.map((p: any) => (
             <Link
               className={clsx(
-                'overflow-ellipsis overflow-hidden whitespace-nowrap hover:bg-newBgColor px-[10px] py-[6px] rounded-[10px] cursor-pointer',
+                'overflow-ellipsis overflow-hidden whitespace-nowrap hover:bg-newBgColor px-[10px] py-[6px] rounded-[10px] cursor-pointer mobile:shrink-0 mobile:max-w-[160px] mobile:border mobile:border-newBorder mobile:text-[13px]',
                 p.id === id && 'bg-newBgColor'
               )}
               href={`/agents/${p.id}`}

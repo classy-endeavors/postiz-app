@@ -1,12 +1,15 @@
 'use client';
 
-import { FC, ReactNode } from 'react';
+import { FC, ReactNode, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import clsx from 'clsx';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { MenuItem } from '@gitroom/frontend/components/new-layout/menu-item';
 import { useLogout } from '@gitroom/frontend/components/layout/logout.component';
 import { useCoinsBalance } from '@gitroom/frontend/components/coins/use.coins.balance';
+import { OrganizationSelector } from '@gitroom/frontend/components/layout/organization.selector';
 
 interface MenuItemInterface {
   name: string;
@@ -195,73 +198,169 @@ export const useMenuItem = () => {
   };
 };
 
-export const TopMenu: FC = () => {
+const useVisibleMenu = () => {
   const user = useUser();
   const { firstMenu, secondMenu } = useMenuItem();
   const { isGeneral, billingEnabled } = useVariables();
+
+  const visible = (f: MenuItemInterface) => {
+    if (f.hide) {
+      return false;
+    }
+    if (f.requireBilling && !billingEnabled) {
+      return false;
+    }
+    if (f.name === 'Billing' && user?.isLifetime) {
+      return false;
+    }
+    if (f.role) {
+      return f.role.includes(user?.role!);
+    }
+    return true;
+  };
+
+  const showFirst =
+    // @ts-ignore
+    !!user?.orgId &&
+    // @ts-ignore
+    (user.tier !== 'FREE' || !isGeneral || !billingEnabled);
+
+  return {
+    firstMenu: showFirst ? firstMenu.filter(visible) : [],
+    secondMenu: secondMenu.filter(visible),
+  };
+};
+
+export const TopMenu: FC = () => {
+  const { firstMenu, secondMenu } = useVisibleMenu();
   return (
     <>
       <div className="flex flex-1 flex-col minCustom:gap-[16px] blurMe">
-        {
-          // @ts-ignore
-          user?.orgId &&
-            // @ts-ignore
-            (user.tier !== 'FREE' || !isGeneral || !billingEnabled) &&
-            firstMenu
-              .filter((f) => {
-                if (f.hide) {
-                  return false;
-                }
-                if (f.requireBilling && !billingEnabled) {
-                  return false;
-                }
-                if (f.name === 'Billing' && user?.isLifetime) {
-                  return false;
-                }
-                if (f.role) {
-                  return f.role.includes(user?.role!);
-                }
-                return true;
-              })
-              .map((item, index) => (
+        {firstMenu.map((item) => (
+          <MenuItem
+            path={item.path}
+            label={item.name}
+            icon={item.icon}
+            key={item.name}
+            onClick={item.onClick}
+            badge={item.badge}
+          />
+        ))}
+      </div>
+      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe">
+        {secondMenu.map((item) => (
+          <MenuItem
+            path={item.path}
+            label={item.name}
+            icon={item.icon}
+            key={item.name}
+            onClick={item.onClick}
+            badge={item.badge}
+          />
+        ))}
+      </div>
+    </>
+  );
+};
+
+const MOBILE_TABS = 4;
+
+export const MobileMenu: FC<{ extra?: ReactNode }> = ({ extra }) => {
+  const t = useT();
+  const pathname = usePathname();
+  const { firstMenu, secondMenu } = useVisibleMenu();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  const tabs = firstMenu.slice(0, MOBILE_TABS);
+  const more = [...firstMenu.slice(MOBILE_TABS), ...secondMenu];
+  const moreActive = more.some(
+    (item) => !item.onClick && pathname.indexOf(item.path) === 0
+  );
+
+  return (
+    <>
+      {open && (
+        <div
+          className="hidden mobile:block fixed inset-0 z-[140] bg-black/40"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute start-[8px] end-[8px] bottom-[84px] max-h-[calc(100vh-100px)] overflow-y-auto p-[16px] rounded-[16px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard text-newTextColor flex flex-col gap-[16px]"
+          >
+            <OrganizationSelector asOpenSelect={true} />
+            <div className="grid grid-cols-3 gap-[8px]">
+              {more.map((item) => (
                 <MenuItem
                   path={item.path}
                   label={item.name}
                   icon={item.icon}
                   key={item.name}
-                  onClick={item.onClick}
+                  onClick={
+                    item.onClick
+                      ? () => {
+                          setOpen(false);
+                          item.onClick!();
+                        }
+                      : undefined
+                  }
                   badge={item.badge}
                 />
-              ))
-        }
-      </div>
-      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe">
-        {secondMenu
-          .filter((f) => {
-            if (f.hide) {
-              return false;
-            }
-            if (f.requireBilling && !billingEnabled) {
-              return false;
-            }
-            if (f.name === 'Billing' && user?.isLifetime) {
-              return false;
-            }
-            if (f.role) {
-              return f.role.includes(user?.role!);
-            }
-            return true;
-          })
-          .map((item, index) => (
+              ))}
+            </div>
+            {extra && (
+              <div className="flex items-center justify-around gap-[12px] pt-[12px] border-t border-newBorder text-textItemBlur">
+                {extra}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="hidden mobile:flex fixed bottom-[8px] start-[8px] end-[8px] z-[150] h-[68px] px-[6px] gap-[4px] items-center rounded-[16px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
+        {tabs.map((item) => (
+          <div key={item.name} className="flex-1 min-w-0">
             <MenuItem
               path={item.path}
               label={item.name}
               icon={item.icon}
-              key={item.name}
               onClick={item.onClick}
               badge={item.badge}
             />
-          ))}
+          </div>
+        ))}
+        {more.length > 0 && (
+          <button
+            onClick={() => setOpen(!open)}
+            className={clsx(
+              'flex-1 min-w-0 h-[54px] flex flex-col gap-[4px] items-center justify-center rounded-[12px] border-[1.5px] font-[600] transition-colors',
+              open || moreActive
+                ? 'text-textItemFocused bg-boxFocused border-btnPrimary'
+                : 'text-textItemBlur border-transparent'
+            )}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M4 6H20M4 12H20M4 18H20"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="text-[10px] leading-[1.1]">
+              {t('more', 'More')}
+            </div>
+          </button>
+        )}
       </div>
     </>
   );

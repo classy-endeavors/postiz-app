@@ -205,7 +205,7 @@ export function RegisterAfter({
                 <div
                   className={clsx(
                     'grid gap-[12px]',
-                    !isAfterProvider && 'grid-cols-2'
+                    !isAfterProvider && 'grid-cols-2 mobile:grid-cols-1'
                   )}
                 >
                   {!isAfterProvider && (

@@ -828,5 +828,7 @@
   "mcp_cap_images": "Generate images",
   "mcp_cap_youtube": "Publish to YouTube directly",
   "api_key": "API Key",
-  "apps": "Apps"
+  "apps": "Apps",
+  "more": "More",
+  "new_chat": "New chat"
 }

@@ -90,7 +90,7 @@ const CoinsHistory: FC = () => {
     : 'grid-cols-[150px_130px_1fr_80px]';
 
   return (
-    <div className="flex-[2] min-w-[320px] bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+    <div className="flex-[2] min-w-[320px] mobile:min-w-0 mobile:basis-full bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] mobile:p-[14px] flex flex-col gap-[12px]">
       <div className="flex items-center justify-between gap-[12px] flex-wrap">
         <div>
           <div className="text-[16px] font-heading font-[700]">
@@ -435,9 +435,9 @@ export const CoinsComponent: FC = () => {
   ];
 
   return (
-    <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[20px] overflow-y-auto">
+    <div className="bg-newBgColorInner p-[20px] mobile:p-[12px] flex flex-1 flex-col gap-[20px] mobile:gap-[12px] overflow-y-auto">
       <div className="flex gap-[20px] flex-wrap">
-        <div className="flex-1 min-w-[280px] rounded-[16px] bg-btnPrimary text-white border-[1.5px] border-newOutline shadow-hard p-[24px] flex flex-col gap-[6px]">
+        <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] bg-btnPrimary text-white border-[1.5px] border-newOutline shadow-hard p-[24px] mobile:p-[18px] flex flex-col gap-[6px]">
           <div className="text-[14px] font-[600] text-white/85">
             {t('zyntra_coins_balance', 'Zyntra Coins balance')}
           </div>
@@ -466,7 +466,7 @@ export const CoinsComponent: FC = () => {
             </div>
           </div>
         </div>
-        <div className="flex-1 min-w-[280px] rounded-[16px] bg-newBgColorInner border border-newTableBorder p-[24px] flex flex-col gap-[12px]">
+        <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] bg-newBgColorInner border border-newTableBorder p-[24px] mobile:p-[18px] flex flex-col gap-[12px]">
           <div className="text-[16px] font-heading font-[700]">
             {t('what_coins_pay_for', 'What coins pay for')}
           </div>
@@ -494,7 +494,7 @@ export const CoinsComponent: FC = () => {
       </div>
       <div className="flex gap-[20px] flex-wrap items-start">
         <CoinsHistory />
-        <div className="flex-1 min-w-[300px] flex flex-col gap-[20px]">
+        <div className="flex-1 min-w-[300px] mobile:min-w-0 mobile:basis-full flex flex-col gap-[20px] mobile:gap-[12px]">
           <RequestCoins onSent={reload} />
           {!!user?.isSuperAdmin && <GrantCoins onGranted={reload} />}
         </div>

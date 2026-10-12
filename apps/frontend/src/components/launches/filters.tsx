@@ -296,15 +296,15 @@ export const Filters = () => {
   }, [calendar]);
 
   return (
-    <div className="text-textColor flex flex-col md:flex-row gap-[8px] items-center select-none">
+    <div className="text-textColor flex flex-col md:flex-row mobile:flex-row mobile:flex-wrap mobile:justify-center gap-[8px] items-center select-none">
       {!isListView && (
-        <div className="flex flex-grow flex-row items-center gap-[16px]">
-          <div className="flex flex-col min-w-[230px]">
-            <div className="font-heading font-[800] text-[20px] tracking-[-0.01em] whitespace-nowrap">
+        <div className="flex flex-grow flex-row items-center gap-[16px] mobile:w-full mobile:justify-between mobile:gap-[8px]">
+          <div className="flex flex-col min-w-[230px] mobile:min-w-0">
+            <div className="font-heading font-[800] text-[20px] mobile:text-[15px] tracking-[-0.01em] whitespace-nowrap mobile:truncate">
               {getDisplayText()}
             </div>
             {calendar.display === 'month' && (
-              <div className="text-[12px] text-textItemBlur">
+              <div className="text-[12px] text-textItemBlur mobile:hidden">
                 {t(
                   'calendar_month_hint',
                   'Use Detail on a day for the full status per channel.'
@@ -357,7 +357,7 @@ export const Filters = () => {
         </div>
       )}
       {isListView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px]">
+        <div className="flex flex-grow flex-row items-center gap-[10px] mobile:w-full mobile:flex-wrap mobile:justify-center">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previousPage}
@@ -384,7 +384,7 @@ export const Filters = () => {
                 />
               </svg>
             </div>
-            <div className="min-w-[200px] text-center bg-newBgColorInner h-full flex items-center justify-center">
+            <div className="min-w-[200px] mobile:min-w-[120px] text-center bg-newBgColorInner h-full flex items-center justify-center">
               <div className="py-[3px] px-[9px] rounded-[5px] transition-all text-[14px]">
                 {t('page', 'Page')} {calendar.listPage + 1} {t('of', 'of')} {Math.max(1, calendar.listTotalPages)}
               </div>
@@ -421,7 +421,7 @@ export const Filters = () => {
                 key={option.value}
                 onClick={setListStateFilter(option.value)}
                 className={clsx(
-                  'py-[6px] min-w-[80px] px-[12px]',
+                  'py-[6px] min-w-[80px] px-[12px] mobile:min-w-0 mobile:px-[10px]',
                   segmentItemClass,
                   calendar.listState === option.value ? segmentActiveClass : segmentIdleClass
                 )}
@@ -430,7 +430,7 @@ export const Filters = () => {
               </div>
             ))}
           </div>
-          <div className="flex-1" />
+          <div className="flex-1 mobile:hidden" />
         </div>
       )}
       <SelectCustomer

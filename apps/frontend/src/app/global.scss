@@ -538,6 +538,15 @@ div div .set-font-family {
   display: none !important;
 }
 
+@media (max-width: 1025px) {
+  .copilotKitPopup {
+    bottom: 150px !important;
+  }
+  #chatbase-bubble-button {
+    bottom: 88px !important;
+  }
+}
+
 .hideChatbase #chatbase-bubble-button,
 .hideChatbase #chatbase-bubble-window,
 .hideChatbase #chatbase-message-bubbles {
@@ -820,6 +829,20 @@ html[dir='rtl'] [dir='ltr'] {
 .w8-max {
   width: calc(100% / 6);
   max-width: calc(100% / 6);
+}
+
+@media (max-width: 1025px) {
+  .w8-max {
+    width: calc(100% / 3);
+    max-width: calc(100% / 3);
+  }
+}
+
+@media (max-width: 500px) {
+  .w8-max {
+    width: calc(100% / 2);
+    max-width: calc(100% / 2);
+  }
 }
 
 .withp3 {
