@@ -25,6 +25,7 @@ model Organization {
   Comments            Comments[]
   credits             Credits[]
   coinTransactions    CoinTransaction[]
+  upgradeRequests     UpgradeRequest[]
   clippings           Clipping[]
   customers           Customer[]
   errors              Errors[]
@@ -118,6 +119,7 @@ model User {
   sendFailureEmails     Boolean              @default(true)
   sendStreakEmails      Boolean              @default(true)
   oauthAuthorizations   OAuthAuthorization[]
+  upgradeRequests       UpgradeRequest[]
 
   @@unique([email, providerName])
   @@index([lastReadNotifications])
@@ -300,6 +302,21 @@ model CoinTransaction {
 
   @@index([organizationId])
   @@index([organizationId, type])
+}
+
+model UpgradeRequest {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  message        String?
+  status         String       @default("pending")
+  createdAt      DateTime     @default(now())
+  reviewedAt     DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
 }
 
 model Clipping {

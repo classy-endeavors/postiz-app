@@ -19,6 +19,7 @@ import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
 import { CalendarPanel } from './calendar';
+import { SavingsBanner } from '@gitroom/frontend/components/launches/savings.banner';
 import { useDrag, useDrop } from 'react-dnd';
 import { DNDProvider } from '@gitroom/frontend/components/launches/helpers/dnd.provider';
 import { GeneratorComponent } from './generator/generator';
@@ -735,7 +736,8 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColor flex-1 min-w-0 flex p-[20px] mobile:p-[8px] mobile:min-h-[calc(100vh-160px)]">
+        <div className="bg-newBgColor flex-1 min-w-0 flex flex-col gap-[16px] mobile:gap-[8px] p-[20px] mobile:p-[8px] mobile:min-h-[calc(100vh-160px)]">
+          <SavingsBanner />
           <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] mobile:p-[12px] mobile:gap-[12px] rounded-[20px] mobile:rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
             <CalendarPanel />
           </div>

@@ -63,6 +63,17 @@ type PostWithConditionals = Post & {
   childrenPost: Post[];
 };
 
+// Time a person spends posting by hand, every published post is one channel:
+// opening the app, pasting and formatting the text, then publishing
+export const SAVINGS_HOURLY_RATE = 30;
+export const SAVINGS_MINUTES = {
+  post: 6,
+  images: 5,
+  video: 12,
+  title: 3,
+  comment: 2,
+};
+
 @Injectable()
 export class PostsService {
   private storage = UploadFactory.createStorage();
@@ -713,6 +724,33 @@ export class PostsService {
 
   async countPostsFromDay(orgId: string, date: Date) {
     return this._postRepository.countPostsFromDay(orgId, date);
+  }
+
+  async getSavings(orgId: string) {
+    const cached = await ioRedis.get(`savings:${orgId}`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const counts = await this._postRepository.getPublishedCounts(orgId);
+    const minutes =
+      counts.posts * SAVINGS_MINUTES.post +
+      counts.withImages * SAVINGS_MINUTES.images +
+      counts.withVideo * SAVINGS_MINUTES.video +
+      counts.withTitle * SAVINGS_MINUTES.title +
+      counts.comments * SAVINGS_MINUTES.comment;
+
+    const savings = {
+      posts: counts.posts,
+      channels: counts.channels,
+      since: counts.since,
+      minutes,
+      dollars: Math.round((minutes / 60) * SAVINGS_HOURLY_RATE),
+      hourlyRate: SAVINGS_HOURLY_RATE,
+      minutesPer: SAVINGS_MINUTES,
+    };
+    await ioRedis.set(`savings:${orgId}`, JSON.stringify(savings), 'EX', 300);
+    return savings;
   }
 
   getPostByForWebhookId(id: string, integrationId: string) {

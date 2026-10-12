@@ -93,6 +93,11 @@ export class PostsController {
     return this._postsService.resolveComment(org.id, commentId, body.resolved);
   }
 
+  @Get('/savings')
+  getSavings(@GetOrgFromRequest() org: Organization) {
+    return this._postsService.getSavings(org.id);
+  }
+
   @Get('/tags')
   async getTags(@GetOrgFromRequest() org: Organization) {
     return { tags: await this._postsService.getTags(org.id) };

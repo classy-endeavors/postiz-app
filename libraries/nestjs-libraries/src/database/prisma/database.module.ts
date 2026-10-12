@@ -52,6 +52,8 @@ import { AdminStatsRepository } from '@gitroom/nestjs-libraries/database/prisma/
 import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.service';
 import { CoinsRepository } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.repository';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
+import { UpgradesRepository } from '@gitroom/nestjs-libraries/database/prisma/upgrades/upgrades.repository';
+import { UpgradesService } from '@gitroom/nestjs-libraries/database/prisma/upgrades/upgrades.service';
 
 @Global()
 @Module({
@@ -113,6 +115,8 @@ import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/co
     AdminStatsService,
     CoinsRepository,
     CoinsService,
+    UpgradesRepository,
+    UpgradesService,
   ],
   get exports() {
     return this.providers;
