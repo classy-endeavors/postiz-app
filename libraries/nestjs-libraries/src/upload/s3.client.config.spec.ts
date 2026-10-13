@@ -2,6 +2,7 @@ import {
   buildS3ClientConfig,
   isPresignedUrl,
   objectKeyFromBucketUrl,
+  resolveMediaObjectKey,
   stripPresignedQuery,
   validateCloudStorageEnv,
 } from './s3.client.config';
@@ -73,5 +74,46 @@ describe('s3.client.config', () => {
       )
     ).toBe('abc.mp4');
     expect(objectKeyFromBucketUrl('abc.mp4', '')).toBe('abc.mp4');
+  });
+
+  it('resolveMediaObjectKey prefers name, then Media.name, then URL', () => {
+    const bucketUrl = 'https://aizyntra-media.s3.us-east-1.amazonaws.com';
+    const path = `${bucketUrl}/from-url.mp4`;
+
+    expect(
+      resolveMediaObjectKey({
+        name: 'explicit.mp4',
+        mediaName: 'media-row.mp4',
+        path,
+        bucketUrl,
+      })
+    ).toBe('explicit.mp4');
+
+    expect(
+      resolveMediaObjectKey({
+        name: null,
+        mediaName: 'media-row.mp4',
+        path,
+        bucketUrl,
+      })
+    ).toBe('media-row.mp4');
+
+    expect(
+      resolveMediaObjectKey({
+        name: null,
+        mediaName: null,
+        path,
+        bucketUrl,
+      })
+    ).toBe('from-url.mp4');
+
+    expect(
+      resolveMediaObjectKey({
+        name: null,
+        mediaName: null,
+        path: `${path}?X-Amz-Signature=deadbeef`,
+        bucketUrl,
+      })
+    ).toBe('from-url.mp4');
   });
 });

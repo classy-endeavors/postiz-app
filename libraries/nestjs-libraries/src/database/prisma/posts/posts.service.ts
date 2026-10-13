@@ -58,6 +58,7 @@ import { postContentPlainText } from '@gitroom/helpers/utils/sanitize.post.conte
 import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
 import { countLength } from '@gitroom/helpers/utils/count.length';
 import {
+  resolveMediaObjectKey,
   sanitizeMediaListForPersistence,
   stripPresignedQuery,
 } from '@gitroom/nestjs-libraries/upload/s3.client.config';
@@ -401,12 +402,18 @@ export class PostsService {
                 return { ...p, name: fresh.name, path: fresh.path };
               }
 
-              // Prefer canonical Media.path for anything we may persist
+              // Prefer canonical Media.path for anything we may persist.
+              // Always hydrate name from Media so publish-time signing works
+              // when the composer stored only `{ id, path }`.
               if (fresh?.path && storedPath !== fresh.path) {
                 return { ...p, name: fresh.name || p.name, path: fresh.path };
               }
 
-              return { ...p, path: storedPath };
+              return {
+                ...p,
+                name: p.name || fresh?.name,
+                path: storedPath,
+              };
             })
           )
         )
@@ -435,9 +442,10 @@ export class PostsService {
             if (hasExtension(m.path, 'png')) {
               imageUpdateNeeded = true;
               // Private cloud objects need a fresh signed URL for the fetch
+              const objectKey = await this.resolvePublishObjectKey(m);
               const fetchUrl =
-                this.storage.signDownloadUrl && m.name
-                  ? await this.storage.signDownloadUrl(m.name)
+                this.storage.signDownloadUrl && objectKey
+                  ? await this.storage.signDownloadUrl(objectKey)
                   : m.url;
               const response = await axios.get(fetchUrl, {
                 responseType: 'arraybuffer',
@@ -502,16 +510,51 @@ export class PostsService {
     if (this.storage.signDownloadUrl) {
       return Promise.all(
         getImageList.map(async (m: any) => {
-          if (!m?.name) {
+          const objectKey = await this.resolvePublishObjectKey(m);
+          if (!objectKey) {
             return m;
           }
-          const signed = await this.storage.signDownloadUrl!(m.name);
-          return { ...m, url: signed, path: signed };
+          const signed = await this.storage.signDownloadUrl!(objectKey);
+          return { ...m, name: m.name || objectKey, url: signed, path: signed };
         })
       );
     }
 
     return getImageList;
+  }
+
+  // Object key for cloud signing: Post.image.name → Media.name → URL path.
+  // Only signs objects under CLOUDFLARE_BUCKET_URL so legacy local
+  // FRONTEND_URL/uploads/... media is left unchanged.
+  private async resolvePublishObjectKey(media: {
+    id?: string;
+    name?: string;
+    path?: string;
+    url?: string;
+  }): Promise<string | null> {
+    const path = stripPresignedQuery(media?.path || media?.url || '');
+    const bucketUrl = (process.env.CLOUDFLARE_BUCKET_URL || '').replace(
+      /\/$/,
+      ''
+    );
+    if (!path || path.indexOf('http') !== 0) {
+      return null;
+    }
+    if (!bucketUrl || !path.startsWith(bucketUrl)) {
+      return null;
+    }
+
+    let mediaName = media?.name || null;
+    if (!mediaName && media?.id) {
+      const fresh = await this._mediaService.getMediaById(media.id);
+      mediaName = fresh?.name || null;
+    }
+
+    return resolveMediaObjectKey({
+      name: mediaName,
+      path,
+      bucketUrl,
+    });
   }
 
   async getPostGroupDebugExport(orgId: string, group: string) {

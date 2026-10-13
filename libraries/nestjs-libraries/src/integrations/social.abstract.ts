@@ -14,6 +14,7 @@ import {
 import sharp from 'sharp';
 import { createReadStream, statSync } from 'fs';
 import { Readable } from 'stream';
+import { fetchRemoteMediaByteSize } from '@gitroom/nestjs-libraries/upload/remote.media.size';
 
 export const stripQuery = (url: string) => {
   try {
@@ -259,7 +260,8 @@ export abstract class SocialAbstract {
   }
 
   // Resolves the total byte size of the media without loading it into memory:
-  // a HEAD request for remote URLs, statSync for local files.
+  // Range GET for remote URLs (HEAD fails on GetObject-presigned S3 URLs),
+  // statSync for local files.
   protected async mediaSize(path: string, identifier = ''): Promise<number> {
     path = this.resolveOwnedMediaPath(path);
     if (path.indexOf('http') === 0) {
@@ -268,15 +270,11 @@ export abstract class SocialAbstract {
       // so content-length matches the bytes a later GET actually streams
       // (fetch transparently decompresses encoded bodies).
       setHeartbeatDetails(`media size ${stripQuery(path)}`);
-      const head = await fetch(path, {
-        method: 'HEAD',
-        headers: { 'accept-encoding': 'identity' },
+      const length = await fetchRemoteMediaByteSize(path, {
         dispatcher: getSsrfSafeDispatcher(),
-      } as any);
-      const length = Number(head.headers.get('content-length'));
-      // A failed HEAD can still carry a content-length (of the error body),
-      // and a zero/NaN size would poison chunk-count math downstream.
-      if (!head.ok || !Number.isFinite(length) || length <= 0) {
+      });
+      // A zero/NaN size would poison chunk-count math downstream.
+      if (!Number.isFinite(length) || !length || length <= 0) {
         throw new BadBody(
           identifier,
           '{}',

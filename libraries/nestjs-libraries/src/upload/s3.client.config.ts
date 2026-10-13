@@ -85,6 +85,42 @@ export function objectKeyFromBucketUrl(
   return clean.split('/').pop() || null;
 }
 
+/**
+ * Resolve the S3/R2 object key for publish-time signing when Post.image may
+ * omit `name` (composer often stores only `{ id, path }`).
+ * Order: explicit name → Media.name → key parsed from the canonical bucket URL.
+ */
+export function resolveMediaObjectKey(input: {
+  name?: string | null;
+  mediaName?: string | null;
+  path?: string | null;
+  bucketUrl?: string | null;
+}): string | null {
+  const fromName = input.name?.trim();
+  if (fromName) {
+    return fromName.includes('/')
+      ? fromName.split('/').pop() || fromName
+      : fromName;
+  }
+
+  const fromMedia = input.mediaName?.trim();
+  if (fromMedia) {
+    return fromMedia.includes('/')
+      ? fromMedia.split('/').pop() || fromMedia
+      : fromMedia;
+  }
+
+  const path = input.path?.trim();
+  if (!path) {
+    return null;
+  }
+
+  return objectKeyFromBucketUrl(
+    stripPresignedQuery(path),
+    (input.bucketUrl || '').trim()
+  );
+}
+
 export function isPresignedUrl(url: string): boolean {
   return /[?&]X-Amz-(Algorithm|Signature|Credential)=/i.test(url);
 }
