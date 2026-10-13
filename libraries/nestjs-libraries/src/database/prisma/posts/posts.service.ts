@@ -691,32 +691,35 @@ export class PostsService {
       });
   }
 
+  private async terminateWorkflows(postId: string) {
+    try {
+      const workflows = this._temporalService.client
+        .getRawClient()
+        ?.workflow.list({
+          query: `postId="${postId}" AND ExecutionStatus="Running"`,
+        });
+
+      for await (const executionInfo of workflows) {
+        try {
+          const workflow = await this._temporalService.client.getWorkflowHandle(
+            executionInfo.workflowId
+          );
+          if (
+            workflow &&
+            (await workflow.describe()).status.name !== 'TERMINATED'
+          ) {
+            await workflow.terminate();
+          }
+        } catch (err) {}
+      }
+    } catch (err) {}
+  }
+
   async deletePost(orgId: string, group: string) {
     const post = await this._postRepository.deletePost(orgId, group);
 
     if (post?.id) {
-      try {
-        const workflows = this._temporalService.client
-          .getRawClient()
-          ?.workflow.list({
-            query: `postId="${post.id}" AND ExecutionStatus="Running"`,
-          });
-
-        for await (const executionInfo of workflows) {
-          try {
-            const workflow =
-              await this._temporalService.client.getWorkflowHandle(
-                executionInfo.workflowId
-              );
-            if (
-              workflow &&
-              (await workflow.describe()).status.name !== 'TERMINATED'
-            ) {
-              await workflow.terminate();
-            }
-          } catch (err) {}
-        }
-      } catch (err) {}
+      await this.terminateWorkflows(post.id);
     }
 
     return { error: true };
@@ -764,27 +767,7 @@ export class PostsService {
     state: State,
     postNow = false
   ) {
-    try {
-      const workflows = this._temporalService.client
-        .getRawClient()
-        ?.workflow.list({
-          query: `postId="${postId}" AND ExecutionStatus="Running"`,
-        });
-
-      for await (const executionInfo of workflows) {
-        try {
-          const workflow = await this._temporalService.client.getWorkflowHandle(
-            executionInfo.workflowId
-          );
-          if (
-            workflow &&
-            (await workflow.describe()).status.name !== 'TERMINATED'
-          ) {
-            await workflow.terminate();
-          }
-        } catch (err) {}
-      }
-    } catch (err) {}
+    await this.terminateWorkflows(postId);
 
     if (state === 'DRAFT') {
       return;
@@ -1113,6 +1096,14 @@ export class PostsService {
         } else {
           start.catch(() => {});
         }
+      } else if (
+        existing?.state === 'PUBLISHED' &&
+        existing.intervalInDays &&
+        !body.inter
+      ) {
+        // A published repeating post waits in its workflow for the next
+        // repost, which would still go out once after repeat is turned off
+        await this.terminateWorkflows(posts[0].id);
       }
 
       Sentry.metrics.count('post_created', 1);
