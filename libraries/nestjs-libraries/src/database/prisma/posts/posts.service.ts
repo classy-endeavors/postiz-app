@@ -1234,6 +1234,7 @@ export class PostsService {
         // publish workflow alone.
         type: 'update',
         shortLink: false,
+        ...(root.intervalInDays ? { inter: root.intervalInDays } : {}),
         tags: ((root as any).tags || []).map((t: any) => ({
           value: t.tag.name,
           label: t.tag.name,
