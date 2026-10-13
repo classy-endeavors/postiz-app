@@ -11,10 +11,10 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Request, Response } from 'express';
-import crypto from 'crypto';
 import path from 'path';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
+import { buildS3ClientConfig } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fileTypeFromBuffer } = require('file-type');
 
@@ -45,26 +45,33 @@ function normalizeExtension(filename: string): string | null {
   return multipartExtToMime()[ext] ? ext : null;
 }
 
-const {
-  CLOUDFLARE_ACCOUNT_ID,
-  CLOUDFLARE_ACCESS_KEY,
-  CLOUDFLARE_SECRET_ACCESS_KEY,
-  CLOUDFLARE_BUCKETNAME,
-  CLOUDFLARE_BUCKET_URL,
-  CLOUDFLARE_ENDPOINT,
-  CLOUDFLARE_REGION,
-} = process.env;
+let r2Client: S3Client | null = null;
 
-const R2 = new S3Client({
-  region: CLOUDFLARE_REGION || 'auto',
-  endpoint:
-    CLOUDFLARE_ENDPOINT ||
-    `https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: CLOUDFLARE_ACCESS_KEY!,
-    secretAccessKey: CLOUDFLARE_SECRET_ACCESS_KEY!,
-  },
-});
+function getR2Client(): S3Client {
+  if (!r2Client) {
+    r2Client = new S3Client(
+      buildS3ClientConfig({
+        accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+        accessKey: process.env.CLOUDFLARE_ACCESS_KEY,
+        secretKey: process.env.CLOUDFLARE_SECRET_ACCESS_KEY,
+        region: process.env.CLOUDFLARE_REGION,
+        bucketName: process.env.CLOUDFLARE_BUCKETNAME,
+        bucketUrl: process.env.CLOUDFLARE_BUCKET_URL,
+        endpoint: process.env.CLOUDFLARE_ENDPOINT,
+        forcePathStyle: process.env.CLOUDFLARE_S3_FORCE_PATH_STYLE === 'true',
+      })
+    );
+  }
+  return r2Client;
+}
+
+function bucketName() {
+  return process.env.CLOUDFLARE_BUCKETNAME;
+}
+
+function bucketUrl() {
+  return process.env.CLOUDFLARE_BUCKET_URL;
+}
 
 // Function to generate a random string
 function generateRandomString() {
@@ -107,16 +114,16 @@ export async function simpleUpload(
   const randomFilename = generateRandomString() + fileExtension;
 
   const params = {
-    Bucket: CLOUDFLARE_BUCKETNAME,
+    Bucket: bucketName(),
     Key: randomFilename,
     Body: data,
     ContentType: safeContentType,
   };
 
   const command = new PutObjectCommand({ ...params });
-  await R2.send(command);
+  await getR2Client().send(command);
 
-  return CLOUDFLARE_BUCKET_URL + '/' + randomFilename;
+  return bucketUrl() + '/' + randomFilename;
 }
 
 export async function createMultipartUpload(req: Request, res: Response) {
@@ -130,7 +137,7 @@ export async function createMultipartUpload(req: Request, res: Response) {
 
   try {
     const params = {
-      Bucket: CLOUDFLARE_BUCKETNAME,
+      Bucket: bucketName(),
       Key: `${randomFilename}`,
       ContentType: safeContentType,
       Metadata: {
@@ -139,7 +146,7 @@ export async function createMultipartUpload(req: Request, res: Response) {
     };
 
     const command = new CreateMultipartUploadCommand({ ...params });
-    const response = await R2.send(command);
+    const response = await getR2Client().send(command);
     return res.status(200).json({
       uploadId: response.UploadId,
       key: response.Key,
@@ -162,13 +169,15 @@ export async function prepareUploadParts(req: Request, res: Response) {
   for (const part of parts) {
     try {
       const params = {
-        Bucket: CLOUDFLARE_BUCKETNAME,
+        Bucket: bucketName(),
         Key: partData.key,
         PartNumber: part.number,
         UploadId: partData.uploadId,
       };
       const command = new UploadPartCommand({ ...params });
-      const url = await getSignedUrl(R2, command, { expiresIn: 3600 });
+      const url = await getSignedUrl(getR2Client(), command, {
+        expiresIn: 3600,
+      });
 
       // @ts-ignore
       response.presignedUrls[part.number] = url;
@@ -186,12 +195,12 @@ export async function listParts(req: Request, res: Response) {
 
   try {
     const params = {
-      Bucket: CLOUDFLARE_BUCKETNAME,
+      Bucket: bucketName(),
       Key: key,
       UploadId: uploadId,
     };
     const command = new ListPartsCommand({ ...params });
-    const response = await R2.send(command);
+    const response = await getR2Client().send(command);
 
     return res.status(200).json(response['Parts']);
   } catch (err) {
@@ -204,26 +213,27 @@ export async function completeMultipartUpload(req: Request, res: Response) {
   const { key, uploadId, parts } = req.body;
 
   try {
+    const client = getR2Client();
     const command = new CompleteMultipartUploadCommand({
-      Bucket: CLOUDFLARE_BUCKETNAME,
+      Bucket: bucketName(),
       Key: key,
       UploadId: uploadId,
       MultipartUpload: { Parts: parts },
     });
-    const response = await R2.send(command);
+    const response = await client.send(command);
 
     const safeExt = normalizeExtension(key || '');
     if (!safeExt) {
-      await R2.send(
-        new DeleteObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
+      await client.send(
+        new DeleteObjectCommand({ Bucket: bucketName(), Key: key })
       );
       return res.status(400).json({ message: 'Unsupported file type.' });
     }
     const expectedMime = multipartExtToMime()[safeExt];
 
-    const head = await R2.send(
+    const head = await client.send(
       new GetObjectCommand({
-        Bucket: CLOUDFLARE_BUCKETNAME,
+        Bucket: bucketName(),
         Key: key,
         Range: 'bytes=0-4100',
       })
@@ -246,18 +256,17 @@ export async function completeMultipartUpload(req: Request, res: Response) {
         ? ['video/quicktime', 'video/mp4']
         : [expectedMime];
     if (!detected || !acceptedMimes.includes(detected.mime)) {
-      await R2.send(
-        new DeleteObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
+      await client.send(
+        new DeleteObjectCommand({ Bucket: bucketName(), Key: key })
       );
       return res
         .status(400)
         .json({ message: 'File contents do not match declared type.' });
     }
 
+    // Canonical stable reference — never a presigned URL
     response.Location =
-      process.env.CLOUDFLARE_BUCKET_URL +
-      '/' +
-      response?.Location?.split('/').at(-1);
+      bucketUrl() + '/' + (response?.Location?.split('/').at(-1) || key);
     return response;
   } catch (err) {
     console.log('Error', err);
@@ -270,12 +279,12 @@ export async function abortMultipartUpload(req: Request, res: Response) {
 
   try {
     const params = {
-      Bucket: CLOUDFLARE_BUCKETNAME,
+      Bucket: bucketName(),
       Key: key,
       UploadId: uploadId,
     };
     const command = new AbortMultipartUploadCommand({ ...params });
-    const response = await R2.send(command);
+    const response = await getR2Client().send(command);
 
     return res.status(200).json(response);
   } catch (err) {
@@ -289,7 +298,7 @@ export async function signPart(req: Request, res: Response) {
   const partNumber = parseInt(req.body.partNumber);
 
   const params = {
-    Bucket: CLOUDFLARE_BUCKETNAME,
+    Bucket: bucketName(),
     Key: key,
     PartNumber: partNumber,
     UploadId: uploadId,
@@ -297,7 +306,7 @@ export async function signPart(req: Request, res: Response) {
   };
 
   const command = new UploadPartCommand({ ...params });
-  const url = await getSignedUrl(R2, command, { expiresIn: 3600 });
+  const url = await getSignedUrl(getR2Client(), command, { expiresIn: 3600 });
 
   return res.status(200).json({
     url: url,

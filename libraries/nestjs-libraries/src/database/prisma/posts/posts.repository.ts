@@ -16,6 +16,7 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import utc from 'dayjs/plugin/utc';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
+import { sanitizeMediaListForPersistence } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -100,13 +101,32 @@ export class PostsRepository {
     });
   }
 
+  /** Never persist short-lived signed URLs into Post.image. */
+  private stringifyMediaForDb(images: unknown): string {
+    if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        if (Array.isArray(parsed)) {
+          return JSON.stringify(sanitizeMediaListForPersistence(parsed));
+        }
+      } catch {
+        return images;
+      }
+      return images;
+    }
+    if (Array.isArray(images)) {
+      return JSON.stringify(sanitizeMediaListForPersistence(images as any[]));
+    }
+    return JSON.stringify(images ?? []);
+  }
+
   updateImages(id: string, images: string) {
     return this._post.model.post.update({
       where: {
         id,
       },
       data: {
-        image: images,
+        image: this.stringifyMediaForDb(images),
       },
     });
   }
@@ -649,7 +669,7 @@ export class PostsRepository {
               state:
                 state === 'draft' ? ('DRAFT' as const) : ('QUEUE' as const),
             }),
-        image: JSON.stringify(value.image),
+        image: this.stringifyMediaForDb(value.image),
         settings: JSON.stringify(body.settings),
         organization: {
           connect: {
@@ -789,7 +809,7 @@ export class PostsRepository {
         publishDate: data.publishDate,
         releaseId: data.releaseId,
         releaseURL: data.releaseURL,
-        image: JSON.stringify(data.image),
+        image: this.stringifyMediaForDb(data.image),
         settings: JSON.stringify(data.settings),
         organization: {
           connect: {
