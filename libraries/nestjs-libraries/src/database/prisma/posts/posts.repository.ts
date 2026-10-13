@@ -765,6 +765,50 @@ export class PostsRepository {
     return { previousPost, posts };
   }
 
+  createPublishedRecord(
+    orgId: string,
+    integrationId: string,
+    creationMethod: CreationMethod,
+    data: {
+      title: string;
+      content: string;
+      publishDate: Date;
+      releaseId: string;
+      releaseURL: string;
+      image: { path: string }[];
+      settings: Record<string, unknown>;
+    }
+  ) {
+    return this._post.model.post.create({
+      data: {
+        state: 'PUBLISHED',
+        group: uuidv4(),
+        creationMethod,
+        title: data.title,
+        content: data.content,
+        publishDate: data.publishDate,
+        releaseId: data.releaseId,
+        releaseURL: data.releaseURL,
+        image: JSON.stringify(data.image),
+        settings: JSON.stringify(data.settings),
+        organization: {
+          connect: {
+            id: orgId,
+          },
+        },
+        integration: {
+          connect: {
+            id: integrationId,
+            organizationId: orgId,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   async submit(id: string, order: string, buyerOrganizationId: string) {
     return this._post.model.post.update({
       where: {

@@ -58,6 +58,10 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
+import {
+  DirectPublishDetails,
+  isDirectPublishPost,
+} from '@gitroom/frontend/components/launches/direct.publish.details';
 import { Button } from '@gitroom/react/form/button';
 import { Filters } from '@gitroom/frontend/components/launches/filters';
 
@@ -119,6 +123,19 @@ const usePostActions = (onMutate?: () => void) => {
       if (!data?.posts?.length) {
         toaster.show(t('post_not_found', 'Post not found'), 'warning');
         mutate();
+        return;
+      }
+      if (data.settings?.directPublish) {
+        modal.openModal({
+          title: t('direct_publish_details', 'Published from MCP'),
+          children: (close) => (
+            <DirectPublishDetails
+              data={data}
+              channel={integrations.find((f) => f.id === data.integration)?.name}
+              close={close}
+            />
+          ),
+        });
         return;
       }
       const date = !isDuplicate
@@ -1436,9 +1453,14 @@ const CalendarItem: FC<{
   const preview = useCallback(() => {
     window.open(`/p/` + post.id + '?share=true', '_blank');
   }, [post]);
+  const directPublish = useMemo(
+    () => isDirectPublishPost(post.settings),
+    [post.settings]
+  );
   const [{ opacity }, dragRef] = useDrag(
     () => ({
       type: 'post',
+      canDrag: !directPublish,
       item: {
         id: post.id,
         interval: !!post.intervalInDays,
@@ -1534,12 +1556,14 @@ const CalendarItem: FC<{
               <CopyDebug />
             </div>
           )}
-          <div
-            className="cursor-pointer hover:text-textItemFocused"
-            onClick={duplicatePost}
-          >
-            <Duplicate />
-          </div>
+          {!directPublish && (
+            <div
+              className="cursor-pointer hover:text-textItemFocused"
+              onClick={duplicatePost}
+            >
+              <Duplicate />
+            </div>
+          )}
           <div
             className="cursor-pointer hover:text-textItemFocused"
             onClick={preview}
@@ -1622,15 +1646,17 @@ const CalendarItem: FC<{
             <CopyDebug />
           </div>
         )}
-        <div
-          className={clsx(
-            'hidden group-hover:block hover:underline cursor-pointer',
-            post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
-          )}
-          onClick={duplicatePost}
-        >
-          <Duplicate />
-        </div>
+        {!directPublish && (
+          <div
+            className={clsx(
+              'hidden group-hover:block hover:underline cursor-pointer',
+              post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
+            )}
+            onClick={duplicatePost}
+          >
+            <Duplicate />
+          </div>
+        )}
         <div
           className={clsx(
             'hidden group-hover:block hover:underline cursor-pointer',

@@ -9,6 +9,7 @@ import { showMediaBox } from '@gitroom/frontend/components/media/media.component
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { ProfileAvatar } from '@gitroom/frontend/components/layout/profile.menu';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { PasswordSettings } from '@gitroom/frontend/components/settings/password.settings';
 
 export const ProfileSettings: FC = () => {
   const t = useT();
@@ -91,6 +92,7 @@ export const ProfileSettings: FC = () => {
           {t('save_profile', 'Save profile')}
         </Button>
       </div>
+      <PasswordSettings />
     </div>
   );
 };

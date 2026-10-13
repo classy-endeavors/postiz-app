@@ -6,6 +6,8 @@ import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/emai
 import { OrganizationRepository } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.repository';
 import { IntegrationRepository } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.repository';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
+import { ChangePasswordDto } from '@gitroom/nestjs-libraries/dtos/users/change.password.dto';
+import { AuthService } from '@gitroom/helpers/auth/auth.service';
 
 @Injectable()
 export class UsersService {
@@ -133,6 +135,50 @@ export class UsersService {
 
   updatePassword(id: string, password: string) {
     return this._usersRepository.updatePassword(id, password);
+  }
+
+  getProviderUsersWithPasswordByEmail(email: string) {
+    return this._usersRepository.getProviderUsersWithPasswordByEmail(email);
+  }
+
+  async getPasswordStatus(userId: string) {
+    const user = await this._usersRepository.getPasswordInfo(userId);
+    return {
+      hasPassword: !!user?.password,
+      provider: user?.providerName,
+      email: user?.email,
+    };
+  }
+
+  async changePassword(userId: string, body: ChangePasswordDto) {
+    const user = await this._usersRepository.getPasswordInfo(userId);
+    if (!user) {
+      throw new HttpException('User not found', 404);
+    }
+
+    if (user.password) {
+      if (
+        !body.currentPassword ||
+        !AuthService.comparePassword(body.currentPassword, user.password)
+      ) {
+        throw new HttpException('Your current password is incorrect', 400);
+      }
+    } else if (user.providerName !== Provider.LOCAL) {
+      // Password login checks the email account first, keep one password
+      // login per email so it is clear which account opens
+      const emailAccount = await this._usersRepository.getUserByEmail(
+        user.email
+      );
+      if (emailAccount) {
+        throw new HttpException(
+          'Another account already logs in with this email and a password',
+          400
+        );
+      }
+    }
+
+    await this._usersRepository.setPassword(userId, body.password);
+    return { changed: true };
   }
 
   getPersonal(userId: string) {

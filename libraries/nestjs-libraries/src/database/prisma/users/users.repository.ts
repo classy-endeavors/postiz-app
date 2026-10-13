@@ -132,6 +132,59 @@ export class UsersRepository {
     });
   }
 
+  // Accounts created with a social login that also set a password in settings
+  getProviderUsersWithPasswordByEmail(email: string) {
+    return this._user.model.user.findMany({
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
+        providerName: {
+          not: Provider.LOCAL,
+        },
+        NOT: [{ password: null }, { password: '' }],
+        deletedAt: null,
+      },
+      include: {
+        picture: {
+          select: {
+            id: true,
+            path: true,
+          },
+        },
+      },
+    });
+  }
+
+  getPasswordInfo(id: string) {
+    return this._user.model.user.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        email: true,
+        password: true,
+        providerName: true,
+      },
+    });
+  }
+
+  setPassword(id: string, password: string) {
+    return this._user.model.user.update({
+      where: {
+        id,
+      },
+      data: {
+        password: AuthService.hashPassword(password),
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   getUserWithActiveSubscriptionByEmail(email: string, excludeUserId: string) {
     return this._user.model.user.findFirst({
       where: {

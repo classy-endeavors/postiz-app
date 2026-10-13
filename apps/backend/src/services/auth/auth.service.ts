@@ -82,15 +82,25 @@ export class AuthService {
         return obj;
       }
 
-      if (!user || !AuthChecker.comparePassword(body.password, user.password)) {
+      const login =
+        user?.password &&
+        AuthChecker.comparePassword(body.password, user.password)
+          ? user
+          : (
+              await this._userService.getProviderUsersWithPasswordByEmail(
+                body.email
+              )
+            ).find((p) => AuthChecker.comparePassword(body.password, p.password!));
+
+      if (!login) {
         throw new Error('Invalid user name or password');
       }
 
-      if (!user.activated) {
+      if (!login.activated) {
         throw new Error('User is not activated');
       }
 
-      return { addedOrg: false, jwt: await this.jwt(user) };
+      return { addedOrg: false, jwt: await this.jwt(login) };
     }
 
     const user = await this.loginOrRegisterProvider(

@@ -6,9 +6,24 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { setCookie } from '@gitroom/frontend/components/layout/layout.context';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-export const useLogout = () => {
+export const useLogoutNow = () => {
   const fetch = useFetch();
   const { isSecured } = useVariables();
+
+  return useCallback(async () => {
+    if (!isSecured) {
+      setCookie('auth', '', -10);
+    } else {
+      await fetch('/user/logout', {
+        method: 'POST',
+      });
+    }
+    window.location.href = '/';
+  }, []);
+};
+
+export const useLogout = () => {
+  const logoutNow = useLogoutNow();
   const t = useT();
 
   return useCallback(async () => {
@@ -21,14 +36,7 @@ export const useLogout = () => {
         t('yes_logout', 'Yes logout')
       )
     ) {
-      if (!isSecured) {
-        setCookie('auth', '', -10);
-      } else {
-        await fetch('/user/logout', {
-          method: 'POST',
-        });
-      }
-      window.location.href = '/';
+      await logoutNow();
     }
   }, []);
 };
