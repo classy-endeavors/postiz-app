@@ -1,5 +1,6 @@
 import {
   isPresignedUrl,
+  resolveMediaObjectKey,
   sanitizeMediaForPersistence,
   sanitizeMediaListForPersistence,
   stripPresignedQuery,
@@ -46,6 +47,8 @@ describe('media persistence (no signed URLs in DB)', () => {
 });
 
 describe('publish-time signing contract', () => {
+  const bucketUrl = 'https://aizyntra-media.s3.us-east-1.amazonaws.com';
+
   it('fresh sign is independent of stored Post.image path', async () => {
     // Simulates postSocial → updateMedia: DB holds canonical path; return value is signed.
     const stored = {
@@ -67,6 +70,65 @@ describe('publish-time signing contract', () => {
     expect(stripPresignedQuery(firstPublish)).toBe(stored.path);
     expect(signDownloadUrl).toHaveBeenCalledTimes(2);
     expect(signDownloadUrl).toHaveBeenCalledWith('abc.mp4');
+  });
+
+  it('signs when Post.image omits name (Instagram/LinkedIn/TikTok/YouTube path)', async () => {
+    // Production failure shape: composer persisted id+path only
+    const postImage = {
+      id: '3595a8a1-3f59-4e99-b5a1-917f0843c4ea',
+      path: canonicalUrl('30cs6eVCjS80Wv14erEA.mp4'),
+      alt: null,
+      thumbnail: null,
+      thumbnailTimestamp: null,
+    };
+    const mediaRowName = '30cs6eVCjS80Wv14erEA.mp4';
+    const lookupMediaName = jest.fn(async () => mediaRowName);
+    const signDownloadUrl = jest
+      .fn()
+      .mockResolvedValue(signedUrl(mediaRowName, 'publish-sig'));
+
+    const key = resolveMediaObjectKey({
+      name: postImage.name as string | undefined,
+      mediaName: await lookupMediaName(postImage.id),
+      path: postImage.path,
+      bucketUrl,
+    });
+    expect(key).toBe(mediaRowName);
+
+    const signed = await signDownloadUrl(key!);
+    const forProviders = { ...postImage, name: key, path: signed, url: signed };
+
+    expect(isPresignedUrl(forProviders.path)).toBe(true);
+    expect(signDownloadUrl).toHaveBeenCalledWith(mediaRowName);
+
+    // DB write path stays canonical
+    const persisted = sanitizeMediaListForPersistence([
+      { ...forProviders, path: stripPresignedQuery(forProviders.path) },
+    ]);
+    expect(persisted[0].path).toBe(canonicalUrl(mediaRowName));
+    expect(JSON.stringify(persisted)).not.toMatch(/X-Amz-/i);
+  });
+
+  it('parses object key from canonical URL when Media.name lookup is unavailable', async () => {
+    const path = canonicalUrl('only-from-url.mp4');
+    const key = resolveMediaObjectKey({
+      name: null,
+      mediaName: null,
+      path,
+      bucketUrl,
+    });
+    expect(key).toBe('only-from-url.mp4');
+    const signed = signedUrl(key!, 'url-key');
+    expect(stripPresignedQuery(signed)).toBe(path);
+  });
+
+  it('does not treat legacy local /uploads URLs as cloud objects to sign', () => {
+    const localPath =
+      'https://dashboard.aizyntra.com/uploads/2026/10/13/a.mp4';
+    const bucket = bucketUrl.replace(/\/$/, '');
+    const shouldSign =
+      localPath.indexOf('http') === 0 && localPath.startsWith(bucket);
+    expect(shouldSign).toBe(false);
   });
 });
 

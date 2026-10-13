@@ -24,6 +24,7 @@ import { createReadStream, statSync } from 'fs';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { setHeartbeatDetails } from '@gitroom/nestjs-libraries/temporal/temporal.heartbeat';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { fetchRemoteMediaByteSize } from '@gitroom/nestjs-libraries/upload/remote.media.size';
 
 const clientAndYoutube = () => {
   const client = new google.auth.OAuth2({
@@ -425,7 +426,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   private static readonly YOUTUBE_UPLOAD_BATCH_MS = 4 * 60 * 1000;
 
   // Resolves the total byte size of the media without loading it into memory:
-  // a HEAD request for remote URLs, statSync for local files.
+  // Range GET for remote URLs (HEAD fails on GetObject-presigned S3 URLs),
+  // statSync for local files.
   private async youtubeMediaSize(path: string): Promise<number> {
     if (path.indexOf('http') === 0) {
       // the media path is user-influenced, keep the SSRF-safe dispatcher that
@@ -433,13 +435,10 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       // so content-length matches the bytes a later GET actually streams
       // (fetch transparently decompresses encoded bodies).
       setHeartbeatDetails(`youtube: media size ${stripQuery(path)}`);
-      const head = await fetch(path, {
-        method: 'HEAD',
-        headers: { 'accept-encoding': 'identity' },
+      const length = await fetchRemoteMediaByteSize(path, {
         dispatcher: getSsrfSafeDispatcher(),
-      } as any);
-      const length = head.headers.get('content-length');
-      if (!length) {
+      });
+      if (!Number.isFinite(length) || !length || length <= 0) {
         throw new BadBody(
           this.identifier,
           '{}',
@@ -447,7 +446,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           'Could not determine the video size for the YouTube upload'
         );
       }
-      return Number(length);
+      return length;
     }
 
     return statSync(path).size;
