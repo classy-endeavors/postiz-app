@@ -981,6 +981,37 @@ export class PostsService {
     );
   }
 
+  // Direct publish records mirror a post made outside the workflow without its
+  // media, saving them again would publish an empty post to the platform
+  private guardAgainstDirectPublishEdit(
+    post: { settings: string | null } | null
+  ) {
+    let directPublish = false;
+    try {
+      directPublish = !!JSON.parse(post?.settings || '{}').directPublish;
+    } catch (err) {}
+
+    if (directPublish) {
+      throw new BadRequestException(
+        'This post was published directly from MCP and is read-only, edit it on the platform or delete it from the calendar.'
+      );
+    }
+  }
+
+  createPublishedRecord(
+    orgId: string,
+    integrationId: string,
+    creationMethod: CreationMethod,
+    data: Parameters<PostsRepository['createPublishedRecord']>[3]
+  ) {
+    return this._postRepository.createPublishedRecord(
+      orgId,
+      integrationId,
+      creationMethod,
+      data
+    );
+  }
+
   async createPost(
     orgId: string,
     body: CreatePostDto,
@@ -990,29 +1021,32 @@ export class PostsService {
     const postList = [];
     // Scheduling a new post or a draft costs coins, editing a scheduled one is free
     const toCharge = new Set<(typeof body.posts)[number]>();
+    const existingPosts = await Promise.all(
+      body.posts.map((post) =>
+        post.value?.[0]?.id
+          ? this._postRepository.getPostById(post.value[0].id, orgId)
+          : null
+      )
+    );
     if (body.type === 'schedule' || body.type === 'now') {
-      for (const post of body.posts) {
-        const existing = post.value?.[0]?.id
-          ? await this._postRepository.getPostById(post.value[0].id, orgId)
-          : null;
+      body.posts.forEach((post, index) => {
+        const existing = existingPosts[index];
         if (!existing || existing.state === 'DRAFT') {
           toCharge.add(post);
         }
-      }
+      });
       if (toCharge.size) {
         await this._coinsService.checkCoins(orgId, 'post', toCharge.size);
       }
     }
-    for (const post of body.posts) {
+    for (const [index, post] of body.posts.entries()) {
+      const existing = existingPosts[index];
+      this.guardAgainstDirectPublishEdit(existing);
       if (
         (body.type === 'schedule' || body.type === 'now') &&
-        !body.republish &&
-        post.value?.[0]?.id
+        !body.republish
       ) {
-        this.guardAgainstRepublish(
-          await this._postRepository.getPostById(post.value[0].id, orgId),
-          'createPost'
-        );
+        this.guardAgainstRepublish(existing, 'createPost');
       }
       const provider = this._integrationManager.getSocialIntegration(
         (post.settings as any)?.__type
@@ -1255,6 +1289,7 @@ export class PostsService {
     if (!getPostById) {
       throw new BadRequestException('Post not found');
     }
+    this.guardAgainstDirectPublishEdit(getPostById);
 
     const state: State = status === 'draft' ? 'DRAFT' : 'QUEUE';
     const charge = state === 'QUEUE' && getPostById.state === 'DRAFT';
@@ -1290,6 +1325,7 @@ export class PostsService {
     republish = false
   ) {
     const getPostById = await this._postRepository.getPostById(id, orgId);
+    this.guardAgainstDirectPublishEdit(getPostById);
 
     if (action === 'schedule' && !republish) {
       this.guardAgainstRepublish(getPostById, 'changeDate');

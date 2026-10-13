@@ -15,6 +15,7 @@ import {
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { YoutubeProvider } from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
+import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -47,7 +48,8 @@ export class YoutubeDirectPublishTool implements AgentToolInterface {
     private _integrationService: IntegrationService,
     private _integrationManager: IntegrationManager,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _coinsService: CoinsService
+    private _coinsService: CoinsService,
+    private _postsService: PostsService
   ) {}
   name = 'youtubeDirectPublishTool';
   mcpOnly = true;
@@ -198,6 +200,40 @@ export class YoutubeDirectPublishTool implements AgentToolInterface {
         ...(video.publishAt ? { publishAt: video.publishAt } : {}),
         ...(warning ? { warning } : {}),
       });
+
+      // Keeps a calendar record of the video, the media itself is not stored
+      try {
+        await this._postsService.createPublishedRecord(
+          integration.organizationId,
+          integration.id,
+          'MCP',
+          {
+            title: video.title,
+            content: video.description || video.title,
+            publishDate: video.publishAt ? new Date(video.publishAt) : new Date(),
+            releaseId: uploaded.videoId,
+            releaseURL: uploaded.url,
+            image: [
+              {
+                path:
+                  video.thumbnailUrl ||
+                  `https://i.ytimg.com/vi/${uploaded.videoId}/hqdefault.jpg`,
+              },
+            ],
+            settings: {
+              __type: 'youtube',
+              directPublish: true,
+              title: video.title,
+              privacy: video.publishAt ? 'private' : video.privacy,
+              tags: video.tags || [],
+              madeForKids: !!video.madeForKids,
+              ...(video.publishAt ? { publishAt: video.publishAt } : {}),
+            },
+          }
+        );
+      } catch (err) {
+        console.error('youtubeDirectPublishTool calendar record failed', err);
+      }
 
       try {
         await this._coinsService.chargePost(
