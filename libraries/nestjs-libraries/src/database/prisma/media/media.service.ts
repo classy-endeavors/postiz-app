@@ -117,6 +117,46 @@ export class MediaService {
     return this._mediaRepository.getMediaById(id);
   }
 
+  /**
+   * Return a short-lived fetchable URL for an org-owned media row.
+   * Does not mutate DB — canonical Media.path stays unsigned.
+   */
+  private async signObjectKey(fileName?: string | null): Promise<string | null> {
+    if (!fileName || !this.storage.signDownloadUrl) {
+      return null;
+    }
+    return this.storage.signDownloadUrl(fileName);
+  }
+
+  private async withSignedAccess<
+    T extends {
+      name?: string | null;
+      path?: string | null;
+      thumbnail?: string | null;
+    }
+  >(media: T | null | undefined): Promise<T | null | undefined> {
+    if (!media || !this.storage.signDownloadUrl) {
+      return media;
+    }
+
+    const signedPath = await this.signObjectKey(media.name);
+    let thumbnail = media.thumbnail;
+    if (thumbnail && process.env.CLOUDFLARE_BUCKET_URL) {
+      const base = process.env.CLOUDFLARE_BUCKET_URL.replace(/\/$/, '');
+      const clean = thumbnail.split('?')[0];
+      if (clean.startsWith(base)) {
+        const key = clean.slice(base.length).replace(/^\//, '');
+        thumbnail = (await this.signObjectKey(key)) || thumbnail;
+      }
+    }
+
+    return {
+      ...media,
+      ...(signedPath ? { path: signedPath } : {}),
+      ...(thumbnail !== media.thumbnail ? { thumbnail } : {}),
+    };
+  }
+
   async generateImage(
     prompt: string,
     org: Organization,
@@ -185,18 +225,20 @@ export class MediaService {
     return this.saveFile(org, uploaded.originalname, uploaded.path);
   }
 
-  saveFile(
+  async saveFile(
     org: string,
     fileName: string,
     filePath: string,
     originalName?: string
   ) {
-    return this._mediaRepository.saveFile(
+    // Persist the canonical (unsigned) path; sign only for the API response
+    const media = await this._mediaRepository.saveFile(
       org,
       fileName,
       filePath,
       originalName
     );
+    return (await this.withSignedAccess(media))!;
   }
 
   // Saves an upload and, when a normalizer is configured, hands it to the
@@ -318,7 +360,11 @@ export class MediaService {
     const list = await ioRedis.lrange(`uploadSessionMedia:${sessionId}`, 0, -1);
     return (
       await Promise.all(
-        list.map((id) => this._mediaRepository.getMediaStatus(org, id))
+        list.map(async (id) =>
+          this.withSignedAccess(
+            await this._mediaRepository.getMediaStatus(org, id)
+          )
+        )
       )
     ).filter((f) => f);
   }
@@ -329,7 +375,7 @@ export class MediaService {
       throw new HttpException('Media not found', 404);
     }
 
-    return media;
+    return (await this.withSignedAccess(media))!;
   }
 
   // The normalized file overwrites the original in place; only a container
@@ -480,12 +526,19 @@ export class MediaService {
     );
   }
 
-  getMedia(org: string, page: number, search?: string) {
-    return this._mediaRepository.getMedia(org, page, search);
+  async getMedia(org: string, page: number, search?: string) {
+    const result = await this._mediaRepository.getMedia(org, page, search);
+    return {
+      ...result,
+      results: await Promise.all(
+        result.results.map(async (row) => (await this.withSignedAccess(row))!)
+      ),
+    };
   }
 
-  saveMediaInformation(org: string, data: SaveMediaInformationDto) {
-    return this._mediaRepository.saveMediaInformation(org, data);
+  async saveMediaInformation(org: string, data: SaveMediaInformationDto) {
+    const media = await this._mediaRepository.saveMediaInformation(org, data);
+    return (await this.withSignedAccess(media))!;
   }
 
   getVideoOptions() {

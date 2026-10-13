@@ -1,0 +1,77 @@
+import {
+  buildS3ClientConfig,
+  isPresignedUrl,
+  objectKeyFromBucketUrl,
+  stripPresignedQuery,
+  validateCloudStorageEnv,
+} from './s3.client.config';
+
+describe('s3.client.config', () => {
+  const valid = {
+    accountId: '',
+    accessKey: '',
+    secretKey: '',
+    region: 'us-east-1',
+    bucketName: 'aizyntra-media',
+    bucketUrl: 'https://aizyntra-media.s3.us-east-1.amazonaws.com',
+    endpoint: 'https://s3.us-east-1.amazonaws.com',
+  };
+
+  it('rejects incomplete cloud config', () => {
+    expect(() => validateCloudStorageEnv({ ...valid, bucketName: '' })).toThrow(
+      /CLOUDFLARE_BUCKETNAME/
+    );
+    expect(() =>
+      validateCloudStorageEnv({
+        ...valid,
+        endpoint: '',
+        accountId: '',
+      })
+    ).toThrow(/CLOUDFLARE_ENDPOINT or CLOUDFLARE_ACCOUNT_ID/);
+  });
+
+  it('allows empty keys for instance-role credentials', () => {
+    const cfg = buildS3ClientConfig(valid);
+    expect(cfg.credentials).toBeUndefined();
+    expect(cfg.region).toBe('us-east-1');
+    expect(cfg.endpoint).toBe('https://s3.us-east-1.amazonaws.com');
+  });
+
+  it('requires both static keys together', () => {
+    expect(() =>
+      buildS3ClientConfig({ ...valid, accessKey: 'AKIA', secretKey: '' })
+    ).toThrow(/both be set/);
+  });
+
+  it('includes static credentials when both keys are set', () => {
+    const cfg = buildS3ClientConfig({
+      ...valid,
+      accessKey: 'AKIAEXAMPLE',
+      secretKey: 'secret',
+    });
+    expect(cfg.credentials).toEqual({
+      accessKeyId: 'AKIAEXAMPLE',
+      secretAccessKey: 'secret',
+    });
+  });
+
+  it('strips presigned query strings and detects them', () => {
+    const signed =
+      'https://aizyntra-media.s3.us-east-1.amazonaws.com/abc.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef';
+    expect(isPresignedUrl(signed)).toBe(true);
+    expect(stripPresignedQuery(signed)).toBe(
+      'https://aizyntra-media.s3.us-east-1.amazonaws.com/abc.mp4'
+    );
+    expect(isPresignedUrl(stripPresignedQuery(signed))).toBe(false);
+  });
+
+  it('extracts object keys from bucket URLs', () => {
+    expect(
+      objectKeyFromBucketUrl(
+        'https://aizyntra-media.s3.us-east-1.amazonaws.com/abc.mp4?X-Amz-Signature=x',
+        'https://aizyntra-media.s3.us-east-1.amazonaws.com'
+      )
+    ).toBe('abc.mp4');
+    expect(objectKeyFromBucketUrl('abc.mp4', '')).toBe('abc.mp4');
+  });
+});

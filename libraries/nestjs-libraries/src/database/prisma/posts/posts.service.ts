@@ -57,6 +57,10 @@ import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validatio
 import { postContentPlainText } from '@gitroom/helpers/utils/sanitize.post.content';
 import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
 import { countLength } from '@gitroom/helpers/utils/count.length';
+import {
+  sanitizeMediaListForPersistence,
+  stripPresignedQuery,
+} from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -366,9 +370,10 @@ export class PostsService {
   }
 
   async updateMedia(id: string, imagesList: any[], convertToJPEG = false) {
+    let getImageList: any[];
     try {
       let imageUpdateNeeded = false;
-      const getImageList = await Promise.all(
+      getImageList = await Promise.all(
         (
           await Promise.all(
             (imagesList || []).map(async (p: any) => {
@@ -382,32 +387,44 @@ export class PostsService {
               }
 
               // the normalizer may have replaced the file after the post was
-              // composed; a record still processing publishes the original
+              // composed; a record still processing publishes the original.
+              // Compare without presigned query strings so a prior signed path
+              // does not force a spurious rewrite of Post.image.
               const fresh = await this._mediaService.getMediaById(p.id);
-              if (fresh?.status === 'ready' && fresh.path !== p.path) {
+              const storedPath = stripPresignedQuery(p.path);
+              if (
+                fresh?.status === 'ready' &&
+                fresh.path &&
+                stripPresignedQuery(fresh.path) !== storedPath
+              ) {
                 imageUpdateNeeded = true;
                 return { ...p, name: fresh.name, path: fresh.path };
               }
 
-              return p;
+              // Prefer canonical Media.path for anything we may persist
+              if (fresh?.path && storedPath !== fresh.path) {
+                return { ...p, name: fresh.name || p.name, path: fresh.path };
+              }
+
+              return { ...p, path: storedPath };
             })
           )
         )
           .map((m) => {
+            const canonicalPath = stripPresignedQuery(m.path || '');
+            const isHttp = canonicalPath.indexOf('http') === 0;
             return {
               ...m,
-              url:
-                m.path.indexOf('http') === -1
-                  ? process.env.FRONTEND_URL +
-                    '/' +
-                    process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
-                    m.path
-                  : m.path,
               type: 'image',
-              path:
-                m.path.indexOf('http') === -1
-                  ? process.env.UPLOAD_DIRECTORY + m.path
-                  : m.path,
+              url: isHttp
+                ? canonicalPath
+                : process.env.FRONTEND_URL +
+                  '/' +
+                  process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
+                  canonicalPath,
+              path: isHttp
+                ? canonicalPath
+                : process.env.UPLOAD_DIRECTORY + canonicalPath,
             };
           })
           .map(async (m) => {
@@ -417,7 +434,12 @@ export class PostsService {
 
             if (hasExtension(m.path, 'png')) {
               imageUpdateNeeded = true;
-              const response = await axios.get(m.url, {
+              // Private cloud objects need a fresh signed URL for the fetch
+              const fetchUrl =
+                this.storage.signDownloadUrl && m.name
+                  ? await this.storage.signDownloadUrl(m.name)
+                  : m.url;
+              const response = await axios.get(fetchUrl, {
                 responseType: 'arraybuffer',
               });
 
@@ -441,21 +463,22 @@ export class PostsService {
                 encoding: '',
               });
 
+              const canonicalPath = stripPresignedQuery(path);
               return {
                 ...m,
                 name: originalname,
                 url:
-                  path.indexOf('http') === -1
+                  canonicalPath.indexOf('http') === -1
                     ? process.env.FRONTEND_URL +
                       '/' +
                       process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
-                      path
-                    : path,
+                      canonicalPath
+                    : canonicalPath,
                 type: 'image',
                 path:
-                  path.indexOf('http') === -1
-                    ? process.env.UPLOAD_DIRECTORY + path
-                    : path,
+                  canonicalPath.indexOf('http') === -1
+                    ? process.env.UPLOAD_DIRECTORY + canonicalPath
+                    : canonicalPath,
               };
             }
 
@@ -463,17 +486,32 @@ export class PostsService {
           })
       );
 
+      // Persist only canonical (unsigned) references
       if (imageUpdateNeeded) {
         await this._postRepository.updateImages(
           id,
-          JSON.stringify(getImageList)
+          JSON.stringify(sanitizeMediaListForPersistence(getImageList))
         );
       }
-
-      return getImageList;
     } catch (err: any) {
       return imagesList;
     }
+
+    // Fresh short-lived URLs for publishers / callers — never written to DB.
+    // Fail loudly so private-bucket misconfig does not publish unbroken URLs.
+    if (this.storage.signDownloadUrl) {
+      return Promise.all(
+        getImageList.map(async (m: any) => {
+          if (!m?.name) {
+            return m;
+          }
+          const signed = await this.storage.signDownloadUrl!(m.name);
+          return { ...m, url: signed, path: signed };
+        })
+      );
+    }
+
+    return getImageList;
   }
 
   async getPostGroupDebugExport(orgId: string, group: string) {

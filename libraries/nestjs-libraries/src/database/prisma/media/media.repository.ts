@@ -1,6 +1,7 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
+import { stripPresignedQuery } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 @Injectable()
 export class MediaRepository {
@@ -15,7 +16,7 @@ export class MediaRepository {
           },
         },
         name: fileName,
-        path: filePath,
+        path: stripPresignedQuery(filePath),
         originalName: originalName || null,
       },
       select: {
@@ -47,7 +48,7 @@ export class MediaRepository {
       where: { id, organizationId: org },
       data: {
         ...(data.name ? { name: data.name } : {}),
-        ...(data.path ? { path: data.path } : {}),
+        ...(data.path ? { path: stripPresignedQuery(data.path) } : {}),
         ...(data.fileSize ? { fileSize: data.fileSize } : {}),
         status: data.error ? 'failed' : 'ready',
         processingError: data.error || null,
@@ -104,7 +105,9 @@ export class MediaRepository {
       },
       data: {
         alt: data.alt,
-        thumbnail: data.thumbnail,
+        thumbnail: data.thumbnail
+          ? stripPresignedQuery(data.thumbnail)
+          : data.thumbnail,
         thumbnailTimestamp: data.thumbnailTimestamp,
       },
       select: {
