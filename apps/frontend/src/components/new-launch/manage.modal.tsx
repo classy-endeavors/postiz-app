@@ -43,6 +43,7 @@ import { useHasScroll } from '@gitroom/frontend/components/ui/is.scroll.hook';
 import { useShortlinkPreference } from '@gitroom/frontend/components/settings/shortlink-preference.component';
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
+import { useClickOutside } from '@mantine/hooks';
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
@@ -50,10 +51,14 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const ref = useRef(null);
   const existingData = useExistingData();
   const [loading, setLoading] = useState(false);
+  const [postNowOpen, setPostNowOpen] = useState(false);
   const toaster = useToaster();
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
+  const postNowMenuRef = useClickOutside<HTMLDivElement>(() =>
+    setPostNowOpen(false)
+  );
 
   const { addEditSets, mutate, customClose, dummy } = props;
 
@@ -192,18 +197,22 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
+      setPostNowOpen(false);
       let republish = false;
-      if (
+      const postState = existingData?.posts?.[0]?.state;
+      const needsPublishConfirm =
         (type === 'now' || type === 'schedule') &&
-        (existingData?.posts?.[0]?.state === 'PUBLISHED' ||
-          (existingData?.posts?.[0]?.state === 'QUEUE' &&
-            dayjs().isAfter(date.utc())))
-      ) {
+        (postState === 'PUBLISHED' ||
+          postState === 'ERROR' ||
+          (postState === 'QUEUE' && dayjs().isAfter(date.utc())));
+
+      if (needsPublishConfirm) {
         const channels = selectedIntegrations
           .map((p) => p.integration.name)
           .join(', ');
         const isRecurring =
           !!repeater || !!existingData?.posts?.[0]?.intervalInDays;
+        const isFailed = postState === 'ERROR';
 
         const whatToDo = await new Promise((resolve) => {
           modal.openModal({
@@ -211,10 +220,15 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             children: (
               <div className="flex flex-col">
                 <div className="text-[20px] mb-[20px]">
-                  {t(
-                    'post_already_published_republish_warning',
-                    'This post was already published. Republishing will publish it again to'
-                  )}{' '}
+                  {isFailed
+                    ? t(
+                        'post_failed_retry_warning',
+                        'This post failed to publish. Retrying will try to publish it again to'
+                      )
+                    : t(
+                        'post_already_published_republish_warning',
+                        'This post was already published. Republishing will publish it again to'
+                      )}{' '}
                   {channels} {t('republish_at', 'at')}{' '}
                   {date.format('DD/MM/YYYY HH:mm')}.
                   {isRecurring && (
@@ -245,7 +259,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       className="flex-1"
                       onClick={() => resolve('republish')}
                     >
-                      {t('republish_the_post', 'Republish the post')}
+                      {isFailed
+                        ? t('retry_publishing', 'Retry publishing')
+                        : t('republish_the_post', 'Republish the post')}
                     </Button>
                   </div>
                 </div>
@@ -656,22 +672,33 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </button>
             )}
             {!addEditSets && (
-              <div className="group cursor-pointer relative mobile:basis-full">
-                <button
-                  disabled={
-                    selectedIntegrations.length === 0 || loading || locked
-                  }
-                  onClick={schedule('schedule')}
-                  className="text-white relative min-w-[180px] mobile:min-w-0 mobile:w-full btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#FF5227] ps-[20px] pe-[16px]"
+              <div
+                ref={postNowMenuRef}
+                className="relative mobile:basis-full"
+              >
+                <div
+                  className={clsx(
+                    'text-white relative min-w-[180px] mobile:min-w-0 mobile:w-full btnSub outline-none flex justify-center items-center h-[44px] rounded-[8px] bg-[#FF5227] overflow-hidden',
+                    (selectedIntegrations.length === 0 ||
+                      loading ||
+                      locked) &&
+                      'opacity-80'
+                  )}
                 >
                   {loading && (
-                    <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%]">
+                    <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%] z-[1]">
                       <div className="animate-spin h-[20px] w-[20px] border-4 border-white border-t-transparent rounded-full" />
                     </div>
                   )}
-                  <div
+                  <button
+                    type="button"
+                    disabled={
+                      selectedIntegrations.length === 0 || loading || locked
+                    }
+                    onClick={schedule('schedule')}
                     className={clsx(
-                      'text-[15px] font-[600]',
+                      'flex-1 h-full ps-[20px] text-[15px] font-[600] outline-none disabled:cursor-not-allowed',
+                      dummy ? 'pe-[20px]' : 'pe-[8px]',
                       loading && 'invisible'
                     )}
                   >
@@ -684,21 +711,43 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       : existingData?.posts?.[0]?.state === 'DRAFT'
                       ? t('schedule', 'Schedule')
                       : t('update', 'Update')}
-                  </div>
+                  </button>
                   {!dummy && (
-                    <div className="flex justify-center items-center h-[20px] w-[20px] pt-[4px] arrow-change">
-                      <DropdownArrowSmallIcon className="group-hover:rotate-180 text-white" />
-                    </div>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedIntegrations.length === 0 || loading || locked
+                      }
+                      aria-expanded={postNowOpen}
+                      aria-haspopup="menu"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPostNowOpen((open) => !open);
+                      }}
+                      className={clsx(
+                        'arrow-change flex justify-center items-center h-full w-[36px] pe-[12px] border-s border-white/25 outline-none disabled:cursor-not-allowed',
+                        loading && 'invisible'
+                      )}
+                    >
+                      <DropdownArrowSmallIcon
+                        className={clsx(
+                          'text-white transition-transform',
+                          postNowOpen && 'rotate-180'
+                        )}
+                      />
+                    </button>
                   )}
-                </button>
+                </div>
 
-                {!dummy && (
+                {!dummy && postNowOpen && (
                   <button
+                    type="button"
                     onClick={schedule('now')}
                     disabled={
                       selectedIntegrations.length === 0 || loading || locked
                     }
-                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 hidden group-hover:flex absolute bottom-[100%] -left-[12px] p-[12px] w-[206px] bg-newBgColorInner"
+                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 flex absolute bottom-[100%] -left-[12px] p-[12px] w-[206px] bg-newBgColorInner"
                   >
                     <div className="text-white rounded-[8px] bg-[#E23E14] h-[44px] w-full flex justify-center items-center post-now">
                       {t('post_now', 'Post Now')}

@@ -318,23 +318,34 @@ export class PostsRepository {
     const skip = page * limit;
 
     const stateFilter = query.state || 'all';
+    const now = dayjs.utc().toDate();
+    // Published/ERROR posts have publishDate in the past; QUEUE/DRAFT stay upcoming.
+    // "all" must OR those cases — a blanket publishDate>=now drops every published post.
     const stateAndDate =
       stateFilter === 'scheduled'
         ? {
             state: State.QUEUE,
+            publishDate: { gte: now },
           }
         : stateFilter === 'draft'
-        ? { state: State.DRAFT }
+        ? {
+            state: State.DRAFT,
+            publishDate: { gte: now },
+          }
         : stateFilter === 'published'
         ? { state: State.PUBLISHED }
         : {
-            state: {
-              in: [State.QUEUE, State.DRAFT, State.PUBLISHED, State.ERROR],
-            },
+            OR: [
+              { state: { in: [State.PUBLISHED, State.ERROR] } },
+              {
+                state: { in: [State.QUEUE, State.DRAFT] },
+                publishDate: { gte: now },
+              },
+            ],
           };
 
     const orderDirection: 'asc' | 'desc' =
-      stateFilter === 'published' ? 'desc' : 'asc';
+      stateFilter === 'published' || stateFilter === 'all' ? 'desc' : 'asc';
 
     const where = {
       AND: [
@@ -347,11 +358,6 @@ export class PostsRepository {
         },
       ],
       ...stateAndDate,
-      // Published posts were already posted (publishDate in the past), so fetch
-      // all of them; everything else stays upcoming. Ordering handles the rest.
-      ...(stateFilter === 'published'
-        ? {}
-        : { publishDate: { gte: dayjs.utc().toDate() } }),
       deletedAt: null as Date | null,
       parentPostId: null as string | null,
       intervalInDays: null as number | null,

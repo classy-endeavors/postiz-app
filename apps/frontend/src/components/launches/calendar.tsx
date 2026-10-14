@@ -328,8 +328,12 @@ export const DayView = () => {
     <div className="flex flex-col gap-[10px] flex-1 relative">
       <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {options.map((option) => (
-          <Fragment key={option[0].time}>
-            <div className="text-center text-[14px] min-h-[21px]">
+          <div
+            key={option[0].time}
+            className="flex items-start gap-[12px] mb-[20px] min-h-[60px]"
+          >
+            {/* Keep times out of the post column so zoom/full-width cards cannot cover them */}
+            <div className="w-[92px] shrink-0 pt-[10px] text-end text-[14px] tabular-nums text-newTextColor whitespace-nowrap">
               {newDayjs()
                 .utc()
                 .startOf('day')
@@ -337,10 +341,7 @@ export const DayView = () => {
                 .local()
                 .format(isUSCitizen() ? 'hh:mm A' : 'LT')}
             </div>
-            <div
-              key={option[0].time}
-              className="min-h-[60px] rounded-[10px] flex justify-center items-center gap-[10px] mb-[20px]"
-            >
+            <div className="flex-1 min-w-0 rounded-[10px]">
               <CalendarContext.Provider
                 value={{
                   ...calendar,
@@ -355,7 +356,7 @@ export const DayView = () => {
                 />
               </CalendarContext.Provider>
             </div>
-          </Fragment>
+          </div>
         ))}
       </div>
     </div>
@@ -1347,19 +1348,13 @@ export const CalendarColumn: FC<{
                 </div>
               )}
               {display === 'day' && (
-                <div
-                  className={`w-full h-full rounded-[10px] py-[10px] flex-wrap hover:border hover:border-seventh flex justify-center items-center gap-[20px] opacity-30 grayscale hover:grayscale-0 hover:opacity-100`}
-                >
+                <div className="w-full min-h-[56px] rounded-[10px] py-[14px] px-[10px] flex flex-wrap justify-center items-center gap-x-[28px] gap-y-[16px] hover:border hover:border-seventh opacity-30 grayscale hover:grayscale-0 hover:opacity-100">
                   {integrations.map((selectedIntegrations) => (
                     <div
-                      className="relative"
-                      key={selectedIntegrations.identifier}
+                      className="relative shrink-0"
+                      key={selectedIntegrations.id}
                     >
-                      <div
-                        className={clsx(
-                          'relative w-[34px] h-[34px] rounded-[8px] flex justify-center items-center filter transition-all duration-500'
-                        )}
-                      >
+                      <div className="relative w-[34px] h-[34px] rounded-[8px] flex justify-center items-center">
                         <SafeImage
                           src={
                             selectedIntegrations.picture || '/no-picture.jpg'

@@ -73,6 +73,7 @@ export class IntegrationManager {
             name: p.name,
             identifier: p.identifier,
             toolTip: p.toolTip,
+            ...(p.notice ? { notice: p.notice } : {}),
             editor: p.editor,
             isExternal: !!p.externalUrl,
             isWeb3: !!p.isWeb3,

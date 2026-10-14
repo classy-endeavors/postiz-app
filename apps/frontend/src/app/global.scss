@@ -826,10 +826,7 @@ html[dir='rtl'] [dir='ltr'] {
   width: 100% !important;
 }
 
-.btnSub:disabled .arrow-change {
-  display: none !important;
-}
-.btnSub:disabled + button {
+.btnSub:has(> button:disabled) .arrow-change {
   display: none !important;
 }
 

@@ -6,6 +6,7 @@ import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/me
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
+import { stripPresignedQuery } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 @Injectable()
 export class GenerateImageTool implements AgentToolInterface {
@@ -23,6 +24,8 @@ export class GenerateImageTool implements AgentToolInterface {
       description: `Generate image to use in a post,
                     in case the user specified a platform that requires attachment and attachment was not provided,
                     ask if they want to generate a picture of a video.
+                    On success, pass "id" (preferred) or "attachmentPath" to schedulePostTool attachments.
+                    Use "path" only for showing the image to the user in markdown.
       `,
       mcp: {
         annotations: {
@@ -41,6 +44,7 @@ export class GenerateImageTool implements AgentToolInterface {
       outputSchema: z.object({
         id: z.string().optional(),
         path: z.string().optional(),
+        attachmentPath: z.string().optional(),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
@@ -65,11 +69,19 @@ export class GenerateImageTool implements AgentToolInterface {
             'data:image/png;base64,' + image
           );
 
-          return await this._mediaService.saveFile(
+          const saved = await this._mediaService.saveFile(
             org.id,
             file.split('/').pop(),
             file
           );
+
+          // path may be a short-lived signed URL for UI preview; attachmentPath
+          // is the stable object URL schedulePostTool should persist.
+          return {
+            id: saved.id,
+            path: saved.path,
+            attachmentPath: stripPresignedQuery(saved.path),
+          };
         } catch (err) {
           return {
             error: `Image generation failed: ${

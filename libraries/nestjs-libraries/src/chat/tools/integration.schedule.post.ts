@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Injectable } from '@nestjs/common';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { AllProvidersSettings } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/all.providers.settings';
 import { Integration } from '@prisma/client';
@@ -12,28 +13,62 @@ import {
   ValidUrlExtension,
   ValidUrlPath,
 } from '@gitroom/helpers/utils/valid.url.path';
+import { stripPresignedQuery } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 const validUrlExtension = new ValidUrlExtension();
 const validUrlPath = new ValidUrlPath();
-
-// Same URL validation as MediaDto (valid.url.path) - each attachment must
-// point to an allowed upload domain and a supported file extension.
-const attachmentUrl = z
-  .string()
-  .refine((url) => validUrlPath.validate(url, {} as any), {
-    message: validUrlPath.defaultMessage({} as any),
-  })
-  .refine((url) => validUrlExtension.validate(url, {} as any), {
-    message: validUrlExtension.defaultMessage({} as any),
-  });
 
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {
   constructor(
     private _postsService: PostsService,
-    private _integrationService: IntegrationService
+    private _integrationService: IntegrationService,
+    private _mediaService: MediaService
   ) {}
   name = 'integrationSchedulePostTool';
+
+  /**
+   * Resolve a media id or URL into a persisted attachment.
+   * Do not put .refine() on the tool inputSchema — Mastra can crash when
+   * rebuilding refined Zod schemas for tool execution.
+   */
+  private async resolveAttachment(
+    organizationId: string,
+    ref: string
+  ): Promise<{ id: string; path: string } | { error: string }> {
+    const raw = (ref || '').trim();
+    if (!raw) {
+      return { error: 'Attachment is empty' };
+    }
+
+    // Media id from generateImageTool / upload tools (not a URL)
+    if (!/^https?:\/\//i.test(raw) && !raw.startsWith('/')) {
+      const media = await this._mediaService.getMediaById(raw);
+      if (!media || media.organizationId !== organizationId || media.deletedAt) {
+        return {
+          error: `Media id "${raw}" was not found in this organization. Use the id or path returned by generateImageTool / upload tools.`,
+        };
+      }
+      return {
+        id: media.id,
+        path: stripPresignedQuery(media.path),
+      };
+    }
+
+    const path = stripPresignedQuery(raw);
+    if (!validUrlExtension.validate(path, {} as any)) {
+      return {
+        error: validUrlExtension.defaultMessage({} as any),
+      };
+    }
+    if (!validUrlPath.validate(path, {} as any)) {
+      return {
+        error: validUrlPath.defaultMessage({} as any),
+      };
+    }
+
+    return { id: makeId(10), path };
+  }
 
   run() {
     return createTool({
@@ -49,6 +84,9 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
       },
       description: `
 Use this when the user wants to create a draft, scheduled, or immediate social media post on their connected channels, based on the integrationSchema tool.
+
+For DRAFTS (user says draft / do not publish / do not schedule): set type to "draft". Drafts are free and appear under Draft in the calendar. Prefer the media "id" from generateImageTool (or its path) in attachments.
+
 Examples of the input shape:
 
 A single LinkedIn post with one comment
@@ -84,7 +122,7 @@ If validation fails, the result contains output.errors describing what to fix; t
               type: z
                 .enum(['draft', 'schedule', 'now'])
                 .describe(
-                  'The type of the post, if we pass now, we should pass the current date also'
+                  'draft = save without publishing (free); schedule = queue for date; now = publish immediately. Prefer draft when the user asks not to publish or schedule.'
                 ),
               postsAndComments: z
                 .array(
@@ -95,8 +133,10 @@ If validation fails, the result contains output.errors describing what to fix; t
                         "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together)"
                       ),
                     attachments: z
-                      .array(attachmentUrl)
-                      .describe('The image of the post (URLS)'),
+                      .array(z.string())
+                      .describe(
+                        'Media ids or image/video URLs from generateImageTool / upload tools (prefer media id)'
+                      ),
                   })
                 )
                 .describe(
@@ -144,126 +184,178 @@ If validation fails, the result contains output.errors describing what to fix; t
         ).id;
         const finalOutput = [];
 
-        const integrations = {} as Record<string, Integration>;
-        for (const platform of inputData.socialPost) {
-          integrations[platform.integrationId] =
-            await this._integrationService.getIntegrationById(
-              organizationId,
-              platform.integrationId
+        try {
+          const integrations = {} as Record<string, Integration>;
+          for (const platform of inputData.socialPost) {
+            integrations[platform.integrationId] =
+              await this._integrationService.getIntegrationById(
+                organizationId,
+                platform.integrationId
+              );
+
+            // Same server-side validation as the dashboard / public API
+            // (settings DTO + media checkValidity + empty / too-long content).
+            const settings = platform.settings.reduce(
+              (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
+                ...acc,
+                [s.key]: s.value,
+              }),
+              {} as AllProvidersSettings
             );
 
-          // Same server-side validation as the dashboard / public API
-          // (settings DTO + media checkValidity + empty / too-long content).
-          const settings = platform.settings.reduce(
-            (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
-              ...acc,
-              [s.key]: s.value,
-            }),
-            {} as AllProvidersSettings
-          );
+            const resolvedPosts = [];
+            for (const p of platform.postsAndComments) {
+              const images = [];
+              for (const ref of p.attachments || []) {
+                const resolved = await this.resolveAttachment(
+                  organizationId,
+                  ref
+                );
+                if ('error' in resolved) {
+                  return { output: { errors: resolved.error } };
+                }
+                images.push(resolved);
+              }
+              resolvedPosts.push({ content: p.content, images });
+            }
 
-          const [validation] = await this._postsService.validatePosts(
-            organizationId,
-            [
-              {
-                integration: { id: platform.integrationId },
-                settings,
-                value: platform.postsAndComments.map((p: any) => ({
-                  content: p.content,
-                  image: (p.attachments || []).map((path: string) => ({
-                    path,
+            // Stash resolved media for the create loop below
+            (platform as any).__resolvedPosts = resolvedPosts;
+
+            const [validation] = await this._postsService.validatePosts(
+              organizationId,
+              [
+                {
+                  integration: { id: platform.integrationId },
+                  settings,
+                  value: resolvedPosts.map((p) => ({
+                    content: p.content,
+                    image: p.images.map((img) => ({ path: img.path })),
                   })),
-                })),
-              },
-            ]
-          );
+                },
+              ]
+            );
 
-          if (validation.emptyContent) {
-            return {
-              output: {
-                errors: `${validation.name}: Your post should have at least one character or one image.`,
-              },
-            };
-          }
-
-          if (platform.type !== 'draft') {
-            if (!validation.valid) {
+            if (validation.emptyContent) {
               return {
                 output: {
-                  errors: `${validation.name}: ${
-                    validation.settingsError || 'Please fix your settings'
-                  }, please fix it, and try integrationSchedulePostTool again.`,
+                  errors: `${validation.name}: Your post should have at least one character or one image.`,
                 },
               };
             }
 
-            if (validation.errors !== true) {
+            if (platform.type !== 'draft') {
+              if (!validation.valid) {
+                return {
+                  output: {
+                    errors: `${validation.name}: ${
+                      validation.settingsError || 'Please fix your settings'
+                    }, please fix it, and try integrationSchedulePostTool again.`,
+                  },
+                };
+              }
+
+              if (validation.errors !== true) {
+                return {
+                  output: {
+                    errors: `${validation.name}: ${validation.errors}, please fix it, and try integrationSchedulePostTool again.`,
+                  },
+                };
+              }
+
+              if (validation.tooLong) {
+                return {
+                  output: {
+                    errors: `${validation.name}: The maximum characters is ${validation.maximumCharacters}, please fix it, and try integrationSchedulePostTool again.`,
+                  },
+                };
+              }
+            }
+          }
+
+          for (const post of inputData.socialPost) {
+            const integration = integrations[post.integrationId];
+
+            if (!integration) {
               return {
                 output: {
-                  errors: `${validation.name}: ${validation.errors}, please fix it, and try integrationSchedulePostTool again.`,
+                  errors: `Channel (integration) ${post.integrationId} was not found.`,
                 },
               };
             }
 
-            if (validation.tooLong) {
-              return {
-                output: {
-                  errors: `${validation.name}: The maximum characters is ${validation.maximumCharacters}, please fix it, and try integrationSchedulePostTool again.`,
-                },
-              };
-            }
-          }
-        }
-
-        for (const post of inputData.socialPost) {
-          const integration = integrations[post.integrationId];
-
-          if (!integration) {
-            throw new Error('Integration not found');
-          }
-
-          const output = await this._postsService.createPost(organizationId, {
-            date: post.date,
-            type: post.type as 'draft' | 'schedule' | 'now',
-            shortLink: post.shortLink,
-            tags: [],
-            posts: [
-              {
-                integration,
-                group: makeId(10),
-                settings: post.settings.reduce(
-                  (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
-                    ...acc,
-                    [s.key]: s.value,
-                  }),
-                  {
-                    __type: integration.providerIdentifier,
-                  } as AllProvidersSettings
-                ),
-                value: post.postsAndComments.map((p: any) => ({
-                  content: p.content,
+            const resolvedPosts =
+              (post as any).__resolvedPosts ||
+              post.postsAndComments.map((p: any) => ({
+                content: p.content,
+                images: (p.attachments || []).map((path: string) => ({
                   id: makeId(10),
-                  delay: 0,
-                  image: p.attachments.map((p: any) => ({
-                    id: makeId(10),
-                    path: p,
-                  })),
+                  path: stripPresignedQuery(path),
                 })),
-              },
-            ],
-          }, 'MCP');
-          // Same public preview page the calendar "Preview Post" button opens.
-          finalOutput.push(
-            ...output.map((p) => ({
-              ...p,
-              previewUrl: `${process.env.FRONTEND_URL}/p/${p.postId}?share=true`,
-            }))
-          );
-        }
+              }));
 
-        return {
-          output: finalOutput,
-        };
+            const output = await this._postsService.createPost(
+              organizationId,
+              {
+                date: post.date,
+                type: post.type as 'draft' | 'schedule' | 'now',
+                shortLink: post.shortLink,
+                tags: [],
+                posts: [
+                  {
+                    integration,
+                    group: makeId(10),
+                    settings: post.settings.reduce(
+                      (
+                        acc: AllProvidersSettings,
+                        s: { key: string; value: any }
+                      ) => ({
+                        ...acc,
+                        [s.key]: s.value,
+                      }),
+                      {
+                        __type: integration.providerIdentifier,
+                      } as AllProvidersSettings
+                    ),
+                    value: resolvedPosts.map((p: any) => ({
+                      content: p.content,
+                      id: makeId(10),
+                      delay: 0,
+                      image: p.images.map((img: any) => ({
+                        id: img.id || makeId(10),
+                        path: img.path,
+                      })),
+                    })),
+                  },
+                ],
+              },
+              'MCP'
+            );
+            // Same public preview page the calendar "Preview Post" button opens.
+            finalOutput.push(
+              ...output.map((p) => ({
+                ...p,
+                previewUrl: `${process.env.FRONTEND_URL}/p/${p.postId}?share=true`,
+              }))
+            );
+          }
+
+          return {
+            output: finalOutput,
+          };
+        } catch (err) {
+          const message =
+            (err as any)?.response?.message ||
+            (err instanceof Error ? err.message : String(err));
+          return {
+            output: {
+              errors:
+                typeof message === 'string'
+                  ? message
+                  : 'Could not save the post. Please try again.',
+            },
+          };
+        }
       },
     });
   }
