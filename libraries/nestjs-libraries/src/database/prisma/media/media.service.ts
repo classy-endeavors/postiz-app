@@ -27,6 +27,12 @@ import {
   getMaxSize,
   uploadStreamToStorage,
 } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import {
+  isCloudBucketUrl,
+  objectKeyFromBucketUrl,
+  resolveMediaObjectKey,
+  stripPresignedQuery,
+} from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 // What every upload is normalized to before a provider ever sees it. The
 // service applies exactly these, so a platform-specific need belongs in the
@@ -139,15 +145,30 @@ export class MediaService {
       return media;
     }
 
-    const signedPath = await this.signObjectKey(media.name);
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL || '';
+    const path = stripPresignedQuery(media.path || '');
+
+    // Legacy local /uploads/... rows still live on the EC2 volume and are
+    // served by the dashboard. Do not rewrite them to S3 signed URLs — those
+    // objects were never migrated.
+    let signedPath: string | null = null;
+    if (isCloudBucketUrl(path, bucketUrl)) {
+      const key = resolveMediaObjectKey({
+        name: media.name,
+        path,
+        bucketUrl,
+      });
+      signedPath = await this.signObjectKey(key);
+    }
+
     let thumbnail = media.thumbnail;
-    if (thumbnail && process.env.CLOUDFLARE_BUCKET_URL) {
-      const base = process.env.CLOUDFLARE_BUCKET_URL.replace(/\/$/, '');
-      const clean = thumbnail.split('?')[0];
-      if (clean.startsWith(base)) {
-        const key = clean.slice(base.length).replace(/^\//, '');
-        thumbnail = (await this.signObjectKey(key)) || thumbnail;
-      }
+    if (thumbnail && isCloudBucketUrl(thumbnail, bucketUrl)) {
+      const clean = stripPresignedQuery(thumbnail);
+      const key =
+        objectKeyFromBucketUrl(clean, bucketUrl) ||
+        clean.split('/').pop() ||
+        null;
+      thumbnail = (await this.signObjectKey(key)) || thumbnail;
     }
 
     return {

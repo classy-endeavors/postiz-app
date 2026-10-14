@@ -90,6 +90,21 @@ export function objectKeyFromBucketUrl(
  * omit `name` (composer often stores only `{ id, path }`).
  * Order: explicit name → Media.name → key parsed from the canonical bucket URL.
  */
+/** True when path is an object in our private cloud bucket (not legacy local /uploads). */
+export function isCloudBucketUrl(
+  pathOrUrl: string | null | undefined,
+  bucketUrl: string | null | undefined
+): boolean {
+  if (!pathOrUrl || !bucketUrl) {
+    return false;
+  }
+  const base = bucketUrl.replace(/\/$/, '');
+  if (!base) {
+    return false;
+  }
+  return stripPresignedQuery(pathOrUrl).startsWith(base);
+}
+
 export function resolveMediaObjectKey(input: {
   name?: string | null;
   mediaName?: string | null;

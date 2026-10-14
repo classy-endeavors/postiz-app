@@ -1,4 +1,5 @@
 import {
+  isCloudBucketUrl,
   isPresignedUrl,
   resolveMediaObjectKey,
   sanitizeMediaForPersistence,
@@ -125,10 +126,66 @@ describe('publish-time signing contract', () => {
   it('does not treat legacy local /uploads URLs as cloud objects to sign', () => {
     const localPath =
       'https://dashboard.aizyntra.com/uploads/2026/10/13/a.mp4';
-    const bucket = bucketUrl.replace(/\/$/, '');
-    const shouldSign =
-      localPath.indexOf('http') === 0 && localPath.startsWith(bucket);
-    expect(shouldSign).toBe(false);
+    expect(isCloudBucketUrl(localPath, bucketUrl)).toBe(false);
+  });
+});
+
+describe('Media library withSignedAccess contract', () => {
+  const bucketUrl = 'https://aizyntra-media.s3.us-east-1.amazonaws.com';
+
+  async function withSignedAccessLikeService(
+    media: { name?: string; path: string; thumbnail?: string | null },
+    signDownloadUrl: (key: string) => Promise<string>
+  ) {
+    const path = stripPresignedQuery(media.path);
+    let signedPath: string | null = null;
+    if (isCloudBucketUrl(path, bucketUrl)) {
+      const key = resolveMediaObjectKey({
+        name: media.name,
+        path,
+        bucketUrl,
+      });
+      signedPath = key ? await signDownloadUrl(key) : null;
+    }
+    let thumbnail = media.thumbnail || null;
+    if (thumbnail && isCloudBucketUrl(thumbnail, bucketUrl)) {
+      const key = resolveMediaObjectKey({
+        path: thumbnail,
+        bucketUrl,
+      });
+      thumbnail = key ? await signDownloadUrl(key) : thumbnail;
+    }
+    return {
+      ...media,
+      ...(signedPath ? { path: signedPath } : {}),
+      ...(thumbnail && thumbnail !== media.thumbnail ? { thumbnail } : {}),
+    };
+  }
+
+  it('leaves legacy local Media.path unchanged (files still on EC2 volume)', async () => {
+    const local = {
+      name: 'd3dbee66526f7a2e5b8da10d2849e9b310.png',
+      path: 'https://dashboard.aizyntra.com/uploads/2026/10/08/d3dbee66526f7a2e5b8da10d2849e9b310.png',
+    };
+    const sign = jest.fn();
+    const out = await withSignedAccessLikeService(local, sign);
+    expect(sign).not.toHaveBeenCalled();
+    expect(out.path).toBe(local.path);
+    expect(isPresignedUrl(out.path)).toBe(false);
+  });
+
+  it('signs private S3 Media.path for library preview without persisting the signature', async () => {
+    const cloud = {
+      name: 'm9QAkNmxFn.mp4',
+      path: `${bucketUrl}/m9QAkNmxFn.mp4`,
+    };
+    const sign = jest
+      .fn()
+      .mockResolvedValue(signedUrl('m9QAkNmxFn.mp4', 'preview'));
+    const out = await withSignedAccessLikeService(cloud, sign);
+    expect(sign).toHaveBeenCalledWith('m9QAkNmxFn.mp4');
+    expect(isPresignedUrl(out.path)).toBe(true);
+    expect(stripPresignedQuery(out.path)).toBe(cloud.path);
   });
 });
 
