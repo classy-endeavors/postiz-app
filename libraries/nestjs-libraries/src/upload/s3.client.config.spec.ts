@@ -1,5 +1,6 @@
 import {
   buildS3ClientConfig,
+  isCloudBucketUrl,
   isPresignedUrl,
   objectKeyFromBucketUrl,
   resolveMediaObjectKey,
@@ -74,6 +75,27 @@ describe('s3.client.config', () => {
       )
     ).toBe('abc.mp4');
     expect(objectKeyFromBucketUrl('abc.mp4', '')).toBe('abc.mp4');
+  });
+
+  it('isCloudBucketUrl distinguishes private S3 from legacy local uploads', () => {
+    const bucketUrl = 'https://aizyntra-media.s3.us-east-1.amazonaws.com';
+    expect(
+      isCloudBucketUrl(`${bucketUrl}/abc.mp4`, bucketUrl)
+    ).toBe(true);
+    expect(
+      isCloudBucketUrl(
+        `${bucketUrl}/abc.mp4?X-Amz-Signature=deadbeef`,
+        bucketUrl
+      )
+    ).toBe(true);
+    expect(
+      isCloudBucketUrl(
+        'https://dashboard.aizyntra.com/uploads/2026/10/08/abc.png',
+        bucketUrl
+      )
+    ).toBe(false);
+    expect(isCloudBucketUrl('/uploads/abc.png', bucketUrl)).toBe(false);
+    expect(isCloudBucketUrl(`${bucketUrl}/abc.mp4`, '')).toBe(false);
   });
 
   it('resolveMediaObjectKey prefers name, then Media.name, then URL', () => {
