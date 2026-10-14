@@ -2,8 +2,14 @@ import type { Config } from 'jest';
 
 const config: Config = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/libraries/nestjs-libraries/src/upload'],
-  testMatch: ['**/*.spec.ts'],
+  roots: [
+    '<rootDir>/libraries/nestjs-libraries/src/upload',
+    '<rootDir>/libraries/helpers/src/utils',
+  ],
+  testMatch: [
+    '**/upload/**/*.spec.ts',
+    '**/humanize.post.error.spec.ts',
+  ],
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',

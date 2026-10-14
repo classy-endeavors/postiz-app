@@ -725,25 +725,28 @@ export class InstagramProvider
           (firstPost?.media?.length || 0) > 1 && !isStory
             ? `&is_carousel_item=true`
             : ``;
+        // Presigned S3 URLs contain &query params; they must be encoded or Meta
+        // truncates video_url/image_url and the container ends in status ERROR.
+        const mediaUrl = encodeURIComponent(m.path);
         const mediaType = hasExtension(m.path, 'mp4')
           ? firstPost?.media?.length === 1
             ? isStory
-              ? `video_url=${m.path}&media_type=STORIES`
+              ? `video_url=${mediaUrl}&media_type=STORIES`
               : m?.thumbnail
-              ? `video_url=${m.path}&media_type=REELS&cover_url=${encodeURIComponent(
+              ? `video_url=${mediaUrl}&media_type=REELS&cover_url=${encodeURIComponent(
                   m.thumbnail
                 )}`
-              : `video_url=${m.path}&media_type=REELS&thumb_offset=${
+              : `video_url=${mediaUrl}&media_type=REELS&thumb_offset=${
                   m?.thumbnailTimestamp || 0
                 }`
             : isStory
-            ? `video_url=${m.path}&media_type=STORIES`
-            : `video_url=${m.path}&media_type=VIDEO&thumb_offset=${
+            ? `video_url=${mediaUrl}&media_type=STORIES`
+            : `video_url=${mediaUrl}&media_type=VIDEO&thumb_offset=${
                 m?.thumbnailTimestamp || 0
               }`
           : isStory
-          ? `image_url=${m.path}&media_type=STORIES`
-          : `image_url=${m.path}`;
+          ? `image_url=${mediaUrl}&media_type=STORIES`
+          : `image_url=${mediaUrl}`;
 
         const trialParams = isTrialReel
           ? `&trial_params=${encodeURIComponent(
