@@ -104,7 +104,7 @@ const UpgradeModal: FC<{ close: () => void }> = ({ close }) => {
     approved: t('upgrade_status_approved', 'Approved'),
     declined: t('upgrade_status_declined', 'Declined'),
   };
-  const pending = data?.requests.find((r) => r.status === 'pending');
+  const pending = data?.requests?.find((r) => r.status === 'pending');
 
   const send = useCallback(async () => {
     setLoading(true);
@@ -179,7 +179,7 @@ const UpgradeModal: FC<{ close: () => void }> = ({ close }) => {
           </div>
         </div>
       )}
-      {!!data?.requests.length && (
+      {!!data?.requests?.length && (
         <div className="flex flex-col gap-[8px]">
           <div className="text-[14px] font-[700]">
             {t('your_upgrade_requests', 'Your requests')}
@@ -237,7 +237,7 @@ export const SavingsBanner: FC = () => {
     { value: Math.floor((minutes % 1440) / 60), label: t('hours_short', 'h') },
     { value: minutes % 60, label: t('minutes_short', 'm') },
   ];
-  const pending = upgrade?.requests.some((r) => r.status === 'pending');
+  const pending = upgrade?.requests?.some((r) => r.status === 'pending');
   const explanation = t(
     'savings_explanation',
     'Estimated from your published posts, counted once per channel: {{post}} min to post by hand, +{{images}} min with images, +{{video}} min with video, +{{title}} min with a title, +{{comment}} min per comment or thread item, valued at ${{rate}}/hour.',

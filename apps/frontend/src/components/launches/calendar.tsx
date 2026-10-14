@@ -57,6 +57,7 @@ import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import { humanizePostError } from '@gitroom/helpers/utils/humanize.post.error';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import {
   DirectPublishDetails,
@@ -882,11 +883,13 @@ const DayDetail = () => {
                       </div>
                       {post.state === 'ERROR' && (
                         <p className="mt-[6px] text-[12px] text-statusFailed leading-[1.4] break-words">
-                          {post.error ||
+                          {humanizePostError(
+                            post.error,
                             t(
                               'post_publish_error',
                               'An error occurred while publishing this post'
-                            )}
+                            )
+                          )}
                         </p>
                       )}
                       {!!post.releaseURL && (
@@ -1493,8 +1496,7 @@ const CalendarItem: FC<{
           onClick={editPost}
           {...(state === 'ERROR' && {
             'data-tooltip-id': 'tooltip',
-            'data-tooltip-content':
-              post.error || 'An error occurred while publishing this post',
+            'data-tooltip-content': humanizePostError(post.error),
           })}
           className={clsx(
             'w-full grid grid-cols-[auto_minmax(0,1fr)] gap-x-[6px] items-start ps-[7px] pe-[6px] py-[5px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
@@ -1606,7 +1608,7 @@ const CalendarItem: FC<{
         <div
           className="absolute -top-[6px] -left-[6px] z-20 w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center text-white text-[11px] font-bold cursor-pointer"
           data-tooltip-id="tooltip"
-          data-tooltip-content={post.error || 'An error occurred while publishing this post'}
+          data-tooltip-content={humanizePostError(post.error)}
         >
           !
         </div>

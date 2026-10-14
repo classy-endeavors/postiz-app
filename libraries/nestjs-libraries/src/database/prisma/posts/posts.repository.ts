@@ -17,6 +17,7 @@ import utc from 'dayjs/plugin/utc';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import { sanitizeMediaListForPersistence } from '@gitroom/nestjs-libraries/upload/s3.client.config';
+import { humanizePostError } from '@gitroom/helpers/utils/humanize.post.error';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -522,15 +523,17 @@ export class PostsRepository {
   }
 
   async changeState(id: string, state: State, err?: any, body?: any) {
+    // Calendar shows Post.error to users — store a short message, not the
+    // Temporal ApplicationFailure JSON dump.
+    const userError = err ? humanizePostError(err) : undefined;
+
     const update = await this._post.model.post.update({
       where: {
         id,
       },
       data: {
         state,
-        ...(err
-          ? { error: typeof err === 'string' ? err : JSON.stringify(err) }
-          : {}),
+        ...(userError ? { error: userError } : {}),
       },
       include: {
         integration: {
@@ -545,7 +548,7 @@ export class PostsRepository {
       try {
         await this._errors.model.errors.create({
           data: {
-            message: typeof err === 'string' ? err : JSON.stringify(err),
+            message: userError || humanizePostError(err),
             organizationId: update.organizationId,
             platform: update.integration.providerIdentifier,
             postId: update.id,
