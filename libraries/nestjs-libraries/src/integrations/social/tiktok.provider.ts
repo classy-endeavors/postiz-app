@@ -29,6 +29,7 @@ import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorato
     'content_posting_method=DIRECT_POST publishes the post to the account. content_posting_method=UPLOAD does NOT publish: it only sends the media to the user inbox of the TikTok app, where the user must manually complete and publish it within 24 hours or it is discarded. Use DIRECT_POST unless the user explicitly asks to review or edit the post inside the TikTok app first.',
     'With content_posting_method=UPLOAD, TikTok ignores every setting except the title / post content. Never tell the user that video_made_with_ai, privacy_level, duet, stitch, comment, autoAddMusic, brand_content_toggle or brand_organic_toggle will be applied in UPLOAD mode - they are silently discarded. If the user asks for any of those settings, tell them it requires DIRECT_POST.',
     'video_made_with_ai, duet and stitch apply to video posts only. TikTok has no equivalent field for photo posts, so those settings are discarded when the attachment is a picture.',
+    'If the TikTok app is unaudited (sandbox), privacy_level must be SELF_ONLY. Public / friends / followers will be rejected by TikTok until the app passes audit.',
   ].join(' ')
 )
 export class TiktokProvider extends SocialAbstract implements SocialProvider {
@@ -36,6 +37,16 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   name = 'Tiktok';
   isBetweenSteps = false;
   convertToJPEG = true;
+  get toolTip() {
+    return process.env.TIKTOK_SANDBOX
+      ? 'TikTok sandbox: app is unaudited. Posts must use Self only / Only me visibility until TikTok approves the app.'
+      : undefined;
+  }
+  get notice() {
+    return process.env.TIKTOK_SANDBOX
+      ? "TikTok is in sandbox until this app passes TikTok's audit. Connected accounts can only publish Self only / Only me posts, and the TikTok account itself must be Private."
+      : undefined;
+  }
   scopes = [
     'video.list',
     'user.info.basic',
@@ -562,8 +573,9 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
             ? { title: firstPost.message }
             : {}),
           ...(isPhoto ? { description: firstPost.message } : {}),
-          privacy_level:
-            firstPost.settings.privacy_level || 'PUBLIC_TO_EVERYONE',
+          privacy_level: process.env.TIKTOK_SANDBOX
+            ? 'SELF_ONLY'
+            : firstPost.settings.privacy_level || 'PUBLIC_TO_EVERYONE',
           ...(isPhoto
             ? {}
             : { disable_duet: !this.assetBoolean(firstPost.settings.duet) }),

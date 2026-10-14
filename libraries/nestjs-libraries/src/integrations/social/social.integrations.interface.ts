@@ -206,6 +206,8 @@ export interface SocialProvider
   >;
   name: string;
   toolTip?: string;
+  // Optional Add Channel banner text (e.g. sandbox / audit constraints).
+  notice?: string;
   oneTimeToken?: boolean;
   isBetweenSteps: boolean;
   scopes: string[];

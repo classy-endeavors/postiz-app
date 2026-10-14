@@ -71,6 +71,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           isChatBase={false}
           disableImageCompression={!!process.env.DISABLE_IMAGE_COMPRESSION}
           disableXAnalytics={!!process.env.DISABLE_X_ANALYTICS}
+          tiktokSandbox={!!process.env.TIKTOK_SANDBOX}
           sentryDsn={process.env.NEXT_PUBLIC_SENTRY_DSN!}
           extensionId={process.env.EXTENSION_ID || ''}
           mediaProcessing={
