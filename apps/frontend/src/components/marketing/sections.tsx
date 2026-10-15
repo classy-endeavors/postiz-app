@@ -144,25 +144,37 @@ export function FeatureCards({
 }) {
   return (
     <div className="mkt-grid-3">
-      {items.map((item) => (
-        <div key={item.title} className="mkt-card-soft">
-          <h3 style={{ fontSize: 22, marginBottom: 10 }}>{item.title}</h3>
-          <p style={{ color: 'var(--mkt-soft)', fontSize: 15 }}>{item.body}</p>
-          {item.href ? (
-            <Link
-              href={item.href}
-              style={{
-                display: 'inline-block',
-                marginTop: 16,
-                fontWeight: 700,
-                color: 'var(--mkt-org)',
-              }}
-            >
-              Learn more →
+      {items.map((item) => {
+        const initial = item.title.trim().charAt(0).toUpperCase() || 'Z';
+        const inner = (
+          <>
+            <div className="mkt-bcard-head">
+              <div className="mkt-bic" aria-hidden="true">
+                {initial}
+              </div>
+              <h3>{item.title}</h3>
+            </div>
+            <p>{item.body}</p>
+            {item.href ? (
+              <span className="mkt-bcard-link">Learn more →</span>
+            ) : null}
+          </>
+        );
+
+        if (item.href) {
+          return (
+            <Link key={item.title} href={item.href} className="mkt-bcard">
+              {inner}
             </Link>
-          ) : null}
-        </div>
-      ))}
+          );
+        }
+
+        return (
+          <div key={item.title} className="mkt-bcard">
+            {inner}
+          </div>
+        );
+      })}
     </div>
   );
 }
