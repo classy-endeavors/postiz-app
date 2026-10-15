@@ -4,6 +4,7 @@ import {
   CtaBand,
   FaqList,
   PageHero,
+  Sticker,
 } from '@gitroom/frontend/components/marketing/sections';
 
 export const metadata = marketingMetadata({
@@ -47,17 +48,44 @@ export default function PricingPage() {
         subtitle="Start free with 100 coins every month. Spend them on agent messages, AI images, and scheduled posts — unused coins carry over."
       />
 
-      <section className="mkt-section" style={{ paddingTop: 8 }}>
+      <section className="mkt-section" style={{ paddingTop: 24 }}>
         <div className="mkt-wrap">
+          <div className="mkt-center" style={{ marginBottom: 28 }}>
+            <Sticker variant="lime">How coins work</Sticker>
+            <h2 className="mkt-h2">Simple metering. No pack menu.</h2>
+          </div>
           <CoinsExplainer />
         </div>
       </section>
 
-      <section className="mkt-section" style={{ paddingTop: 0 }}>
+      <section className="mkt-strip">
+        <div className="mkt-wrap">
+          <div className="mkt-split">
+            <div>
+              <h2 className="mkt-h2" style={{ textAlign: 'left' }}>
+                Use monthly coins. Top up when you need more.
+              </h2>
+              <p className="mkt-sub" style={{ maxWidth: 520, margin: '12px 0 0' }}>
+                Day-to-day spend is metered. Request a top-up from the Coins page
+                when your balance runs low — the Zyntra team adds coins for you.
+              </p>
+            </div>
+            <ul className="mkt-checklist">
+              <li>100 free coins every month</li>
+              <li>Unused coins carry over</li>
+              <li>Drafts and edits stay free</li>
+              <li>Video and clipping use plan credits, not coins</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="mkt-section">
         <div className="mkt-wrap" style={{ maxWidth: 760 }}>
-          <h2 className="mkt-h2 mkt-center" style={{ marginBottom: 24 }}>
-            Pricing questions
-          </h2>
+          <div className="mkt-center" style={{ marginBottom: 28 }}>
+            <Sticker variant="peach">Fair questions</Sticker>
+            <h2 className="mkt-h2">Pricing questions</h2>
+          </div>
           <FaqList items={PRICING_FAQ} />
         </div>
       </section>

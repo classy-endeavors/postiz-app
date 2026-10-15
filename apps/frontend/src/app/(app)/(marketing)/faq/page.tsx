@@ -3,12 +3,13 @@ import {
   CtaBand,
   FaqList,
   PageHero,
+  Sticker,
 } from '@gitroom/frontend/components/marketing/sections';
 
 export const metadata = marketingMetadata({
   title: 'FAQ',
   description:
-    'Answers about Zyntra platforms, scheduling, AI, teams, pricing, and account access.',
+    'Answers about Zyntra platforms, scheduling, AI, teams, coins, MCP, and account access.',
   path: '/faq',
 });
 
@@ -27,7 +28,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'How do I log in?',
-    a: 'Open /auth to create an account or sign in with email and password, plus available social login options.',
+    a: 'Use Get Started for signup (/auth) or Login for signin (/auth/login). Email/password and available social logins are supported.',
   },
   {
     q: 'Can I schedule posts in advance?',
@@ -40,6 +41,10 @@ const FAQ_ITEMS = [
   {
     q: 'Does AI publish without my approval?',
     a: 'No. AI helps draft content and media. You review, edit, and schedule before anything goes live.',
+  },
+  {
+    q: 'What is MCP?',
+    a: 'Model Context Protocol lets clients like Cursor, Claude, and ChatGPT connect to Zyntra so assistants can help schedule and manage posts.',
   },
   {
     q: 'What analytics are available?',
@@ -70,7 +75,33 @@ export default function FaqPage() {
 
       <section className="mkt-section" style={{ paddingTop: 24 }}>
         <div className="mkt-wrap" style={{ maxWidth: 760 }}>
+          <div className="mkt-center" style={{ marginBottom: 28 }}>
+            <Sticker variant="peach">Common questions</Sticker>
+            <h2 className="mkt-h2">Asked a lot. Answered straight.</h2>
+          </div>
           <FaqList items={FAQ_ITEMS} />
+        </div>
+      </section>
+
+      <section className="mkt-strip">
+        <div className="mkt-wrap">
+          <div className="mkt-split">
+            <div>
+              <h2 className="mkt-h2" style={{ textAlign: 'left' }}>
+                Still digging deeper?
+              </h2>
+              <p className="mkt-sub" style={{ maxWidth: 520, margin: '12px 0 0' }}>
+                Feature pages cover calendar, publishing, AI, analytics, MCP, and
+                platforms in more detail. Pricing explains coins.
+              </p>
+            </div>
+            <ul className="mkt-checklist">
+              <li>Browse /features for product walkthroughs</li>
+              <li>Open /pricing for coin costs</li>
+              <li>Check /features/platforms for channel list</li>
+              <li>Create an account when you are ready to try</li>
+            </ul>
+          </div>
         </div>
       </section>
 

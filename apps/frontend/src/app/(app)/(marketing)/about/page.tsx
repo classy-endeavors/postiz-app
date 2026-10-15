@@ -3,6 +3,8 @@ import { marketingMetadata } from '@gitroom/frontend/components/marketing/seo';
 import {
   CtaBand,
   PageHero,
+  Sticker,
+  featureCards,
 } from '@gitroom/frontend/components/marketing/sections';
 
 export const metadata = marketingMetadata({
@@ -24,48 +26,65 @@ export default function AboutPage() {
 
       <section className="mkt-section" style={{ paddingTop: 24 }}>
         <div className="mkt-wrap">
-          <div className="mkt-grid-2">
-            <div className="mkt-card">
-              <h2 style={{ fontSize: 28, marginBottom: 14 }}>Our purpose</h2>
-              <p style={{ color: 'var(--mkt-soft)', fontSize: 15 }}>
-                Creators and small teams lose hours hopping between apps to
-                draft, schedule, and check performance. Zyntra brings the
-                calendar, composer, AI helpers, media library, and analytics
-                into one workspace.
+          <div className="mkt-center" style={{ marginBottom: 28 }}>
+            <Sticker variant="peach">What we believe</Sticker>
+            <h2 className="mkt-h2">Clear tools. Real capabilities.</h2>
+          </div>
+          {featureCards([
+            {
+              title: 'Our purpose',
+              body: 'Stop app-hopping. Draft, schedule, and measure social content in one place.',
+            },
+            {
+              title: 'Where we fit',
+              body: 'This is the live scheduling dashboard behind aizyntra.com for connected social channels.',
+            },
+            {
+              title: 'Pay as you go',
+              body: 'Start with 100 free Zyntra Coins each month. Spend them as you create.',
+              href: '/pricing',
+            },
+            {
+              title: 'Open source roots',
+              body: 'A modified AGPL-3.0 fork of Postiz. Source stays available from the product.',
+            },
+          ])}
+        </div>
+      </section>
+
+      <section className="mkt-strip">
+        <div className="mkt-wrap">
+          <div className="mkt-split">
+            <div>
+              <h2 className="mkt-h2" style={{ textAlign: 'left' }}>
+                One workspace for the whole publishing loop.
+              </h2>
+              <p className="mkt-sub" style={{ maxWidth: 520, margin: '12px 0 0' }}>
+                Calendar, publishing, AI drafts, media, analytics, teams, and MCP
+                share the same account — powered by a pay-as-you-go coin wallet.
               </p>
             </div>
-            <div className="mkt-card">
-              <h2 style={{ fontSize: 28, marginBottom: 14 }}>Where we fit</h2>
-              <p style={{ color: 'var(--mkt-soft)', fontSize: 15 }}>
-                This app is the live scheduling dashboard for{' '}
-                <a
-                  href="https://www.aizyntra.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 700, color: 'var(--mkt-org)' }}
-                >
-                  aizyntra.com
-                </a>
-                . Sign in here to connect channels and publish.
-              </p>
-            </div>
-            <div className="mkt-card">
-              <h2 style={{ fontSize: 28, marginBottom: 14 }}>Open source roots</h2>
-              <p style={{ color: 'var(--mkt-soft)', fontSize: 15 }}>
-                Zyntra’s dashboard is a modified fork of Postiz by Gitroom
-                Limited, licensed under AGPL-3.0. Source remains available and
-                linked from the product.
-              </p>
-            </div>
-            <div className="mkt-card">
-              <h2 style={{ fontSize: 28, marginBottom: 14 }}>Legal</h2>
-              <p style={{ color: 'var(--mkt-soft)', fontSize: 15 }}>
+            <ul className="mkt-checklist">
+              <li>Plan on a shared calendar</li>
+              <li>Publish to six connected platforms</li>
+              <li>Draft with AI, approve before send</li>
+              <li>Measure channel performance in-product</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="mkt-section" style={{ paddingTop: 40 }}>
+        <div className="mkt-wrap">
+          <div className="mkt-ink-band">
+            <div>
+              <h2>Legal stays on aizyntra.com</h2>
+              <p>
                 Review our{' '}
                 <a
                   href="https://aizyntra.com/privacy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontWeight: 700, color: 'var(--mkt-org)' }}
                 >
                   Privacy Policy
                 </a>{' '}
@@ -74,19 +93,11 @@ export default function AboutPage() {
                   href="https://aizyntra.com/terms"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontWeight: 700, color: 'var(--mkt-org)' }}
                 >
                   Terms of Service
                 </a>
-                .
-              </p>
-              <p style={{ marginTop: 16 }}>
-                <Link
-                  href="/auth"
-                  style={{ fontWeight: 700, color: 'var(--mkt-org)' }}
-                >
-                  Create an account →
-                </Link>
+                , then{' '}
+                <Link href="/auth">create an account</Link> to start publishing.
               </p>
             </div>
           </div>

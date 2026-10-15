@@ -140,7 +140,7 @@ export const HOME_FAQ = [
 export function FeatureCards({
   items,
 }: {
-  items: { title: string; body: string; href?: string }[];
+  items: { title: string; body: string; href?: string; icon?: string }[];
 }) {
   return (
     <div className="mkt-grid-3">
@@ -150,7 +150,11 @@ export function FeatureCards({
           <>
             <div className="mkt-bcard-head">
               <div className="mkt-bic" aria-hidden="true">
-                {initial}
+                {item.icon ? (
+                  <img src={item.icon} alt="" width={22} height={22} />
+                ) : (
+                  initial
+                )}
               </div>
               <h3>{item.title}</h3>
             </div>
@@ -181,7 +185,7 @@ export function FeatureCards({
 
 /** @deprecated Use FeatureCards component instead */
 export function featureCards(
-  items: { title: string; body: string; href?: string }[]
+  items: { title: string; body: string; href?: string; icon?: string }[]
 ) {
   return <FeatureCards items={items} />;
 }

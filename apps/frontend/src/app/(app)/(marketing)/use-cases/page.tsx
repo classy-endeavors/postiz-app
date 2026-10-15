@@ -2,6 +2,7 @@ import { marketingMetadata } from '@gitroom/frontend/components/marketing/seo';
 import {
   CtaBand,
   PageHero,
+  Sticker,
   featureCards,
 } from '@gitroom/frontend/components/marketing/sections';
 
@@ -23,6 +24,14 @@ export default function UseCasesPage() {
 
       <section className="mkt-section" style={{ paddingTop: 24 }}>
         <div className="mkt-wrap">
+          <div className="mkt-center" style={{ marginBottom: 28 }}>
+            <Sticker variant="lime">Who it fits</Sticker>
+            <h2 className="mkt-h2">Pick the workflow that matches you</h2>
+            <p className="mkt-sub">
+              Same calendar, composer, coins, and AI tools — different rhythms
+              depending on how you create.
+            </p>
+          </div>
           {featureCards([
             {
               title: 'Solo creators',
@@ -49,6 +58,29 @@ export default function UseCasesPage() {
               body: 'Draft faster with the agent and generators, then approve before publish.',
             },
           ])}
+        </div>
+      </section>
+
+      <section className="mkt-strip">
+        <div className="mkt-wrap">
+          <div className="mkt-split">
+            <div>
+              <h2 className="mkt-h2" style={{ textAlign: 'left' }}>
+                A simple weekly loop.
+              </h2>
+              <p className="mkt-sub" style={{ maxWidth: 520, margin: '12px 0 0' }}>
+                Draft with AI or by hand, attach media, schedule on the calendar,
+                then check analytics — spending coins only when you message,
+                generate images, or schedule posts.
+              </p>
+            </div>
+            <ul className="mkt-checklist">
+              <li>Draft → attach media → schedule</li>
+              <li>Publish on time with background jobs</li>
+              <li>Review channel analytics</li>
+              <li>Spend coins only on metered actions</li>
+            </ul>
+          </div>
         </div>
       </section>
 
