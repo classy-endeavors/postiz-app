@@ -48,11 +48,14 @@ export default function PricingPage() {
         subtitle="Start free with 100 coins every month. Spend them on agent messages, AI images, and scheduled posts — unused coins carry over."
       />
 
-      <section className="mkt-section" style={{ paddingTop: 24 }}>
+      <section className="mkt-section">
         <div className="mkt-wrap">
-          <div className="mkt-center" style={{ marginBottom: 28 }}>
-            <Sticker variant="lime">How coins work</Sticker>
-            <h2 className="mkt-h2">Simple metering. No pack menu.</h2>
+          <div className="mkt-center" style={{ marginBottom: 40 }}>
+            <Sticker variant="lime">Coin costs</Sticker>
+            <h2 className="mkt-h2">What each action costs</h2>
+            <p className="mkt-sub">
+              Clear metering for the three actions that spend coins.
+            </p>
           </div>
           <CoinsExplainer />
         </div>
@@ -66,8 +69,8 @@ export default function PricingPage() {
                 Use monthly coins. Top up when you need more.
               </h2>
               <p className="mkt-sub" style={{ maxWidth: 520, margin: '12px 0 0' }}>
-                Day-to-day spend is metered. Request a top-up from the Coins page
-                when your balance runs low — the Zyntra team adds coins for you.
+                Request a top-up from the Coins page when your balance runs low —
+                the Zyntra team adds coins for you.
               </p>
             </div>
             <ul className="mkt-checklist">
