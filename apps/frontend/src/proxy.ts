@@ -8,6 +8,7 @@ import {
   headerName,
   languages,
 } from '@gitroom/react/translation/i18n.config';
+import { isMarketingPath } from '@gitroom/frontend/components/marketing/marketing-paths';
 acceptLanguage.languages(languages);
 
 // This function can be marked `async` if using `await` inside
@@ -47,7 +48,9 @@ export async function proxy(request: NextRequest) {
     nextUrl.pathname.startsWith('/uploads/') ||
     nextUrl.pathname.startsWith('/p/') ||
     nextUrl.pathname.startsWith('/provider/') ||
-    nextUrl.pathname.startsWith('/icons/')
+    nextUrl.pathname.startsWith('/icons/') ||
+    nextUrl.pathname.startsWith('/marketing/') ||
+    nextUrl.pathname.startsWith('/og/')
   ) {
     return topResponse;
   }
@@ -56,6 +59,14 @@ export async function proxy(request: NextRequest) {
     nextUrl.pathname.startsWith('/integrations/social/') &&
     nextUrl.href.indexOf('state=login') === -1
   ) {
+    return topResponse;
+  }
+
+  // Public marketing pages (exact paths only — never prefix-match)
+  // Logged-out visitors may view them without hitting /auth.
+  // Logged-in visitors may also view them, except `/` which still
+  // redirects to the app home further below.
+  if (isMarketingPath(nextUrl.pathname) && !authCookie) {
     return topResponse;
   }
 
