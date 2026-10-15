@@ -8,7 +8,7 @@ import { BrandMark } from '@gitroom/frontend/components/new-layout/logo';
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/features', label: 'Features' },
-  { href: '/platforms', label: 'Platforms' },
+  { href: '/features/platforms', label: 'Platforms' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/faq', label: 'FAQ' },
 ] as const;

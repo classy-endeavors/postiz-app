@@ -52,32 +52,32 @@ export default function MarketingHomePage() {
               {
                 title: 'Content calendar',
                 body: 'Day, week, month, and list views for drafts, scheduled posts, and published work.',
-                href: '/calendar',
+                href: '/features/calendar',
               },
               {
                 title: 'Multi-platform publishing',
                 body: 'Compose once and publish to YouTube, TikTok, Instagram, LinkedIn, and Facebook.',
-                href: '/publishing',
+                href: '/features/publishing',
               },
               {
                 title: 'AI that drafts with you',
                 body: 'Generate posts, images, and clips — then review before anything goes live.',
-                href: '/ai',
+                href: '/features/ai',
               },
               {
                 title: 'Channel analytics',
                 body: 'Track views, engagement, and growth for your connected platforms.',
-                href: '/insights',
+                href: '/features/analytics',
               },
               {
                 title: 'Media library',
                 body: 'Upload, organize, and reuse creative assets across every scheduled post.',
-                href: '/features',
+                href: '/features/media',
               },
               {
-                title: 'Team workspaces',
-                body: 'Invite teammates with roles when your plan includes collaboration.',
-                href: '/teams',
+                title: 'MCP integration',
+                body: 'Connect Cursor, Claude, and ChatGPT to schedule posts through Zyntra.',
+                href: '/features/mcp',
               },
             ])}
           </div>
@@ -94,7 +94,7 @@ export default function MarketingHomePage() {
           <PlatformRow />
           <div style={{ marginTop: 28 }}>
             <Link
-              href="/platforms"
+              href="/features/platforms"
               style={{ fontWeight: 700, color: 'var(--mkt-org)' }}
             >
               See platform details →
@@ -155,7 +155,7 @@ export default function MarketingHomePage() {
               {
                 title: 'Collaborative teams',
                 body: 'Invite members, assign roles, and publish from one workspace.',
-                href: '/teams',
+                href: '/features/teams',
               },
             ])}
           </div>

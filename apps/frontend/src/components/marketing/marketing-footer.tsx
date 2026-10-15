@@ -3,15 +3,16 @@ import { BrandMark } from '@gitroom/frontend/components/new-layout/logo';
 
 const PRODUCT_LINKS = [
   { href: '/features', label: 'Features' },
-  { href: '/publishing', label: 'Publishing' },
-  { href: '/calendar', label: 'Calendar' },
-  { href: '/ai', label: 'AI Content' },
-  { href: '/insights', label: 'Analytics' },
+  { href: '/features/publishing', label: 'Publishing' },
+  { href: '/features/calendar', label: 'Calendar' },
+  { href: '/features/ai', label: 'AI Content' },
+  { href: '/features/analytics', label: 'Analytics' },
+  { href: '/features/mcp', label: 'MCP' },
 ];
 
 const MORE_LINKS = [
-  { href: '/platforms', label: 'Platforms' },
-  { href: '/teams', label: 'Teams' },
+  { href: '/features/platforms', label: 'Platforms' },
+  { href: '/features/teams', label: 'Teams' },
   { href: '/use-cases', label: 'Use Cases' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/faq', label: 'FAQ' },

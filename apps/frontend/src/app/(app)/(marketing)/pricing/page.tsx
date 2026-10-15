@@ -1,19 +1,15 @@
 import { marketingMetadata } from '@gitroom/frontend/components/marketing/seo';
-import {
-  CoinsExplainer,
-  PricingCards,
-} from '@gitroom/frontend/components/marketing/pricing-cards';
+import { CoinsExplainer } from '@gitroom/frontend/components/marketing/pricing-cards';
 import {
   CtaBand,
   FaqList,
   PageHero,
-  Sticker,
 } from '@gitroom/frontend/components/marketing/sections';
 
 export const metadata = marketingMetadata({
   title: 'Pricing',
   description:
-    'Zyntra pricing: 100 free Coins every month for pay-as-you-go usage, plus plans that unlock channels, AI, teams, and media credits.',
+    'Zyntra pay-as-you-go pricing with 100 free Coins every month for agent messages, AI images, and scheduled posts.',
   path: '/pricing',
   ogImage: '/og/og-pricing.png',
 });
@@ -29,19 +25,15 @@ const PRICING_FAQ = [
   },
   {
     q: 'Is this pay as you go?',
-    a: 'Yes for day-to-day usage. Coins meter what you spend. Plans unlock channels, AI access, team seats, and monthly image, video, and clipping credits.',
+    a: 'Yes. Day-to-day usage is metered with coins. Start free, spend as you create, and request more coins from the Coins page when you need them.',
   },
   {
     q: 'Can I buy more coins?',
-    a: 'Request a top-up from the Coins page in the dashboard. The Zyntra team adds coins to your account — there is no fixed public coin pack price in the product today.',
-  },
-  {
-    q: 'Do paid plans include more coins?',
-    a: 'Every plan receives the same 100 monthly coins. Paid tiers add channels, AI unlock, team features, and higher media quotas that work alongside your coin balance.',
+    a: 'Request a top-up from the Coins page in the dashboard. The Zyntra team adds coins to your account.',
   },
   {
     q: 'What about AI video and clipping?',
-    a: 'Those use plan credits and clipping minutes, not coins. Higher plans include larger monthly allowances.',
+    a: 'Videos and clipping use plan media credits and minutes inside the product, not coins.',
   },
 ];
 
@@ -51,27 +43,13 @@ export default function PricingPage() {
       <PageHero
         sticker="Pricing"
         stickerVariant="peach"
-        title="Plans for access. Coins for usage."
-        subtitle="Start free with 100 Zyntra Coins every month. Upgrade when you need more channels, team seats, and media credits."
+        title="Pay as you go with Zyntra Coins."
+        subtitle="Start free with 100 coins every month. Spend them on agent messages, AI images, and scheduled posts — unused coins carry over."
       />
 
       <section className="mkt-section" style={{ paddingTop: 8 }}>
         <div className="mkt-wrap">
           <CoinsExplainer />
-        </div>
-      </section>
-
-      <section className="mkt-section" style={{ paddingTop: 0 }}>
-        <div className="mkt-wrap">
-          <div className="mkt-center" style={{ marginBottom: 36 }}>
-            <Sticker>Subscription plans</Sticker>
-            <h2 className="mkt-h2">Unlock channels and higher media limits</h2>
-            <p className="mkt-sub">
-              Plans gate what you can connect and create. Coins still meter
-              messages, images, and scheduled posts on every tier.
-            </p>
-          </div>
-          <PricingCards featured="TEAM" />
         </div>
       </section>
 
@@ -86,7 +64,7 @@ export default function PricingPage() {
 
       <CtaBand
         title="Start free with 100 coins"
-        subtitle="Create an account, spend coins as you go, and upgrade when you need more channels."
+        subtitle="Create an account and spend coins as you go."
       />
     </>
   );
