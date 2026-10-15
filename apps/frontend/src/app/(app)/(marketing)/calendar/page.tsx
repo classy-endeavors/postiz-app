@@ -1,4 +1,5 @@
 import { marketingMetadata } from '@gitroom/frontend/components/marketing/seo';
+import { HeroCalendarMock } from '@gitroom/frontend/components/marketing/hero-calendar-mock';
 import {
   CtaBand,
   PageHero,
@@ -54,14 +55,7 @@ export default function CalendarPage() {
       </section>
 
       <div className="mkt-wrap" style={{ marginBottom: 40 }}>
-        <div className="mkt-preview">
-          <img
-            src="/marketing/images/calendar.png"
-            alt="Zyntra content calendar interface"
-            width={980}
-            height={560}
-          />
-        </div>
+        <HeroCalendarMock />
       </div>
 
       <CtaBand title="Build your calendar in minutes" />

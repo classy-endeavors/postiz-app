@@ -52,17 +52,6 @@ export default function UseCasesPage() {
         </div>
       </section>
 
-      <div className="mkt-wrap" style={{ marginBottom: 40 }}>
-        <div className="mkt-preview">
-          <img
-            src="/marketing/images/calendar.png"
-            alt="Content calendar for creators and teams"
-            width={980}
-            height={560}
-          />
-        </div>
-      </div>
-
       <CtaBand title="Find your workflow in Zyntra" />
     </>
   );

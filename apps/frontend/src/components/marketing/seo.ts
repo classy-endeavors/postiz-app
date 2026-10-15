@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 const SITE_NAME = 'Zyntra';
-const DEFAULT_OG = '/marketing/images/calendar.png';
+const DEFAULT_OG = '/og/og-default.png';
 
 export function marketingMetadata({
   title,

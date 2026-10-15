@@ -53,17 +53,6 @@ export default function TeamsPage() {
         </div>
       </section>
 
-      <div className="mkt-wrap" style={{ marginBottom: 40 }}>
-        <div className="mkt-preview">
-          <img
-            src="/marketing/images/calendar.png"
-            alt="Shared team calendar for scheduled social posts"
-            width={980}
-            height={560}
-          />
-        </div>
-      </div>
-
       <CtaBand title="Bring your team onto one calendar" />
     </>
   );

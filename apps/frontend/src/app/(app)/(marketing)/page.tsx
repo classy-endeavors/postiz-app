@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { marketingMetadata } from '@gitroom/frontend/components/marketing/seo';
+import { HeroCalendarMock } from '@gitroom/frontend/components/marketing/hero-calendar-mock';
 import {
   CtaBand,
   FaqList,
@@ -35,14 +36,7 @@ export default function MarketingHomePage() {
               Login
             </Link>
           </div>
-          <div className="mkt-preview">
-            <img
-              src="/marketing/images/calendar.png"
-              alt="Zyntra content calendar in month view"
-              width={980}
-              height={560}
-            />
-          </div>
+          <HeroCalendarMock />
         </div>
       </section>
 

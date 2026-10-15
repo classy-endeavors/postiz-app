@@ -53,17 +53,6 @@ export default function InsightsPage() {
         </div>
       </section>
 
-      <div className="mkt-wrap" style={{ marginBottom: 40 }}>
-        <div className="mkt-preview">
-          <img
-            src="/marketing/images/calendar.png"
-            alt="Published and scheduled posts on the Zyntra calendar"
-            width={980}
-            height={560}
-          />
-        </div>
-      </div>
-
       <section className="mkt-section" style={{ paddingTop: 0 }}>
         <div className="mkt-wrap mkt-center">
           <div className="mkt-card-soft" style={{ maxWidth: 720, margin: '0 auto' }}>
