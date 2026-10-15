@@ -53,7 +53,7 @@ export function MarketingNav() {
         </nav>
 
         <div className="mkt-nav-right">
-          <Link href="/auth" className="mkt-nav-login">
+          <Link href="/auth/login" className="mkt-nav-login">
             Login
           </Link>
           <Link href="/auth" className="mkt-btn mkt-btn-org mkt-btn-sm">
@@ -85,7 +85,7 @@ export function MarketingNav() {
             {link.label}
           </Link>
         ))}
-        <Link href="/auth">Login</Link>
+        <Link href="/auth/login">Login</Link>
         <Link href="/auth" className="mkt-btn mkt-btn-org mkt-btn-sm">
           Get Started
         </Link>

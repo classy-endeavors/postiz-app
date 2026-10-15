@@ -19,7 +19,7 @@ const MORE_LINKS = [
 
 const COMPANY_LINKS = [
   { href: '/about', label: 'About' },
-  { href: '/auth', label: 'Login' },
+  { href: '/auth/login', label: 'Login' },
   { href: 'https://aizyntra.com/privacy', label: 'Privacy Policy', external: true },
   { href: 'https://aizyntra.com/terms', label: 'Terms of Service', external: true },
 ];

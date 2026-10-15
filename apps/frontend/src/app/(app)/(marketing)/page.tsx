@@ -32,7 +32,7 @@ export default function MarketingHomePage() {
             <Link href="/auth" className="mkt-btn mkt-btn-org">
               Get Started
             </Link>
-            <Link href="/auth" className="mkt-btn mkt-btn-ghost">
+            <Link href="/auth/login" className="mkt-btn mkt-btn-ghost">
               Login
             </Link>
           </div>
