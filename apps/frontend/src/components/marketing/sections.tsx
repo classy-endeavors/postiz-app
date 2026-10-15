@@ -124,16 +124,16 @@ export const HOME_FAQ = [
     a: 'YouTube, TikTok, Instagram, LinkedIn, LinkedIn Page, and Facebook Page.',
   },
   {
+    q: 'How do Zyntra Coins work?',
+    a: 'You get 100 free coins every month. Spend them on agent messages, AI images, and scheduled posts — unused coins carry over.',
+  },
+  {
     q: 'Does Zyntra include AI writing?',
-    a: 'Yes. Paid plans include an AI agent and post generator that draft content for review before you publish.',
+    a: 'Yes. Paid plans unlock the AI agent and post generator. Usage still spends coins where listed on Pricing.',
   },
   {
     q: 'Can my team collaborate?',
     a: 'Team members and roles are available on TEAM, PRO, and ULTIMATE plans.',
-  },
-  {
-    q: 'How do I sign in?',
-    a: 'Use email and password, or available social login options on the auth page.',
   },
 ];
 

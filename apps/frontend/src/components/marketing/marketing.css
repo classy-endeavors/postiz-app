@@ -954,6 +954,38 @@
   margin: 0;
 }
 
+.mkt-coins-block {
+  margin-bottom: 8px;
+}
+
+.mkt-coins-cost {
+  font-family: var(--font-heading), 'Bricolage Grotesque', sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  color: var(--mkt-org);
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.mkt-coins-cost::after {
+  content: ' coin' attr(data-plural);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--mkt-ink);
+  margin-left: 4px;
+}
+
+.mkt-coins-block .mkt-card .mkt-coins-cost::after {
+  content: ' coins';
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--mkt-ink);
+}
+
+.mkt-coins-block .mkt-card:first-child .mkt-coins-cost::after {
+  content: ' coin';
+}
+
 .mkt-price-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

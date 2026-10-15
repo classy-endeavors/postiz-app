@@ -34,6 +34,10 @@ const FAQ_ITEMS = [
     a: 'Yes. Add posts to the calendar and Zyntra publishes them through background jobs at the scheduled time.',
   },
   {
+    q: 'How do Zyntra Coins work?',
+    a: 'Coins are a pay-as-you-go wallet. You get 100 free every month, unused coins carry over, and you spend them on agent messages (1), AI images (5), and scheduled posts (2 per channel).',
+  },
+  {
     q: 'Does AI publish without my approval?',
     a: 'No. AI helps draft content and media. You review, edit, and schedule before anything goes live.',
   },

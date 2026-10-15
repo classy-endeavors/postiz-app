@@ -165,10 +165,10 @@ export default function MarketingHomePage() {
       <section className="mkt-section" style={{ paddingTop: 0 }}>
         <div className="mkt-wrap mkt-center">
           <Sticker variant="peach">Pricing</Sticker>
-          <h2 className="mkt-h2">Plans that scale with your channels</h2>
+          <h2 className="mkt-h2">Coins for usage. Plans for access.</h2>
           <p className="mkt-sub">
-            From free exploration to high-volume publishing — see full limits on
-            the pricing page.
+            Start free with 100 Zyntra Coins every month, then upgrade for more
+            channels, teams, and media credits.
           </p>
           <div style={{ marginTop: 28 }}>
             <Link href="/pricing" className="mkt-btn mkt-btn-org">
