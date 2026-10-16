@@ -5,6 +5,7 @@ import TiktokProvider from '@gitroom/frontend/components/new-launch/providers/ti
 import InstagramProvider from '@gitroom/frontend/components/new-launch/providers/instagram/instagram.collaborators';
 import LinkedinProvider from '@gitroom/frontend/components/new-launch/providers/linkedin/linkedin.provider';
 import FacebookProvider from '@gitroom/frontend/components/new-launch/providers/facebook/facebook.provider';
+import XProvider from '@gitroom/frontend/components/new-launch/providers/x/x.provider';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import React, { FC, forwardRef, useEffect, useImperativeHandle } from 'react';
@@ -15,6 +16,10 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { PostComment } from '@gitroom/frontend/components/new-launch/providers/high.order.provider';
 
 export const Providers = [
+  {
+    identifier: 'x',
+    component: XProvider,
+  },
   {
     identifier: 'youtube',
     component: YoutubeProvider,

@@ -55,6 +55,11 @@ Thumbs.db
 *.~*~
 *.tsbuildinfo
 
+# Local runtime logs / uploads (dev machines)
+backend-run.log
+orchestrator-run.log
+uploads/
+
 # ignore Secrets folder
 .secrets/
 libraries/plugins/src/plugins.ts

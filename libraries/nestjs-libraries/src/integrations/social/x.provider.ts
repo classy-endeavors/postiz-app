@@ -142,7 +142,11 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     return true;
   }
 
-  override handleErrors(body: string):
+  override handleErrors(
+    body: string,
+    // status is required by SocialAbstract; X classifies from the response body.
+    _status: number
+  ):
     | {
         type: 'refresh-token' | 'bad-body' | 'retry';
         value: string;
@@ -287,6 +291,17 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       return {
         type: 'refresh-token',
         value: 'X rejected the connected account, please reconnect your account',
+      };
+    }
+    if (
+      body.includes('credits depleted') ||
+      body.includes('credits-depleted') ||
+      body.includes('"title":"Payment Required"')
+    ) {
+      return {
+        type: 'bad-body',
+        value:
+          'X API credits are depleted. Add credits or upgrade your plan in the X Developer Console, then try again',
       };
     }
     return undefined;
@@ -910,7 +925,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         // suspended accounts fail properly instead of burning the whole check
         // budget as "transient".
         const body = JSON.stringify(err?.data || {});
-        const handleError = this.handleErrors(body);
+        const handleError = this.handleErrors(body, err?.code || 200);
 
         if (err?.code === 401 || handleError?.type === 'refresh-token') {
           throw new RefreshToken(this.identifier, body, Buffer.from('{}'));

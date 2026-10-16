@@ -56,7 +56,18 @@ export const ContinueIntegration: FC<{
     },
     [logged, push]
   );
-  const modifiedParams = useMemo(() => searchParams, []);
+  // X (OAuth 1.0a) returns oauth_token / oauth_verifier instead of state / code.
+  const modifiedParams = useMemo(() => {
+    if (provider === 'x') {
+      return {
+        state: searchParams.oauth_token || '',
+        code: searchParams.oauth_verifier || '',
+        refresh: searchParams.refresh || '',
+      };
+    }
+
+    return searchParams;
+  }, [provider, searchParams]);
 
   useEffect(() => {
     (async () => {
