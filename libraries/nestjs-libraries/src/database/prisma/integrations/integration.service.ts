@@ -28,6 +28,11 @@ import utc from 'dayjs/plugin/utc';
 import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.repository';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { TemporalService } from 'nestjs-temporal-core';
+import {
+  isCloudBucketUrl,
+  objectKeyFromBucketUrl,
+  stripPresignedQuery,
+} from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 dayjs.extend(utc);
 
@@ -43,6 +48,39 @@ export class IntegrationService {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _temporalService: TemporalService
   ) {}
+
+  /**
+   * Short-lived fetchable URL for a channel avatar. Canonical Integration.picture
+   * stays unsigned in the DB (same model as Media.path).
+   */
+  async signPictureUrl(
+    picture: string | null | undefined
+  ): Promise<string | undefined> {
+    if (!picture) {
+      return undefined;
+    }
+    if (!this.storage.signDownloadUrl) {
+      return picture;
+    }
+
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL || '';
+    const path = stripPresignedQuery(picture);
+    if (!isCloudBucketUrl(path, bucketUrl)) {
+      return picture;
+    }
+
+    const key = objectKeyFromBucketUrl(path, bucketUrl);
+    if (!key) {
+      return picture;
+    }
+
+    try {
+      return await this.storage.signDownloadUrl(key);
+    } catch (err) {
+      console.log('Failed to sign profile picture:', picture, err);
+      return picture;
+    }
+  }
 
   async changeActiveCron(orgId: string) {
     const data = await this._autopostsRepository.getAutoposts(orgId);
@@ -113,14 +151,22 @@ export class IntegrationService {
     timezone?: number,
     customInstanceDetails?: string
   ) {
-    const uploadedPicture = picture
-      ? picture?.indexOf('imagedelivery.net') > -1
-        ? picture
-        : await this.storage.uploadSimple(picture).catch((err) => {
-            console.log('Failed to upload profile picture:', picture, err);
-            return undefined;
-          })
-      : undefined;
+    const alreadyHosted =
+      !!picture &&
+      (picture.indexOf('imagedelivery.net') > -1 ||
+        (!!process.env.CLOUDFLARE_BUCKET_URL &&
+          picture.indexOf(process.env.CLOUDFLARE_BUCKET_URL) > -1) ||
+        (!!process.env.FRONTEND_URL &&
+          picture.indexOf(process.env.FRONTEND_URL) > -1));
+
+    const uploadedPicture = !picture
+      ? undefined
+      : alreadyHosted
+      ? picture
+      : await this.storage.uploadSimple(picture).catch((err) => {
+          console.log('Failed to upload profile picture:', picture, err);
+          return undefined;
+        });
 
     return this._integrationRepository.createOrUpdateIntegration(
       additionalSettings,
@@ -152,6 +198,21 @@ export class IntegrationService {
 
   getIntegrationsList(org: string) {
     return this._integrationRepository.getIntegrationsList(org);
+  }
+
+  /** Sign private-bucket avatars for API/UI responses (does not mutate DB). */
+  async withSignedPictures<T extends { picture?: string | null }>(
+    integrations: T[]
+  ): Promise<T[]> {
+    return Promise.all(
+      integrations.map(async (integration) => {
+        const picture = await this.signPictureUrl(integration.picture);
+        if (!picture || picture === integration.picture) {
+          return integration;
+        }
+        return { ...integration, picture };
+      })
+    );
   }
 
   getChannelHealth(org: string, includeDeleted = false) {

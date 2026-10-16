@@ -265,7 +265,11 @@ export class PublicIntegrationsController {
     @Query('group') group?: string
   ) {
     Sentry.metrics.count('public_api-request', 1);
-    return (await this._integrationService.getIntegrationsList(org.id))
+    return (
+      await this._integrationService.withSignedPictures(
+        await this._integrationService.getIntegrationsList(org.id)
+      )
+    )
       .filter((integration) => !group || integration.customer?.id === group)
       .map((integration) => ({
         id: integration.id,

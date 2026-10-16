@@ -51,7 +51,9 @@ export class IntegrationListTool implements AgentToolInterface {
 
         return {
           output: (
-            await this._integrationService.getIntegrationsList(organizationId)
+            await this._integrationService.withSignedPictures(
+              await this._integrationService.getIntegrationsList(organizationId)
+            )
           )
             .filter((p) => !inputData.group || p.customer?.id === inputData.group)
             .map((p) => ({

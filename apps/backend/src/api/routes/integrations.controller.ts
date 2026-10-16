@@ -98,11 +98,12 @@ export class IntegrationsController {
 
   @Get('/list')
   async getIntegrationList(@GetOrgFromRequest() org: Organization) {
+    const list = await this._integrationService.withSignedPictures(
+      await this._integrationService.getIntegrationsList(org.id)
+    );
     return {
       integrations: await Promise.all(
-        (
-          await this._integrationService.getIntegrationsList(org.id)
-        ).map(async (p) => {
+        list.map(async (p) => {
           const findIntegration = this._integrationManager.getSocialIntegration(
             p.providerIdentifier
           );
