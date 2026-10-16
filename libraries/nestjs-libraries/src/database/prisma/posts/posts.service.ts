@@ -356,7 +356,9 @@ export class PostsService {
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {
     return minifyPosts({
-      posts: await this._postRepository.getPosts(orgId, query),
+      posts: await this.withSignedIntegrationPictures(
+        await this._postRepository.getPosts(orgId, query)
+      ),
     });
   }
 
@@ -365,8 +367,35 @@ export class PostsService {
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
-    return minifyPostsList(
-      await this._postRepository.getPostsList(orgId, query)
+    const list = await this._postRepository.getPostsList(orgId, query);
+    return minifyPostsList({
+      ...list,
+      posts: await this.withSignedIntegrationPictures(list.posts),
+    });
+  }
+
+  private async withSignedIntegrationPictures<
+    T extends { integration?: { picture?: string | null } | null }
+  >(posts: T[]): Promise<T[]> {
+    return Promise.all(
+      posts.map(async (post) => {
+        if (!post.integration?.picture) {
+          return post;
+        }
+        const picture = await this._integrationService.signPictureUrl(
+          post.integration.picture
+        );
+        if (!picture || picture === post.integration.picture) {
+          return post;
+        }
+        return {
+          ...post,
+          integration: {
+            ...post.integration,
+            picture,
+          },
+        };
+      })
     );
   }
 
