@@ -30,6 +30,12 @@ export const DirectPublishDetails: FC<{
       tags?: string[];
       madeForKids?: boolean;
       publishAt?: string;
+      activity?: {
+        action: 'scheduled' | 'published' | 'rescheduled';
+        at: string;
+        from?: string;
+        to: string;
+      }[];
     };
   };
   channel?: string;
@@ -45,6 +51,12 @@ export const DirectPublishDetails: FC<{
   const scheduled =
     !!settings.publishAt && newDayjs(settings.publishAt).isAfter(newDayjs());
   const thumbnail = post.image?.[0]?.path;
+  const format = (value?: string) =>
+    value
+      ? newDayjs(value)
+          .local()
+          .format(isUSCitizen() ? 'L h:mm A' : 'L HH:mm')
+      : '';
 
   return (
     <div className="flex flex-col gap-[16px]">
@@ -111,6 +123,39 @@ export const DirectPublishDetails: FC<{
           </div>
           <div className="text-[13px] text-textItemBlur whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto">
             {post.content}
+          </div>
+        </div>
+      )}
+      {!!settings.activity?.length && (
+        <div className="flex flex-col gap-[4px]">
+          <div className="text-[13px] font-[700]">
+            {t('direct_publish_activity', 'Activity')}
+          </div>
+          <div className="flex flex-col gap-[4px]">
+            {settings.activity.map((entry, index) => (
+              <div
+                key={`${entry.at}-${index}`}
+                className="text-[13px] text-textItemBlur"
+              >
+                {entry.action === 'rescheduled'
+                  ? t(
+                      'direct_publish_activity_rescheduled',
+                      'Rescheduled from {{from}} to {{to}}',
+                      { from: format(entry.from), to: format(entry.to) }
+                    )
+                  : entry.action === 'scheduled'
+                  ? t(
+                      'direct_publish_activity_scheduled',
+                      'Scheduled for {{date}}',
+                      { date: format(entry.to) }
+                    )
+                  : t(
+                      'direct_publish_activity_published',
+                      'Published at {{date}}',
+                      { date: format(entry.to) }
+                    )}
+              </div>
+            ))}
           </div>
         </div>
       )}

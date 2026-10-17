@@ -877,5 +877,9 @@
   "direct_publish_read_only": "Published directly from MCP. The media is not stored in AI Zyntra, so this post is read-only here, edit it on the platform.",
   "made_for_kids": "Made for kids",
   "description": "Description",
-  "open_post": "Open post"
+  "open_post": "Open post",
+  "direct_publish_activity": "Activity",
+  "direct_publish_activity_scheduled": "Scheduled for {{date}}",
+  "direct_publish_activity_published": "Published at {{date}}",
+  "direct_publish_activity_rescheduled": "Rescheduled from {{from}} to {{to}}"
 }

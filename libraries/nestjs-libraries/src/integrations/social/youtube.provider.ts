@@ -878,6 +878,62 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
   }
 
+  // Moves a video YouTube has not published yet. publishAt only sticks while
+  // the video is still private, so a video that already went public is refused.
+  async rescheduleDirectPublish(
+    accessToken: string,
+    videoId: string,
+    publishAt: string
+  ) {
+    const current = await this.fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=status&id=${encodeURIComponent(
+        videoId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const listed = await current.json();
+    const status = listed?.items?.[0]?.status;
+    if (!status) {
+      throw new BadBody(
+        this.identifier,
+        '{}',
+        '{}',
+        'This video was not found on the channel'
+      );
+    }
+    if (status.privacyStatus !== 'private' || !status.publishAt) {
+      throw new BadBody(
+        this.identifier,
+        '{}',
+        '{}',
+        'Only a video that YouTube has not published yet can be rescheduled'
+      );
+    }
+
+    await this.fetch(
+      'https://www.googleapis.com/youtube/v3/videos?part=status',
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          id: videoId,
+          status: {
+            privacyStatus: 'private',
+            publishAt,
+            selfDeclaredMadeForKids: !!status.selfDeclaredMadeForKids,
+          },
+        }),
+      }
+    );
+  }
+
   async setThumbnail(accessToken: string, videoId: string, url: string) {
     const { client, youtube } = clientAndYoutube();
     client.setCredentials({ access_token: accessToken });

@@ -19,6 +19,7 @@ import { UploadWidgetTicketTool } from '@gitroom/nestjs-libraries/chat/tools/upl
 import { UploadWidgetStatusTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.status.tool';
 import { YoutubeDirectPublishTool } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.publish.tool';
 import { YoutubeDirectPublishStatusTool } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.publish.status.tool';
+import { YoutubeDirectRescheduleTool } from '@gitroom/nestjs-libraries/chat/tools/youtube.direct.reschedule.tool';
 
 export const toolList = [
   IntegrationListTool,
@@ -42,4 +43,5 @@ export const toolList = [
   UploadWidgetStatusTool,
   YoutubeDirectPublishTool,
   YoutubeDirectPublishStatusTool,
+  YoutubeDirectRescheduleTool,
 ];
