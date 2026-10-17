@@ -1097,11 +1097,50 @@ export class PostsService {
     creationMethod: CreationMethod,
     data: Parameters<PostsRepository['createPublishedRecord']>[3]
   ) {
+    const to = data.publishDate.toISOString();
     return this._postRepository.createPublishedRecord(
       orgId,
       integrationId,
       creationMethod,
-      data
+      {
+        ...data,
+        settings: {
+          ...data.settings,
+          activity: [
+            {
+              action: data.settings.publishAt ? 'scheduled' : 'published',
+              at: new Date().toISOString(),
+              to,
+            },
+          ],
+        },
+      }
+    );
+  }
+
+  findDirectPublishRecord(
+    orgId: string,
+    integrationId: string,
+    releaseId: string
+  ) {
+    return this._postRepository.findDirectPublishRecord(
+      orgId,
+      integrationId,
+      releaseId
+    );
+  }
+
+  rescheduleDirectPublishRecord(
+    orgId: string,
+    id: string,
+    publishDate: Date,
+    entry: Parameters<PostsRepository['rescheduleDirectPublishRecord']>[3]
+  ) {
+    return this._postRepository.rescheduleDirectPublishRecord(
+      orgId,
+      id,
+      publishDate,
+      entry
     );
   }
 
