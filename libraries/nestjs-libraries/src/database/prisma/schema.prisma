@@ -39,6 +39,8 @@ model Organization {
   submittedPost       Post[]               @relation("submittedForOrg")
   sets                Sets[]
   signatures          Signatures[]
+  replyProfile        ReplyProfile?
+  commentReplies      CommentReply[]
   subscription        Subscription?
   tags                Tags[]
   thirdParty          ThirdParty[]
@@ -425,6 +427,7 @@ model Integration {
   orderItems            OrderItems[]
   plugs                 Plugs[]
   posts                 Post[]
+  commentReplies        CommentReply[]
 
   @@unique([organizationId, internalId])
   @@index([rootInternalId])
@@ -437,6 +440,40 @@ model Integration {
   @@index([inBetweenSteps])
   @@index([refreshNeeded])
   @@index([disabled])
+}
+
+model ReplyProfile {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  enabled        Boolean      @default(false)
+  website        String?
+  fullVideoUrl   String?
+  notes          String       @default("")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+// A comment written by someone else on a post this app published, and what
+// was replied, so the same comment is never answered twice
+model CommentReply {
+  id                String       @id @default(uuid())
+  organizationId    String
+  integrationId     String
+  platformCommentId String
+  text              String
+  reply             String?
+  status            String       @default("pending")
+  error             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  integration       Integration  @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, platformCommentId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Signatures {

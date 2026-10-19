@@ -58,6 +58,8 @@ import { FarcasterProvider } from '@gitroom/backend/services/auth/providers/farc
 import { WalletProvider } from '@gitroom/backend/services/auth/providers/wallet.provider';
 import { OauthProvider } from '@gitroom/backend/services/auth/providers/oauth.provider';
 import { StripeController } from '@gitroom/backend/api/routes/stripe.controller';
+import { RepliesController } from '@gitroom/backend/api/routes/replies.controller';
+import { InstagramWebhookController } from '@gitroom/backend/api/routes/instagram.webhook.controller';
 
 const authenticatedController = [
   UsersController,
@@ -82,6 +84,7 @@ const authenticatedController = [
   AdminController,
   CoinsController,
   UpgradesController,
+  RepliesController,
 ];
 @Module({
   imports: [UploadModule],
@@ -98,6 +101,7 @@ const authenticatedController = [
         StripeController,
         AuthController,
         PublicController,
+        InstagramWebhookController,
         MonitorController,
         EnterpriseController,
         NoAuthIntegrationsController,

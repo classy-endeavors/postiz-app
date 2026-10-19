@@ -883,5 +883,13 @@
   "direct_publish_activity_published": "Published at {{date}}",
   "direct_publish_activity_rescheduled": "Rescheduled from {{from}} to {{to}}",
   "post_failed_to_publish": "This post failed to publish",
-  "post_failed_unknown": "The platform rejected this post but did not say why. Update it and try again."
+  "post_failed_unknown": "The platform rejected this post but did not say why. Update it and try again.",
+  "coins_activity_reply": "Comment reply",
+  "comment_replies": "Comment replies",
+  "comment_replies_help": "When someone comments on a YouTube or Instagram post published from here, reply only if the facts below answer them. A link is never invented. Each posted reply uses 1 coin. YouTube is checked every 10 minutes. Reconnect those channels after this is turned on so comment permission is included.",
+  "comment_replies_enabled": "Reply to comments",
+  "comment_replies_website": "Website",
+  "comment_replies_full_video": "Full video link",
+  "comment_replies_notes": "Other facts people ask for",
+  "reply_save_failed": "Could not save comment replies"
 }

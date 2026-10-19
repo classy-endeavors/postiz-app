@@ -1070,6 +1070,33 @@ export class InstagramProvider
     }
   }
 
+  async replyToComment(
+    token: string,
+    commentId: string,
+    message: string,
+    host = 'graph.facebook.com'
+  ) {
+    const accessToken = token.split('___')[0];
+    const response = await this.fetch(
+      `https://${host}/${META_GRAPH_API_VERSION}/${commentId}/replies?message=${encodeURIComponent(
+        message
+      )}&access_token=${accessToken}`,
+      {
+        method: 'POST',
+      }
+    );
+    const body = await response.json();
+    if (!body?.id) {
+      throw new BadBody(
+        this.identifier,
+        JSON.stringify(body || {}),
+        '{}',
+        'Instagram did not accept the comment reply'
+      );
+    }
+    return String(body.id);
+  }
+
   async comment(
     id: string,
     postId: string,
