@@ -21,6 +21,7 @@ export const Input: FC<
     label: string;
     name: string;
     icon?: ReactNode;
+    suffix?: ReactNode;
     translationKey?: string;
     translationParams?: Record<string, string | number>;
   }
@@ -28,6 +29,7 @@ export const Input: FC<
   const {
     label,
     icon,
+    suffix,
     removeError,
     customUpdate,
     className,
@@ -70,11 +72,13 @@ export const Input: FC<
         <input
           className={clsx(
             'h-full bg-transparent outline-none flex-1 text-[14px] text-textColor',
-            icon ? 'pl-[8px] pe-[16px]' : 'px-[16px]'
+            icon ? 'pl-[8px]' : 'ps-[16px]',
+            suffix ? 'pe-[8px]' : 'pe-[16px]'
           )}
           {...(disableForm ? {} : form.register(props.name))}
           {...rest}
         />
+        {suffix && <div className="pe-[12px] flex items-center">{suffix}</div>}
       </div>
       {!removeError && (
         <div className="text-red-400 text-[12px]">{err || <>&nbsp;</>}</div>
