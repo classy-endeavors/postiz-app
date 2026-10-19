@@ -18,7 +18,7 @@ export const useLogoutNow = () => {
         method: 'POST',
       });
     }
-    window.location.href = '/';
+    window.location.href = '/auth';
   }, []);
 };
 
