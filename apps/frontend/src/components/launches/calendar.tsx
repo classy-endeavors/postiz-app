@@ -330,9 +330,10 @@ export const DayView = () => {
         {options.map((option) => (
           <div
             key={option[0].time}
-            className="flex items-start gap-[12px] mb-[20px] min-h-[60px]"
+            className="flex shrink-0 items-start gap-[12px] mb-[20px] min-h-[60px]"
           >
-            {/* Keep times out of the post column so zoom/full-width cards cannot cover them */}
+            {/* shrink-0 so a short day column cannot squash rows and let cards cover the next times.
+                Times stay outside the post column so full-width cards cannot cover them. */}
             <div className="w-[92px] shrink-0 pt-[10px] text-end text-[14px] tabular-nums text-newTextColor whitespace-nowrap">
               {newDayjs()
                 .utc()
@@ -1251,29 +1252,42 @@ export const CalendarColumn: FC<{
     );
   }
 
+  const isDay = display === 'day';
+
   return (
     <div
       className={clsx(
-        'flex flex-col w-full min-h-full relative',
+        'flex flex-col w-full relative',
+        !isDay && 'min-h-full',
+        isDay && 'shrink-0',
         isBeforeNow && 'repeated-strip',
         loading && 'animate-pulse',
         isBeforeNow
           ? 'cursor-not-allowed'
-          : 'border border-newTextColor/5 rounded-[8px]'
+          : 'border border-newTextColor/5 rounded-[8px]',
+        isDay && isBeforeNow && postList.length === 0 && 'min-h-[72px]'
       )}
       ref={drop as any}
     >
       <div
         className={clsx(
-          'relative flex flex-col flex-1 text-white rounded-[8px] min-h-[70px]',
+          'relative flex flex-col text-white rounded-[8px]',
+          isDay ? 'w-full' : 'flex-1 min-h-[70px]',
+          isDay && isBeforeNow && postList.length === 0 && 'min-h-[72px] flex-1',
           canDrop && 'border border-[#FF5227]'
         )}
       >
         <div
           className={clsx(
             'flex-col text-[12px] pointer w-full flex scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary',
-            isBeforeNow ? 'flex-1' : 'cursor-pointer',
-            isBeforeNow && postList.length === 0 && 'col-calendar'
+            isDay && 'gap-[8px]',
+            isBeforeNow && !isDay && 'flex-1',
+            !isBeforeNow && 'cursor-pointer',
+            isBeforeNow && postList.length === 0 && 'col-calendar',
+            isDay &&
+              isBeforeNow &&
+              postList.length === 0 &&
+              'relative min-h-[72px] flex-1'
           )}
         >
           {loading && (
@@ -1285,10 +1299,18 @@ export const CalendarColumn: FC<{
             <div
               key={post.id}
               className={clsx(
-                'text-textColor p-[2.5px] relative flex flex-col justify-center items-center'
+                isDay
+                  ? 'text-textColor relative w-full shrink-0'
+                  : 'text-textColor p-[2.5px] relative flex flex-col justify-center items-center'
               )}
             >
-              <div className="relative w-full flex flex-col items-center p-[2.5px]">
+              <div
+                className={clsx(
+                  isDay
+                    ? 'relative w-full'
+                    : 'relative w-full flex flex-col items-center p-[2.5px]'
+                )}
+              >
                 <CalendarItem
                   display={display as 'day' | 'week'}
                   isBeforeNow={isBeforeNow}
@@ -1591,8 +1613,8 @@ const CalendarItem: FC<{
       // @ts-ignore
       ref={dragRef}
       className={clsx(
-        'w-full flex h-full flex-1 flex-col group',
-        'relative',
+        'w-full flex flex-col group relative',
+        display === 'day' ? 'h-auto shrink-0' : 'h-full flex-1',
         state === 'ERROR' && 'rounded-[10px] ring-2 ring-red-500'
       )}
       style={{
@@ -1687,8 +1709,8 @@ const CalendarItem: FC<{
       <div
         onClick={editPost}
         className={clsx(
-          'gap-[5px] w-full flex h-full flex-1 rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor',
-          'relative',
+          'gap-[5px] w-full flex rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor relative',
+          display !== 'day' && 'h-full flex-1',
           isBeforeNow && '!grayscale'
         )}
       >
