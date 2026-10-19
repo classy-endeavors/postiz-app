@@ -838,6 +838,76 @@ export class PostsRepository {
     });
   }
 
+  findDirectPublishRecord(
+    orgId: string,
+    integrationId: string,
+    releaseId: string
+  ) {
+    return this._post.model.post.findFirst({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        releaseId,
+        deletedAt: null,
+        parentPostId: null,
+      },
+      select: {
+        id: true,
+        publishDate: true,
+        settings: true,
+        releaseURL: true,
+        title: true,
+        state: true,
+      },
+    });
+  }
+
+  async rescheduleDirectPublishRecord(
+    orgId: string,
+    id: string,
+    publishDate: Date,
+    entry: { action: 'rescheduled'; at: string; from: string; to: string }
+  ) {
+    const post = await this._post.model.post.findFirst({
+      where: {
+        id,
+        organizationId: orgId,
+        deletedAt: null,
+      },
+      select: {
+        settings: true,
+      },
+    });
+
+    let settings: Record<string, any> = {};
+    try {
+      settings = JSON.parse(post?.settings || '{}');
+    } catch (err) {}
+
+    if (!settings.directPublish) {
+      return null;
+    }
+
+    const activity = Array.isArray(settings.activity) ? settings.activity : [];
+    settings.publishAt = entry.to;
+    settings.privacy = 'private';
+    settings.activity = [...activity, entry].slice(-20);
+
+    return this._post.model.post.update({
+      where: {
+        id,
+      },
+      data: {
+        publishDate,
+        settings: JSON.stringify(settings),
+      },
+      select: {
+        id: true,
+        publishDate: true,
+      },
+    });
+  }
+
   async submit(id: string, order: string, buyerOrganizationId: string) {
     return this._post.model.post.update({
       where: {
