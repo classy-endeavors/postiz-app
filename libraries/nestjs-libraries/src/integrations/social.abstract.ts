@@ -1,4 +1,5 @@
 import { timer } from '@gitroom/helpers/utils/timer';
+import { extractProviderErrorMessage } from '@gitroom/helpers/utils/humanize.post.error';
 import { Integration } from '@prisma/client';
 import {
   AuthTokenDetails,
@@ -15,6 +16,16 @@ import sharp from 'sharp';
 import { createReadStream, statSync } from 'fs';
 import { Readable } from 'stream';
 import { fetchRemoteMediaByteSize } from '@gitroom/nestjs-libraries/upload/remote.media.size';
+
+// Known provider copy wins. Otherwise read the platform JSON so the
+// notification and the saved post error are not just "Unknown Error".
+const providerFailureMessage = (json: string, mapped?: string) => {
+  const known = (mapped || '').trim();
+  if (known && known.toLowerCase() !== 'unknown error') {
+    return known;
+  }
+  return extractProviderErrorMessage(json) || 'Unknown Error';
+};
 
 export const stripQuery = (url: string) => {
   try {
@@ -417,7 +428,7 @@ export abstract class SocialAbstract {
         identifier,
         json,
         '{}',
-        handleError?.value || 'Unknown Error'
+        providerFailureMessage(json, handleError?.value)
       );
     }
   }
@@ -469,7 +480,7 @@ export abstract class SocialAbstract {
         '',
         safeStringify(globalErr),
         {} as any,
-        value.value || ''
+        providerFailureMessage(safeStringify(globalErr), value.value)
       );
     }
 
@@ -570,7 +581,7 @@ export abstract class SocialAbstract {
       identifier,
       json,
       options.body!,
-      handleError?.value || 'Unknown Error'
+      providerFailureMessage(json, handleError?.value)
     );
   }
 
