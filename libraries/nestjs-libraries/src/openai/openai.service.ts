@@ -337,4 +337,68 @@ Clips must not overlap. Write the title and the post in this language, whatever 
 
     return [];
   }
+
+  // Answers a public comment from the facts the account stored. Null means
+  // the comment should be left alone rather than inventing a link or offer.
+  async commentReply(input: {
+    comment: string;
+    postTitle?: string | null;
+    postText?: string | null;
+    postUrl?: string | null;
+    linked: { title: string; url: string; channel: string }[];
+    examples: { comment: string; reply: string }[];
+  }) {
+    const facts = [
+      input.postTitle ? `This post title: ${input.postTitle}` : '',
+      input.postText ? `This post text: ${input.postText}` : '',
+      input.postUrl ? `This post link: ${input.postUrl}` : '',
+      input.linked.length
+        ? `Connected posts (use these when someone asks for the full video or another version):\n${input.linked
+            .map(
+              (item) =>
+                `- ${item.channel ? `${item.channel}: ` : ''}${item.title}${
+                  item.url ? ` ${item.url}` : ''
+                }`
+            )
+            .join('\n')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const examples = input.examples
+      .map((item) => `Comment: ${item.comment}\nReply: ${item.reply}`)
+      .join('\n\n');
+
+    const parsed = (
+      await openai.chat.completions.parse(
+        {
+          model: aiConfig.textModel,
+          messages: [
+            {
+              role: 'system',
+              content: `You reply in public to a comment on this account's own social post.
+Use only the facts given. If the comment is not asking for something those facts can answer, set reply to an empty string.
+Never invent a link, price, date or promise. Write in the language of the comment. Stay under 400 characters. Do not say you are an AI.
+${examples ? `\nEarlier replies from this account, match their tone:\n${examples}` : ''}`,
+            },
+            {
+              role: 'user',
+              content: `${facts}\n\nComment:\n${input.comment}`,
+            },
+          ],
+          response_format: zodResponseFormat(
+            z.object({
+              reply: z.string().describe('The public reply, or empty to stay silent'),
+            }),
+            'commentReply'
+          ),
+        },
+        { timeout: 30000, maxRetries: 0 }
+      )
+    ).choices[0].message.parsed;
+
+    const reply = (parsed?.reply || '').replace(/\s+/g, ' ').trim();
+    return reply ? reply.slice(0, 400) : '';
+  }
 }

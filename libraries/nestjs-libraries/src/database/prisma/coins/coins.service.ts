@@ -20,6 +20,7 @@ export const COIN_COSTS = {
   message: 1,
   image: 5,
   post: 2,
+  reply: 1,
 };
 export type CoinAction = keyof typeof COIN_COSTS;
 
@@ -27,6 +28,7 @@ const DESCRIPTIONS: Record<CoinAction, string> = {
   message: 'AI agent message',
   image: 'AI image generation',
   post: 'Post scheduled',
+  reply: 'Comment reply',
 };
 
 @Injectable()
@@ -167,6 +169,16 @@ export class CoinsService {
   }
 
   // Keyed by the post, so a retried save never charges the same post twice
+  chargeReply(organizationId: string, commentId: string, channel?: string) {
+    return this._coinsRepository.addTransactionOnce(
+      `reply-${commentId}`.slice(0, 80),
+      organizationId,
+      -COIN_COSTS.reply,
+      'reply',
+      channel ? `${DESCRIPTIONS.reply} on ${channel}` : DESCRIPTIONS.reply
+    );
+  }
+
   chargePost(organizationId: string, postId: string, channel?: string) {
     return this._coinsRepository.addTransactionOnce(
       `post-${postId}`,

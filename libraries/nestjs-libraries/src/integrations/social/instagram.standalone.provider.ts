@@ -233,6 +233,15 @@ export class InstagramStandaloneProvider
     return instagramProvider.finalizePost(accessToken, pendingData, integration);
   }
 
+  replyToComment(token: string, commentId: string, message: string) {
+    return instagramProvider.replyToComment(
+      token,
+      commentId,
+      message,
+      'graph.instagram.com'
+    );
+  }
+
   async comment(
     id: string,
     postId: string,

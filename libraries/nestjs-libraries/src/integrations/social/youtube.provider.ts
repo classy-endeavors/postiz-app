@@ -934,6 +934,51 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     );
   }
 
+  async listRecentComments(accessToken: string, videoId: string) {
+    const response = await this.fetch(
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&order=time&textFormat=plainText&maxResults=20&videoId=${encodeURIComponent(
+        videoId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const body = await response.json();
+    return ((body?.items || []) as any[]).map((item) => {
+      const snippet = item?.snippet?.topLevelComment?.snippet || {};
+      return {
+        id: String(item?.snippet?.topLevelComment?.id || ''),
+        text: String(snippet.textOriginal || snippet.textDisplay || ''),
+        authorChannelId: String(snippet.authorChannelId?.value || ''),
+      };
+    }).filter((comment) => comment.id && comment.text);
+  }
+
+  async replyToComment(
+    accessToken: string,
+    commentId: string,
+    message: string
+  ) {
+    await this.fetch(
+      'https://www.googleapis.com/youtube/v3/comments?part=snippet',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          snippet: {
+            parentId: commentId,
+            textOriginal: message,
+          },
+        }),
+      }
+    );
+  }
+
   async setThumbnail(accessToken: string, videoId: string, url: string) {
     const { client, youtube } = clientAndYoutube();
     client.setCredentials({ access_token: accessToken });

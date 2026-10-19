@@ -883,5 +883,19 @@
   "direct_publish_activity_published": "Published at {{date}}",
   "direct_publish_activity_rescheduled": "Rescheduled from {{from}} to {{to}}",
   "post_failed_to_publish": "This post failed to publish",
-  "post_failed_unknown": "The platform rejected this post but did not say why. Update it and try again."
+  "post_failed_unknown": "The platform rejected this post but did not say why. Update it and try again.",
+  "coins_activity_reply": "Comment reply",
+  "comment_replies": "Comments",
+  "comment_replies_page_help": "Turn replies on for the posts you want answered. A reply uses the post and anything you linked to it, and costs 1 coin when it is posted. Reconnect YouTube and Instagram so comment permission is included.",
+  "comment_replies_search": "Search posts",
+  "comment_replies_empty": "Published posts from your channels will show up here.",
+  "comment_replies_linked": "Linked",
+  "comment_replies_save_failed": "Could not update comment replies",
+  "content_links": "Links",
+  "content_links_help": "Connect a post to other posts on any channel. A short can point at a long video, and one post can be linked to as many others as you need. Comment replies use these links when someone asks where to watch the rest.",
+  "content_links_count": "linked",
+  "content_links_search": "Search posts to link",
+  "content_links_save_failed": "Could not save links",
+  "link_posts": "Link existing content",
+  "untitled": "Untitled"
 }

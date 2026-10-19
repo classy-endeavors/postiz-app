@@ -128,4 +128,11 @@ export class CreatePostDto {
   @ValidateNested({ each: true })
   @ArrayMinSize(1)
   posts: Post[];
+
+  // Existing published posts this upload should be connected to. Omitted
+  // leaves current links alone. An empty list clears them.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  links?: string[];
 }

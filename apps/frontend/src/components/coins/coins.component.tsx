@@ -90,6 +90,7 @@ const CoinsHistory: FC = () => {
     message: t('coins_activity_message', 'AI message'),
     image: t('coins_activity_image', 'AI image'),
     post: t('coins_activity_post', 'Post'),
+    reply: t('coins_activity_reply', 'Comment reply'),
     monthly_grant: t('coins_activity_monthly', 'Monthly coins'),
     admin_grant: t('coins_activity_added', 'Added by team'),
   };
