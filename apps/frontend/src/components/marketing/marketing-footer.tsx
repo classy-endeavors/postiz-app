@@ -21,8 +21,8 @@ const MORE_LINKS = [
 const COMPANY_LINKS = [
   { href: '/about', label: 'About' },
   { href: '/auth/login', label: 'Login' },
-  { href: 'https://aizyntra.com/privacy', label: 'Privacy Policy', external: true },
-  { href: 'https://aizyntra.com/terms', label: 'Terms of Service', external: true },
+  { href: '/privacy', label: 'Privacy Policy' },
+  { href: '/terms', label: 'Terms of Service' },
 ];
 
 export function MarketingFooter() {
@@ -61,22 +61,11 @@ export function MarketingFooter() {
 
           <div className="mkt-footer-col">
             <h4>Company</h4>
-            {COMPANY_LINKS.map((link) =>
-              'external' in link && link.external ? (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link key={link.href} href={link.href}>
-                  {link.label}
-                </Link>
-              )
-            )}
+            {COMPANY_LINKS.map((link) => (
+              <Link key={link.href} href={link.href}>
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
 

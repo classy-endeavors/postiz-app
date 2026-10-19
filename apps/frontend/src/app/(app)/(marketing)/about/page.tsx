@@ -78,25 +78,11 @@ export default function AboutPage() {
         <div className="mkt-wrap">
           <div className="mkt-ink-band">
             <div>
-              <h2>Legal stays on aizyntra.com</h2>
+              <h2>Policies, in plain view</h2>
               <p>
                 Review our{' '}
-                <a
-                  href="https://aizyntra.com/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Privacy Policy
-                </a>{' '}
-                and{' '}
-                <a
-                  href="https://aizyntra.com/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Terms of Service
-                </a>
-                , then{' '}
+                <Link href="/privacy">Privacy Policy</Link> and{' '}
+                <Link href="/terms">Terms of Service</Link>, then{' '}
                 <Link href="/auth">create an account</Link> to start publishing.
               </p>
             </div>

@@ -22,6 +22,8 @@ export default function robots(): MetadataRoute.Robots {
         '/pricing',
         '/faq',
         '/about',
+        '/privacy',
+        '/terms',
       ],
       disallow: [
         '/launches',

@@ -16,6 +16,8 @@ export const MARKETING_PATHS = [
   '/pricing',
   '/faq',
   '/about',
+  '/privacy',
+  '/terms',
 ] as const;
 
 export type MarketingPath = (typeof MARKETING_PATHS)[number];

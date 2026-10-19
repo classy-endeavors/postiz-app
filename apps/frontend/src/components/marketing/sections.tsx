@@ -70,6 +70,31 @@ export function PageHero({
   );
 }
 
+/** Legal/doc pages: hero without CTAs, title may include accent markup */
+export function LegalPageHero({
+  sticker,
+  title,
+  subtitle,
+  stickerVariant = 'butter',
+}: {
+  sticker: string;
+  title: ReactNode;
+  subtitle: string;
+  stickerVariant?: 'butter' | 'lime' | 'peach';
+}) {
+  return (
+    <header className="mkt-page-hero mkt-center" style={{ paddingBottom: 40 }}>
+      <div className="mkt-wrap mkt-center">
+        <Sticker variant={stickerVariant}>{sticker}</Sticker>
+        <h1>{title}</h1>
+        <p className="mkt-sub" style={{ marginBottom: 0 }}>
+          {subtitle}
+        </p>
+      </div>
+    </header>
+  );
+}
+
 export const PLATFORMS = [
   {
     name: 'YouTube',

@@ -60,7 +60,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Where are Privacy and Terms?',
-    a: 'Legal pages are on aizyntra.com/privacy and aizyntra.com/terms.',
+    a: 'Legal pages live on this site at /privacy and /terms.',
   },
 ];
 
