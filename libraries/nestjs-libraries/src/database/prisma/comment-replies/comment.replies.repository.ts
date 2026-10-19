@@ -5,51 +5,151 @@ import { Prisma } from '@prisma/client';
 @Injectable()
 export class CommentRepliesRepository {
   constructor(
-    private _profile: PrismaRepository<'replyProfile'>,
+    private _setting: PrismaRepository<'postReplySetting'>,
+    private _link: PrismaRepository<'contentLink'>,
     private _reply: PrismaRepository<'commentReply'>,
     private _integration: PrismaRepository<'integration'>,
     private _post: PrismaRepository<'post'>
   ) {}
 
-  getProfile(organizationId: string) {
-    return this._profile.model.replyProfile.findUnique({
+  listPublished(organizationId: string) {
+    return this._post.model.post.findMany({
       where: {
         organizationId,
+        deletedAt: null,
+        parentPostId: null,
+        state: 'PUBLISHED',
+        releaseId: {
+          not: null,
+        },
       },
+      orderBy: {
+        publishDate: 'desc',
+      },
+      take: 300,
       select: {
-        enabled: true,
-        website: true,
-        fullVideoUrl: true,
-        notes: true,
+        id: true,
+        title: true,
+        content: true,
+        releaseURL: true,
+        publishDate: true,
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            providerIdentifier: true,
+          },
+        },
+        replySetting: {
+          select: {
+            enabled: true,
+          },
+        },
       },
     });
   }
 
-  saveProfile(
-    organizationId: string,
-    data: {
-      enabled: boolean;
-      website: string;
-      fullVideoUrl: string;
-      notes: string;
-    }
-  ) {
-    return this._profile.model.replyProfile.upsert({
+  listLinks(organizationId: string) {
+    return this._link.model.contentLink.findMany({
       where: {
         organizationId,
       },
-      create: {
-        organizationId,
-        ...data,
-      },
-      update: data,
       select: {
-        enabled: true,
-        website: true,
-        fullVideoUrl: true,
-        notes: true,
+        postId: true,
+        relatedPostId: true,
       },
     });
+  }
+
+  async setEnabled(organizationId: string, ids: string[], enabled: boolean) {
+    const posts = await this._post.model.post.findMany({
+      where: {
+        organizationId,
+        id: {
+          in: ids,
+        },
+        deletedAt: null,
+        state: 'PUBLISHED',
+      },
+      select: {
+        id: true,
+      },
+    });
+    for (const post of posts) {
+      await this._setting.model.postReplySetting.upsert({
+        where: {
+          postId: post.id,
+        },
+        create: {
+          postId: post.id,
+          organizationId,
+          enabled,
+        },
+        update: {
+          enabled,
+        },
+        select: {
+          postId: true,
+        },
+      });
+    }
+    return posts.length;
+  }
+
+  async replaceLinks(
+    organizationId: string,
+    postIds: string[],
+    relatedIds: string[]
+  ) {
+    const owned = await this._post.model.post.findMany({
+      where: {
+        organizationId,
+        id: {
+          in: [...postIds, ...relatedIds],
+        },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+    const allowed = new Set(owned.map((post) => post.id));
+    const sources = postIds.filter((id) => allowed.has(id));
+    const targets = [...new Set(relatedIds.filter((id) => allowed.has(id)))];
+    if (!sources.length) {
+      return;
+    }
+    await this._link.model.contentLink.deleteMany({
+      where: {
+        organizationId,
+        OR: [
+          {
+            postId: {
+              in: sources,
+            },
+          },
+          {
+            relatedPostId: {
+              in: sources,
+            },
+          },
+        ],
+      },
+    });
+    const data = sources.flatMap((source) =>
+      targets
+        .filter((target) => target !== source && !sources.includes(target))
+        .map((target) => ({
+          organizationId,
+          postId: source,
+          relatedPostId: target,
+        }))
+    );
+    if (data.length) {
+      await this._link.model.contentLink.createMany({
+        data,
+      });
+    }
   }
 
   findIntegration(internalId: string, providers: string[]) {
@@ -67,47 +167,32 @@ export class CommentRepliesRepository {
     });
   }
 
-  enabledYoutubeChannels() {
-    return this._integration.model.integration.findMany({
-      where: {
-        providerIdentifier: 'youtube',
-        deletedAt: null,
-        disabled: false,
-        refreshNeeded: false,
-        inBetweenSteps: false,
-        organization: {
-          replyProfile: {
-            enabled: true,
-          },
-        },
-      },
-    });
-  }
-
-  recentPosts(organizationId: string, integrationId: string) {
+  enabledYoutubePosts() {
     return this._post.model.post.findMany({
       where: {
-        organizationId,
-        integrationId,
         deletedAt: null,
         parentPostId: null,
         state: 'PUBLISHED',
         releaseId: {
           not: null,
         },
-        publishDate: {
-          gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+        replySetting: {
+          enabled: true,
+        },
+        integration: {
+          providerIdentifier: 'youtube',
+          deletedAt: null,
+          disabled: false,
+          refreshNeeded: false,
+          inBetweenSteps: false,
         },
       },
       orderBy: {
         publishDate: 'desc',
       },
-      take: 10,
-      select: {
-        title: true,
-        content: true,
-        releaseURL: true,
-        releaseId: true,
+      take: 50,
+      include: {
+        integration: true,
       },
     });
   }
@@ -122,9 +207,61 @@ export class CommentRepliesRepository {
         parentPostId: null,
       },
       select: {
+        id: true,
         title: true,
         content: true,
         releaseURL: true,
+        replySetting: {
+          select: {
+            enabled: true,
+          },
+        },
+      },
+    });
+  }
+
+  linksFor(organizationId: string, postId: string) {
+    return this._link.model.contentLink.findMany({
+      where: {
+        organizationId,
+        OR: [
+          {
+            postId,
+          },
+          {
+            relatedPostId: postId,
+          },
+        ],
+      },
+      select: {
+        postId: true,
+        relatedPostId: true,
+        post: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            releaseURL: true,
+            integration: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        relatedPost: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            releaseURL: true,
+            integration: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
   }

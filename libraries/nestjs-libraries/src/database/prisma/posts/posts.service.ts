@@ -25,6 +25,7 @@ import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import utc from 'dayjs/plugin/utc';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
+import { CommentRepliesService } from '@gitroom/nestjs-libraries/database/prisma/comment-replies/comment.replies.service';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import {
@@ -91,7 +92,8 @@ export class PostsService {
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _coinsService: CoinsService
+    private _coinsService: CoinsService,
+    private _commentRepliesService: CommentRepliesService
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -1260,6 +1262,14 @@ export class PostsService {
         postId: posts[0].id,
         integration: post.integration.id,
       });
+    }
+
+    if (body.links) {
+      await this._commentRepliesService.replaceLinks(
+        orgId,
+        postList.map((item) => item.postId),
+        body.links
+      );
     }
 
     return postList;

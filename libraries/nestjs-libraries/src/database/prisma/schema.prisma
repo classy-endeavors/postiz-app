@@ -39,8 +39,9 @@ model Organization {
   submittedPost       Post[]               @relation("submittedForOrg")
   sets                Sets[]
   signatures          Signatures[]
-  replyProfile        ReplyProfile?
   commentReplies      CommentReply[]
+  postReplySettings   PostReplySetting[]
+  contentLinks        ContentLink[]
   subscription        Subscription?
   tags                Tags[]
   thirdParty          ThirdParty[]
@@ -442,16 +443,34 @@ model Integration {
   @@index([disabled])
 }
 
-model ReplyProfile {
-  id             String       @id @default(uuid())
-  organizationId String       @unique
+// Whether public comments on this published post should be answered
+model PostReplySetting {
+  postId         String       @id
+  organizationId String
   enabled        Boolean      @default(false)
-  website        String?
-  fullVideoUrl   String?
-  notes          String       @default("")
-  createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  post           Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, enabled])
+}
+
+// A published post connected to other posts, on any channel. Comments on
+// either side can use the other post's link, such as a short pointing at
+// the full video.
+model ContentLink {
+  id             String       @id @default(uuid())
+  organizationId String
+  postId         String
+  relatedPostId  String
+  createdAt      DateTime     @default(now())
+  post           Post         @relation("contentLinkFrom", fields: [postId], references: [id], onDelete: Cascade)
+  relatedPost    Post         @relation("contentLinkTo", fields: [relatedPostId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([postId, relatedPostId])
+  @@index([relatedPostId])
+  @@index([organizationId])
 }
 
 // A comment written by someone else on a post this app published, and what
@@ -558,6 +577,9 @@ model Post {
   submittedForOrder          Orders?                   @relation(fields: [submittedForOrderId], references: [id])
   submittedForOrganization   Organization?             @relation("submittedForOrg", fields: [submittedForOrganizationId], references: [id])
   tags                       TagsPosts[]
+  replySetting               PostReplySetting?
+  contentLinksFrom           ContentLink[]             @relation("contentLinkFrom")
+  contentLinksTo             ContentLink[]             @relation("contentLinkTo")
 
   @@index([group])
   @@index([deletedAt])

@@ -114,6 +114,48 @@ export const useMenuItem = () => {
       path: '/media',
     },
     {
+      name: t('comment_replies', 'Comments'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M7 8.5h10M7 12h6M12 21a9 9 0 1 0-8.2-5.3L3 21l5.3-.8A8.96 8.96 0 0 0 12 21Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      path: '/comments',
+    },
+    {
+      name: t('content_links', 'Links'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      path: '/content-links',
+    },
+    {
       name: t('coins', 'Coins'),
       icon: (
         <svg

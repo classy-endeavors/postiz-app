@@ -21,6 +21,7 @@ import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { DatePicker } from '@gitroom/frontend/components/launches/helpers/date.picker';
 import { useShallow } from 'zustand/react/shallow';
 import { RepeatComponent } from '@gitroom/frontend/components/launches/repeat.component';
+import { LinkPostsButton } from '@gitroom/frontend/components/replies/link.posts.button';
 import { TagsComponent } from '@gitroom/frontend/components/launches/tags.component';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -55,6 +56,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const toaster = useToaster();
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
+  const [links, setLinks] = useState<string[]>([]);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
   const postNowMenuRef = useClickOutside<HTMLDivElement>(() =>
     setPostNowOpen(false)
@@ -440,6 +442,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         shortLink,
         date: date.utc().toISOString(),
         posts,
+        links,
       };
 
       if (dummy) {
@@ -501,7 +504,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }
       }
     },
-    [ref, repeater, tags, date, addEditSets, dummy, shortlinkPreferenceData]
+    [ref, repeater, tags, date, addEditSets, dummy, shortlinkPreferenceData, links]
   );
 
   return (
@@ -656,6 +659,16 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
             {!dummy && (
               <RepeatComponent repeat={repeater} onChange={setRepeater} />
+            )}
+
+            {!dummy && (
+              <LinkPostsButton
+                value={links}
+                onChange={setLinks}
+                currentIds={(existingData?.posts || [])
+                  .map((post: { id?: string }) => post.id)
+                  .filter((id: string | undefined): id is string => !!id)}
+              />
             )}
           </div>
           <div className="pe-[20px] flex items-center justify-end gap-[8px] mobile:pe-0 mobile:flex-wrap mobile:justify-start">

@@ -342,21 +342,26 @@ Clips must not overlap. Write the title and the post in this language, whatever 
   // the comment should be left alone rather than inventing a link or offer.
   async commentReply(input: {
     comment: string;
-    website?: string | null;
-    fullVideoUrl?: string | null;
-    notes?: string | null;
     postTitle?: string | null;
     postText?: string | null;
     postUrl?: string | null;
+    linked: { title: string; url: string; channel: string }[];
     examples: { comment: string; reply: string }[];
   }) {
     const facts = [
-      input.website ? `Website: ${input.website}` : '',
-      input.fullVideoUrl ? `Full video: ${input.fullVideoUrl}` : '',
-      input.notes ? `Other facts:\n${input.notes}` : '',
       input.postTitle ? `This post title: ${input.postTitle}` : '',
       input.postText ? `This post text: ${input.postText}` : '',
       input.postUrl ? `This post link: ${input.postUrl}` : '',
+      input.linked.length
+        ? `Connected posts (use these when someone asks for the full video or another version):\n${input.linked
+            .map(
+              (item) =>
+                `- ${item.channel ? `${item.channel}: ` : ''}${item.title}${
+                  item.url ? ` ${item.url}` : ''
+                }`
+            )
+            .join('\n')}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n');

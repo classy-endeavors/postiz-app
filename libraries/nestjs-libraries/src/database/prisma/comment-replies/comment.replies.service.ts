@@ -1,7 +1,6 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { Integration } from '@prisma/client';
 import { CommentRepliesRepository } from '@gitroom/nestjs-libraries/database/prisma/comment-replies/comment.replies.repository';
-import { ReplyProfileDto } from '@gitroom/nestjs-libraries/dtos/comment-replies/reply.profile.dto';
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
@@ -33,25 +32,59 @@ export class CommentRepliesService {
     private _notificationService: NotificationService
   ) {}
 
-  async getProfile(organizationId: string) {
-    const profile = await this._repository.getProfile(organizationId);
-    return (
-      profile || {
-        enabled: false,
-        website: '',
-        fullVideoUrl: '',
-        notes: '',
-      }
-    );
+  async listPosts(organizationId: string) {
+    const [posts, links] = await Promise.all([
+      this._repository.listPublished(organizationId),
+      this._repository.listLinks(organizationId),
+    ]);
+    const byId = new Map(posts.map((post) => [post.id, post]));
+    const related = new Map<string, string[]>();
+    for (const link of links) {
+      const add = (from: string, to: string) => {
+        if (!byId.has(from) || !byId.has(to)) {
+          return;
+        }
+        const list = related.get(from) || [];
+        if (!list.includes(to)) {
+          list.push(to);
+        }
+        related.set(from, list);
+      };
+      add(link.postId, link.relatedPostId);
+      add(link.relatedPostId, link.postId);
+    }
+    return posts.map((post) => ({
+      id: post.id,
+      title: plain(post.title || post.content).slice(0, 140),
+      releaseURL: post.releaseURL || '',
+      publishDate: post.publishDate,
+      channel: post.integration?.name || '',
+      provider: post.integration?.providerIdentifier || '',
+      enabled: !!post.replySetting?.enabled,
+      links: (related.get(post.id) || []).map((id) => ({
+        id,
+        title: plain(byId.get(id)?.title || byId.get(id)?.content).slice(0, 140),
+        releaseURL: byId.get(id)?.releaseURL || '',
+        channel: byId.get(id)?.integration?.name || '',
+      })),
+    }));
   }
 
-  saveProfile(organizationId: string, body: ReplyProfileDto) {
-    return this._repository.saveProfile(organizationId, {
-      enabled: !!body.enabled,
-      website: (body.website || '').trim(),
-      fullVideoUrl: (body.fullVideoUrl || '').trim(),
-      notes: (body.notes || '').trim(),
-    });
+  async setEnabled(organizationId: string, ids: string[], enabled: boolean) {
+    const updated = await this._repository.setEnabled(
+      organizationId,
+      ids.slice(0, 300),
+      enabled
+    );
+    return { updated };
+  }
+
+  replaceLinks(organizationId: string, postIds: string[], relatedIds: string[]) {
+    return this._repository.replaceLinks(
+      organizationId,
+      postIds.slice(0, 50),
+      relatedIds.slice(0, 50)
+    );
   }
 
   // Meta sends this the moment someone comments. Reply to top-level comments
@@ -90,21 +123,32 @@ export class CommentRepliesService {
   }
 
   async pollYoutube() {
-    const channels = await this._repository.enabledYoutubeChannels();
-    for (const integration of channels) {
+    const posts = await this._repository.enabledYoutubePosts();
+    const channels = new Map<string, { integration: Integration; posts: typeof posts }>();
+    for (const post of posts) {
+      const current = channels.get(post.integrationId);
+      if (current) {
+        current.posts.push(post);
+      } else {
+        channels.set(post.integrationId, {
+          integration: post.integration,
+          posts: [post],
+        });
+      }
+    }
+    for (const channel of channels.values()) {
       try {
-        await this.pollChannel(integration);
+        await this.pollChannel(channel.integration, channel.posts);
       } catch (err) {
-        console.error('youtube comment poll failed', integration.id, err);
+        console.error('youtube comment poll failed', channel.integration.id, err);
       }
     }
   }
 
-  private async pollChannel(integration: Integration) {
-    const posts = await this._repository.recentPosts(
-      integration.organizationId,
-      integration.id
-    );
+  private async pollChannel(
+    integration: Integration,
+    posts: { releaseId: string | null }[]
+  ) {
     const provider = this._integrationManager.getSocialIntegration(
       'youtube'
     ) as YoutubeProvider;
@@ -150,8 +194,12 @@ export class CommentRepliesService {
     }
 
     try {
-      const profile = await this._repository.getProfile(integration.organizationId);
-      if (!profile?.enabled) {
+      const post = await this._repository.findPost(
+        integration.organizationId,
+        integration.id,
+        incoming.releaseId
+      );
+      if (!post?.replySetting?.enabled) {
         await this._repository.finish(
           integration.id,
           incoming.commentId,
@@ -160,19 +208,20 @@ export class CommentRepliesService {
         return;
       }
 
-      const post = await this._repository.findPost(
+      const postText = plain(post.content).slice(0, 1000);
+      const linkedRows = await this._repository.linksFor(
         integration.organizationId,
-        integration.id,
-        incoming.releaseId
+        post.id
       );
-      const postText = plain(post?.content).slice(0, 1000);
-      const hasFacts =
-        !!profile.website ||
-        !!profile.fullVideoUrl ||
-        !!profile.notes ||
-        !!post?.releaseURL ||
-        !!postText;
-      if (!hasFacts) {
+      const linked = linkedRows
+        .map((row) => (row.postId === post.id ? row.relatedPost : row.post))
+        .filter((item) => item.id !== post.id)
+        .map((item) => ({
+          title: plain(item.title || item.content).slice(0, 160),
+          url: item.releaseURL || '',
+          channel: item.integration?.name || '',
+        }));
+      if (!postText && !post.releaseURL && !linked.length) {
         await this._repository.finish(
           integration.id,
           incoming.commentId,
@@ -187,12 +236,10 @@ export class CommentRepliesService {
       );
       const reply = await this._openaiService.commentReply({
         comment: incoming.text.slice(0, 1000),
-        website: profile.website,
-        fullVideoUrl: profile.fullVideoUrl,
-        notes: profile.notes,
-        postTitle: post?.title,
+        postTitle: post.title,
         postText,
-        postUrl: post?.releaseURL,
+        postUrl: post.releaseURL,
+        linked,
         examples: examples
           .filter((item) => item.reply)
           .map((item) => ({ comment: item.text, reply: item.reply! })),
