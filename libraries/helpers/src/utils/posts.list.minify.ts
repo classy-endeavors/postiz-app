@@ -26,7 +26,38 @@ const POST_ITEM_KEYS: Record<string, string> = {
   intervalInDays: 'iv',
   actualDate: 'ad',
   creationMethod: 'cm',
+  thumbnail: 'th',
 };
+
+// A video URL used as an <img> src paints a broken-image icon. Calendar
+// thumbnails are jpeg/png/webp/gif only; the video itself is never one.
+const VIDEO_EXTENSION = /\.(mp4|mov|webm|m4v|mpeg|mpg|avi|mkv)$/i;
+
+export function isVideoUrl(url?: string | null) {
+  if (!url) {
+    return false;
+  }
+  const path = url.split('?')[0].split('#')[0];
+  return VIDEO_EXTENSION.test(path);
+}
+
+export function displayableImageUrl(url?: string | null) {
+  if (!url || isVideoUrl(url)) {
+    return null;
+  }
+  return url;
+}
+
+// First still image on the post: a saved thumbnail, otherwise an image path.
+// Video-only media returns null so the caller can look up Media.thumbnail.
+export function calendarPreviewFromMedia(
+  item?: { path?: string | null; thumbnail?: string | null } | null
+) {
+  if (!item) {
+    return null;
+  }
+  return displayableImageUrl(item.thumbnail) || displayableImageUrl(item.path);
+}
 
 const INTEGRATION_KEYS: Record<string, string> = {
   id: 'i',

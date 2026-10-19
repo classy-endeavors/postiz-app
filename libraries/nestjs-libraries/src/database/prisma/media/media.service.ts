@@ -33,6 +33,7 @@ import {
   resolveMediaObjectKey,
   stripPresignedQuery,
 } from '@gitroom/nestjs-libraries/upload/s3.client.config';
+import { calendarPreviewFromMedia } from '@gitroom/helpers/utils/posts.list.minify';
 
 // What every upload is normalized to before a provider ever sees it. The
 // service applies exactly these, so a platform-specific need belongs in the
@@ -132,6 +133,36 @@ export class MediaService {
       return null;
     }
     return this.storage.signDownloadUrl(fileName);
+  }
+
+  // Short-lived URL for a stored media or thumbnail path. Local /uploads
+  // files are already public and stay as they are.
+  async signStoredUrl(url?: string | null): Promise<string | null> {
+    if (!url) {
+      return null;
+    }
+    if (!this.storage.signDownloadUrl) {
+      return url;
+    }
+
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL || '';
+    const clean = stripPresignedQuery(url);
+    if (!isCloudBucketUrl(clean, bucketUrl)) {
+      return clean;
+    }
+
+    const key =
+      objectKeyFromBucketUrl(clean, bucketUrl) ||
+      clean.split('/').pop() ||
+      null;
+    return (await this.signObjectKey(key)) || clean;
+  }
+
+  async calendarThumbnails(org: string, ids: string[]) {
+    const rows = await this._mediaRepository.listCalendarMedia(org, ids);
+    return new Map(
+      rows.map((row) => [row.id, calendarPreviewFromMedia(row)] as const)
+    );
   }
 
   private async withSignedAccess<
@@ -407,6 +438,24 @@ export class MediaService {
     return `${name.slice(0, -ext.length)}.${PROCESSABLE[ext].ext}`;
   }
 
+  // Jpeg the processor writes beside the normalized video. One second in,
+  // so a black opening frame is not the calendar thumbnail.
+  private videoThumbnailKey(name: string) {
+    const outputName = this.normalizedName(name);
+    const ext = extname(outputName);
+    return `${outputName.slice(0, -ext.length)}.jpg`;
+  }
+
+  private videoThumbnailUrl(
+    name: string,
+    produced?: { bytes?: number } | null
+  ) {
+    if (!produced || !this.storage.publicUrl) {
+      return undefined;
+    }
+    return this.storage.publicUrl(this.videoThumbnailKey(name));
+  }
+
   // Returns the processor job id; when this process has nothing to run the
   // media (already marked processing by the upload) is released as ready, so
   // a worker without the processor configured never leaves an upload hanging
@@ -428,6 +477,17 @@ export class MediaService {
     }
 
     const outputName = this.normalizedName(media.name);
+    const thumbnail =
+      processable.type === 'video' && this.storage.publicUrl
+        ? {
+            url: await this.storage.signUploadUrl(
+              this.videoThumbnailKey(media.name),
+              'image/jpeg'
+            ),
+            timestamp_seconds: 1,
+            content_type: 'image/jpeg' as const,
+          }
+        : undefined;
     return this.processor.submit({
       version: 1,
       type: processable.type,
@@ -440,6 +500,7 @@ export class MediaService {
         ),
         content_type: processable.contentType,
       },
+      ...(thumbnail ? { thumbnail } : {}),
       rules: processable.type === 'video' ? VIDEO_RULES : IMAGE_RULES,
       limits: LIMITS,
     });
@@ -508,8 +569,15 @@ export class MediaService {
       return true;
     }
 
+    const thumbnail =
+      PROCESSABLE[extname(media.name).toLowerCase()]?.type === 'video'
+        ? this.videoThumbnailUrl(media.name, result.thumbnail)
+        : undefined;
+
     if (result.status === 'unchanged') {
-      await this._mediaRepository.finishProcessing(org, mediaId, {});
+      await this._mediaRepository.finishProcessing(org, mediaId, {
+        ...(thumbnail ? { thumbnail } : {}),
+      });
       return true;
     }
 
@@ -518,6 +586,7 @@ export class MediaService {
       name: outputName,
       path: media.path.slice(0, media.path.lastIndexOf('/') + 1) + outputName,
       fileSize: result.output?.bytes,
+      ...(thumbnail ? { thumbnail } : {}),
     });
 
     // a same-key output already replaced the original; a stray object after a

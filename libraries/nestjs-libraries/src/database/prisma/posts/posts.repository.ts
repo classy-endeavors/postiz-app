@@ -147,7 +147,11 @@ export class PostsRepository {
     });
   }
 
-  async getPosts(orgId: string, query: GetPostsDto) {
+  async getPosts(
+    orgId: string,
+    query: GetPostsDto,
+    options?: { includeImage?: boolean }
+  ) {
     // Use the provided start and end dates directly
     const startDate = dayjs.utc(query.startDate).toDate();
     const endDate = dayjs.utc(query.endDate).toDate();
@@ -197,6 +201,7 @@ export class PostsRepository {
         group: true,
         creationMethod: true,
         settings: true,
+        ...(options?.includeImage ? { image: true } : {}),
         tags: {
           where: {
             tag: {

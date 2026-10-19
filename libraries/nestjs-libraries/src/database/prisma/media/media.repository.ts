@@ -42,7 +42,13 @@ export class MediaRepository {
   finishProcessing(
     org: string,
     id: string,
-    data: { name?: string; path?: string; fileSize?: number; error?: string }
+    data: {
+      name?: string;
+      path?: string;
+      fileSize?: number;
+      error?: string;
+      thumbnail?: string;
+    }
   ) {
     return this._media.model.media.update({
       where: { id, organizationId: org },
@@ -50,10 +56,33 @@ export class MediaRepository {
         ...(data.name ? { name: data.name } : {}),
         ...(data.path ? { path: stripPresignedQuery(data.path) } : {}),
         ...(data.fileSize ? { fileSize: data.fileSize } : {}),
+        ...(data.thumbnail
+          ? { thumbnail: stripPresignedQuery(data.thumbnail) }
+          : {}),
         status: data.error ? 'failed' : 'ready',
         processingError: data.error || null,
       },
       select: { id: true, status: true },
+    });
+  }
+
+  listCalendarMedia(org: string, ids: string[]) {
+    if (!ids.length) {
+      return Promise.resolve(
+        [] as { id: string; thumbnail: string | null; path: string }[]
+      );
+    }
+    return this._media.model.media.findMany({
+      where: {
+        organizationId: org,
+        id: { in: ids },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        thumbnail: true,
+        path: true,
+      },
     });
   }
 

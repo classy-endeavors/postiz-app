@@ -30,6 +30,7 @@ import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dt
 import {
   minifyPostsList,
   minifyPosts,
+  calendarPreviewFromMedia,
 } from '@gitroom/helpers/utils/posts.list.minify';
 import axios from 'axios';
 import sharp from 'sharp';
@@ -355,11 +356,54 @@ export class PostsService {
   }
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {
+    const posts = await this.withSignedIntegrationPictures(
+      await this._postRepository.getPosts(orgId, query, { includeImage: true })
+    );
     return minifyPosts({
-      posts: await this.withSignedIntegrationPictures(
-        await this._postRepository.getPosts(orgId, query)
-      ),
+      posts: await this.withCalendarThumbnails(orgId, posts),
     });
+  }
+
+  // One still image per calendar post. Video files are not returned: the
+  // browser cannot paint them in an <img>, which is the broken thumbnail.
+  private async withCalendarThumbnails<
+    T extends { image?: string | null }
+  >(orgId: string, posts: T[]) {
+    const parsed = posts.map((post) => {
+      let items: { id?: string; path?: string; thumbnail?: string }[] = [];
+      try {
+        const value = JSON.parse(post.image || '[]');
+        if (Array.isArray(value)) {
+          items = value;
+        }
+      } catch {
+        items = [];
+      }
+      return { post, first: items[0] };
+    });
+
+    const missing = parsed
+      .filter(({ first }) => first?.id && !calendarPreviewFromMedia(first))
+      .map(({ first }) => first!.id as string);
+
+    const fromMedia = await this._mediaService.calendarThumbnails(
+      orgId,
+      [...new Set(missing)]
+    );
+
+    return Promise.all(
+      parsed.map(async ({ post, first }) => {
+        const rest = { ...post };
+        delete rest.image;
+        const stored =
+          calendarPreviewFromMedia(first) ||
+          (first?.id ? fromMedia.get(first.id) || null : null);
+        return {
+          ...rest,
+          thumbnail: await this._mediaService.signStoredUrl(stored),
+        };
+      })
+    );
   }
 
   getDayPosts(orgId: string, query: GetPostsDto) {
@@ -422,26 +466,51 @@ export class PostsService {
               // does not force a spurious rewrite of Post.image.
               const fresh = await this._mediaService.getMediaById(p.id);
               const storedPath = stripPresignedQuery(p.path);
+              const freshThumb = calendarPreviewFromMedia({
+                thumbnail: fresh?.thumbnail,
+              });
+              const postThumb = calendarPreviewFromMedia({
+                thumbnail: p.thumbnail,
+              });
+              const thumbUpdate =
+                freshThumb && freshThumb !== postThumb
+                  ? { thumbnail: fresh.thumbnail }
+                  : {};
+              if (Object.keys(thumbUpdate).length) {
+                imageUpdateNeeded = true;
+              }
+
               if (
                 fresh?.status === 'ready' &&
                 fresh.path &&
                 stripPresignedQuery(fresh.path) !== storedPath
               ) {
                 imageUpdateNeeded = true;
-                return { ...p, name: fresh.name, path: fresh.path };
+                return {
+                  ...p,
+                  name: fresh.name,
+                  path: fresh.path,
+                  ...thumbUpdate,
+                };
               }
 
               // Prefer canonical Media.path for anything we may persist.
               // Always hydrate name from Media so publish-time signing works
               // when the composer stored only `{ id, path }`.
               if (fresh?.path && storedPath !== fresh.path) {
-                return { ...p, name: fresh.name || p.name, path: fresh.path };
+                return {
+                  ...p,
+                  name: fresh.name || p.name,
+                  path: fresh.path,
+                  ...thumbUpdate,
+                };
               }
 
               return {
                 ...p,
                 name: p.name || fresh?.name,
                 path: storedPath,
+                ...thumbUpdate,
               };
             })
           )

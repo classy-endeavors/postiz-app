@@ -46,6 +46,7 @@ export const CalendarContext = createContext({
   posts: [] as Array<
     Post & {
       integration: Integration;
+      thumbnail?: string | null;
       tags: {
         tag: Tags;
       }[];
