@@ -881,5 +881,7 @@
   "direct_publish_activity": "Activity",
   "direct_publish_activity_scheduled": "Scheduled for {{date}}",
   "direct_publish_activity_published": "Published at {{date}}",
-  "direct_publish_activity_rescheduled": "Rescheduled from {{from}} to {{to}}"
+  "direct_publish_activity_rescheduled": "Rescheduled from {{from}} to {{to}}",
+  "post_failed_to_publish": "This post failed to publish",
+  "post_failed_unknown": "The platform rejected this post but did not say why. Update it and try again."
 }

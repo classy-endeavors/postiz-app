@@ -5,6 +5,24 @@ import { OrganizationRepository } from '@gitroom/nestjs-libraries/database/prism
 import { TemporalService } from 'nestjs-temporal-core';
 import { TypedSearchAttributes } from '@temporalio/common';
 import { organizationId } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
+import { socialIntegrationList } from '@gitroom/nestjs-libraries/integrations/integration.manager';
+
+// Workflows name the channel by identifier ("instagram-standalone"). Swap the
+// hyphenated ones for the provider's display name. Single-word identifiers are
+// left alone so a link like instagram.com is not rewritten.
+const channelLabels = socialIntegrationList
+  .map((provider) => ({
+    id: provider.identifier,
+    name: (provider.name || '').split('\n')[0].trim(),
+  }))
+  .filter((provider) => provider.id.includes('-') && provider.name)
+  .sort((a, b) => b.id.length - a.id.length);
+
+const readableChannels = (text: string) =>
+  channelLabels.reduce(
+    (current, provider) => current.split(provider.id).join(provider.name),
+    text
+  );
 
 export type NotificationType = 'success' | 'fail' | 'info';
 
@@ -46,7 +64,9 @@ export class NotificationService {
     digest = false,
     type: NotificationType = 'success'
   ) {
-    await this._notificationRepository.createNotification(orgId, message);
+    const text = readableChannels(message);
+    const title = readableChannels(subject);
+    await this._notificationRepository.createNotification(orgId, text);
     if (!sendEmail) {
       return;
     }
@@ -61,8 +81,8 @@ export class NotificationService {
             signalArgs: [
               [
                 {
-                  title: subject,
-                  message,
+                  title,
+                  message: text,
                   type,
                 },
               ],
@@ -82,7 +102,7 @@ export class NotificationService {
       return;
     }
 
-    await this.sendEmailsToOrg(orgId, subject, message, type);
+    await this.sendEmailsToOrg(orgId, title, text, type);
   }
 
   async sendEmailsToOrg(

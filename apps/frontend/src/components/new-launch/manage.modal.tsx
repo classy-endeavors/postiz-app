@@ -61,6 +61,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   const { addEditSets, mutate, customClose, dummy } = props;
+  const publishErrors = useMemo(() => {
+    const errors = (existingData?.posts || [])
+      .filter((post: { state?: string; error?: string }) => post.state === 'ERROR' && post.error)
+      .map((post: { error: string }) => post.error);
+    return [...new Set(errors)] as string[];
+  }, [existingData]);
 
   const {
     selectedIntegrations,
@@ -521,6 +527,29 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   id="social-content"
                   className="gap-[32px] mobile:gap-[16px] flex flex-col pe-[8px] pt-[20px] ps-[20px] mobile:pt-[12px] mobile:ps-[12px] mobile:pe-[12px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
                 >
+                  {!!publishErrors.length && (
+                    <div className="rounded-[12px] border border-statusFailed bg-statusFailedBg px-[14px] py-[12px] flex flex-col gap-[6px]">
+                      <div className="text-[14px] font-[700] text-statusFailed">
+                        {t(
+                          'post_failed_to_publish',
+                          'This post failed to publish'
+                        )}
+                      </div>
+                      {publishErrors.map((error) => (
+                        <div
+                          key={error}
+                          className="text-[13px] text-statusFailed whitespace-pre-wrap break-words"
+                        >
+                          {error === 'Unknown Error'
+                            ? t(
+                                'post_failed_unknown',
+                                'The platform rejected this post but did not say why. Update it and try again.'
+                              )
+                            : error}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex w-full mobile:flex-wrap mobile:gap-[8px]">
                     <div className="flex flex-1">
                       <PicksSocialsComponent toolTip={true} />
