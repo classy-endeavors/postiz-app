@@ -234,22 +234,24 @@ export function RegisterAfter({
                   'By registering you agree to our'
                 )}
                 &nbsp;
-                <a
-                  href={`https://aizyntra.com/terms`}
+                <Link
+                  href="/terms"
                   className="underline hover:font-bold"
                   rel="nofollow"
+                  target="_blank"
                 >
                   {t('terms_of_service', 'Terms of Service')}
-                </a>
+                </Link>
                 &nbsp;
                 {t('and', 'and')}&nbsp;
-                <a
-                  href={`https://aizyntra.com/privacy`}
+                <Link
+                  href="/privacy"
                   rel="nofollow"
                   className="underline hover:font-bold"
+                  target="_blank"
                 >
                   {t('privacy_policy', 'Privacy Policy')}
-                </a>
+                </Link>
                 &nbsp;
               </div>
               <div className="w-full flex mt-[12px]">

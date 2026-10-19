@@ -36,6 +36,8 @@ const cases: Case[] = [
   { pathname: '/features', hasAuth: false, expectPublic: true, note: 'guest marketing' },
   { pathname: '/pricing', hasAuth: false, expectPublic: true, note: 'guest pricing' },
   { pathname: '/insights', hasAuth: false, expectPublic: true, note: 'guest insights' },
+  { pathname: '/privacy', hasAuth: false, expectPublic: true, note: 'guest privacy' },
+  { pathname: '/terms', hasAuth: false, expectPublic: true, note: 'guest terms' },
   { pathname: '/launches', hasAuth: false, expectPublic: false, note: 'protected calendar' },
   { pathname: '/analytics', hasAuth: false, expectPublic: false, note: 'protected analytics' },
   { pathname: '/agents', hasAuth: false, expectPublic: false, note: 'protected agents' },
