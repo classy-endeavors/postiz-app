@@ -52,7 +52,7 @@ export const Input: FC<
     }
   }, [watch]);
   return (
-    <div className="flex flex-col gap-[6px]">
+    <div className="flex flex-col gap-[6px] min-w-0 w-full">
       {!!label && (
         <div className={`text-[14px]`}>
           <TranslatedLabel
@@ -64,21 +64,23 @@ export const Input: FC<
       )}
       <div
         className={clsx(
-          'bg-newBgColorInner h-[42px] border-newTableBorder border rounded-[8px] text-textColor placeholder-textColor flex items-center justify-center',
+          'bg-newBgColorInner h-[42px] w-full min-w-0 border-newTableBorder border rounded-[8px] text-textColor placeholder-textColor flex items-center',
           className
         )}
       >
-        {icon && <div className="ps-[16px]">{icon}</div>}
+        {icon && <div className="ps-[16px] shrink-0">{icon}</div>}
         <input
           className={clsx(
-            'h-full bg-transparent outline-none flex-1 text-[14px] text-textColor',
+            'h-full bg-transparent outline-none flex-1 min-w-0 text-[14px] text-textColor',
             icon ? 'pl-[8px]' : 'ps-[16px]',
             suffix ? 'pe-[8px]' : 'pe-[16px]'
           )}
           {...(disableForm ? {} : form.register(props.name))}
           {...rest}
         />
-        {suffix && <div className="pe-[12px] flex items-center">{suffix}</div>}
+        {suffix && (
+          <div className="pe-[12px] flex items-center shrink-0">{suffix}</div>
+        )}
       </div>
       {!removeError && (
         <div className="text-red-400 text-[12px]">{err || <>&nbsp;</>}</div>
