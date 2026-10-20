@@ -80,10 +80,10 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   ): Promise<string | true> {
     const [firstItems] = items ?? [];
     if (items?.[0]?.length !== 1) {
-      return 'You need one media';
+      return 'YouTube needs exactly one video';
     }
     if ((firstItems?.[0]?.path?.indexOf?.('mp4') ?? -1) === -1) {
-      return 'Item must be a video';
+      return 'YouTube media must be a video';
     }
     return true;
   }

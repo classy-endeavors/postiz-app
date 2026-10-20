@@ -50,7 +50,7 @@ export class InstagramStandaloneProvider
     settings: any
   ): Promise<string | true> {
     if (!firstPost?.length) {
-      return 'Should have at least one media';
+      return 'Instagram needs at least one image or video';
     }
     if (this.assetBoolean(settings?.is_trial_reel)) {
       if ((firstPost?.length ?? 0) > 1) {

@@ -57,6 +57,15 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
   const [links, setLinks] = useState<string[]>([]);
+  const [channelIssues, setChannelIssues] = useState<
+    Array<{
+      id: string;
+      identifier: string;
+      name: string;
+      messages: string[];
+      focus: 'form' | 'preview';
+    }>
+  >([]);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
   const postNowMenuRef = useClickOutside<HTMLDivElement>(() =>
     setPostNowOpen(false)
@@ -85,6 +94,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     current,
     activateExitButton,
     setHide,
+    setCurrent,
   } = useLaunchStore(
     useShallow((state) => ({
       hide: state.hide,
@@ -92,6 +102,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       date: state.date,
       setDate: state.setDate,
       current: state.current,
+      setCurrent: state.setCurrent,
       repeater: state.repeater,
       setRepeater: state.setRepeater,
       tags: state.tags,
@@ -346,66 +357,81 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           integrationById(id)?.ref?.current?.[where]?.();
         };
 
-        const notEnoughChars = checkAllValid.filter((p: any) => p.emptyContent);
+        const issues: typeof channelIssues = [];
+        for (const item of checkAllValid) {
+          const messages: string[] = [];
+          let focusWhere: 'form' | 'preview' = 'preview';
 
-        for (const item of notEnoughChars) {
-          toaster.show(
-            `${capitalize(item.identifier.split('-')[0])} (${item.name}):` +
-              ' ' +
+          if (item.emptyContent) {
+            messages.push(
               t(
                 'post_needs_content_or_image',
                 'Your post should have at least one character or one image.'
-              ),
-            'warning'
-          );
-          setLoading(false);
-          focus(item.id, 'preview');
-          return;
-        }
+              )
+            );
+          }
 
-        if (type !== 'draft') {
-          for (const item of checkAllValid) {
+          if (type !== 'draft') {
             if (item.valid === false) {
-              toaster.show(
-                `${capitalize(item.identifier.split('-')[0])} (${item.name}): ${
-                  item.settingsError ||
-                  t('please_fix_your_settings', 'Please fix your settings')
-                }`,
-                'warning'
-              );
-              focus(item.id, 'fix');
-              setLoading(false);
-              setShowSettings(true);
-              return;
+              const settingsMessages: string[] =
+                Array.isArray(item.settingsErrors) && item.settingsErrors.length
+                  ? item.settingsErrors
+                  : [
+                      item.settingsError ||
+                        t(
+                          'please_fix_your_settings',
+                          'Please fix your settings'
+                        ),
+                    ];
+              messages.push(...settingsMessages);
+              focusWhere = 'form';
             }
 
             if (item.errors !== true) {
-              toaster.show(
-                `${capitalize(item.identifier.split('-')[0])} (${item.name}): ${
-                  item.errors
-                }`,
-                'warning'
-              );
-              focus(item.id, 'preview');
-              setLoading(false);
-              setShowSettings(false);
-              return;
+              messages.push(String(item.errors));
             }
 
             if (item.tooLong) {
-              toaster.show(
-                `${item.name} (${item.identifier}) ${t(
-                  'post_is_too_long',
-                  'post is too long, please fix it'
-                )}`,
-                'warning'
+              messages.push(
+                t('post_is_too_long', 'post is too long, please fix it')
               );
-              focus(item.id, 'preview');
-              setLoading(false);
-              return;
             }
           }
+
+          if (messages.length) {
+            issues.push({
+              id: item.id,
+              identifier: item.identifier,
+              name: item.name,
+              messages: [...new Set(messages)],
+              focus: focusWhere,
+            });
+          }
         }
+
+        if (issues.length) {
+          setChannelIssues(issues);
+          setLoading(false);
+          const first = issues[0];
+          setCurrent(first.id);
+          setHide(true);
+          if (first.focus === 'form') {
+            setShowSettings(true);
+          } else {
+            setShowSettings(false);
+          }
+          focus(first.id, first.focus);
+          toaster.show(
+            t(
+              'fix_all_channel_issues',
+              'Fix every issue listed below before scheduling.'
+            ),
+            'warning'
+          );
+          return;
+        }
+
+        setChannelIssues([]);
       }
 
       const shortlinkPreference = shortlinkPreferenceData?.shortlink || 'ASK';
@@ -534,7 +560,46 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                 <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
               </div>
             </div>
-            <div className="flex-1 flex flex-col gap-[16px]">
+            <div className="flex-1 flex flex-col gap-[16px] min-h-0">
+              {!!channelIssues.length && (
+                <div className="mx-[20px] mobile:mx-[12px] mt-[12px] rounded-[12px] border border-statusFailed bg-statusFailedBg px-[14px] py-[12px] flex flex-col gap-[10px] shrink-0">
+                  <div className="text-[14px] font-[700] text-statusFailed">
+                    {t(
+                      'fix_before_scheduling',
+                      'Fix these before scheduling'
+                    )}
+                  </div>
+                  {channelIssues.map((issue) => (
+                    <div key={issue.id} className="flex flex-col gap-[4px]">
+                      <button
+                        type="button"
+                        className="text-start text-[13px] font-[600] text-statusFailed underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setCurrent(issue.id);
+                          setHide(true);
+                          setShowSettings(issue.focus === 'form');
+                          selectedIntegrations
+                            .find((p) => p.integration.id === issue.id)
+                            ?.ref?.current?.[issue.focus]?.();
+                        }}
+                      >
+                        {capitalize(issue.identifier.split('-')[0])} (
+                        {issue.name})
+                      </button>
+                      <ul className="list-disc ps-[18px] text-[13px] text-statusFailed flex flex-col gap-[2px]">
+                        {issue.messages.map((message) => (
+                          <li
+                            key={message}
+                            className="whitespace-pre-wrap break-words"
+                          >
+                            {message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div
                 className={clsx('flex-1 relative', showSettings && 'hidden')}
               >
@@ -579,7 +644,13 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                     </div>
                   </div>
                   <div className="flex flex-1 gap-[6px] flex-col">
-                    <div>{!existingData.integration && <SelectCurrent />}</div>
+                    <div>
+                      {!existingData.integration && (
+                        <SelectCurrent
+                          errorIds={channelIssues.map((issue) => issue.id)}
+                        />
+                      )}
+                    </div>
                     <div className="flex-1 flex">
                       {!hide && <EditorWrapper totalPosts={1} value="" />}
                     </div>

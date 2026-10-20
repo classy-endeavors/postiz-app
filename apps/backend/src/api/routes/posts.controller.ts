@@ -238,7 +238,11 @@ export class PostsController {
     if (rawBody?.type !== 'draft') {
       for (const item of validation) {
         if (!item.valid) {
-          fail(item, item.settingsError || 'Please fix your settings');
+          const settingsMessages =
+            item.settingsErrors?.length > 0
+              ? item.settingsErrors.join('; ')
+              : item.settingsError || 'Please fix your settings';
+          fail(item, settingsMessages);
         }
         if (item.errors !== true) {
           fail(item, item.errors as string);
