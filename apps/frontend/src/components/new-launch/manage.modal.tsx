@@ -263,6 +263,22 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           postState === 'ERROR' ||
           (postState === 'QUEUE' && dayjs().isAfter(date.utc())));
 
+      // Confirm before immediate publish (mis-click on the Post now menu item
+      // sits directly above Add to Calendar). Republish flow already confirms.
+      if (type === 'now' && !needsPublishConfirm) {
+        if (
+          !(await deleteDialog(
+            t(
+              'are_you_sure_you_want_to_post_now',
+              'This will publish your post immediately. Continue?'
+            ),
+            t('yes_post_now', 'Yes, post now')
+          ))
+        ) {
+          return;
+        }
+      }
+
       if (needsPublishConfirm) {
         const channels = selectedIntegrations
           .map((p) => p.integration.name)

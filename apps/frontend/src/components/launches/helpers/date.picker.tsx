@@ -242,6 +242,27 @@ export const DatePicker: FC<{
     setOpen(false);
   });
 
+  // Capture Escape while the picker is open so the parent modal does not
+  // treat it as "close composer" (askClose).
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpen(false);
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [open]);
+
   const changeDate = useCallback(
     (day: Date) => {
       const next = clampToFuture(
