@@ -189,13 +189,22 @@ export const Menu: FC<{
     const findIntegration = integrations.find(
       (integration) => integration.id === id
     );
+    const dirtyRef = { current: false };
     modal.openModal({
       withCloseButton: true,
-      closeOnEscape: false,
+      closeOnEscape: true,
       closeOnClickOutside: false,
-      askClose: true,
+      askClose: () => dirtyRef.current,
       title: t('time_table_slots', 'Time Table Slots'),
-      children: <TimeTable integration={findIntegration!} mutate={mutate} />,
+      children: (
+        <TimeTable
+          integration={findIntegration!}
+          mutate={mutate}
+          onDirtyChange={(dirty) => {
+            dirtyRef.current = dirty;
+          }}
+        />
+      ),
     });
     setShow(false);
   }, [integrations, t]);

@@ -24,7 +24,8 @@ interface OpenModalInterface {
   top?: string | number;
   closeOnEscape?: boolean;
   withCloseButton?: boolean;
-  askClose?: boolean;
+  // true = always confirm; function = confirm only when it returns true (e.g. dirty form)
+  askClose?: boolean | (() => boolean | Promise<boolean>);
   onClose?: () => void;
   children: ReactNode | ((close: () => void) => ReactNode);
   classNames?: {
@@ -104,14 +105,20 @@ export const Component: FC<{
   const decision = useDecisionModal();
   const closeModalFunction = useCallback(async () => {
     if (modal.askClose) {
-      const open = await decision.open();
-      if (!open) {
-        return;
+      const needsConfirm =
+        typeof modal.askClose === 'function'
+          ? await modal.askClose()
+          : true;
+      if (needsConfirm) {
+        const open = await decision.open();
+        if (!open) {
+          return;
+        }
       }
     }
     modal?.onClose?.();
     closeModal(modal.id);
-  }, [modal.id, closeModal]);
+  }, [modal.askClose, modal.onClose, modal.id, closeModal, decision]);
 
   const RenderComponent = useMemo(() => {
     return typeof modal.children === 'function'
