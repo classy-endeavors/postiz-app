@@ -158,6 +158,27 @@ const CoinsHistory: FC = () => {
               <div className="text-end">{t('balance', 'Balance')}</div>
             )}
           </div>
+          {!data &&
+            Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={index}
+                className={clsx(
+                  'grid gap-[12px] px-[12px] py-[10px] items-center border-b border-newTableBorder animate-pulse',
+                  columns
+                )}
+              >
+                <div className="flex flex-col gap-[6px]">
+                  <div className="h-[14px] w-[90px] rounded-[4px] bg-newSep" />
+                  <div className="h-[10px] w-[60px] rounded-[4px] bg-newSep" />
+                </div>
+                <div className="h-[22px] w-[90px] rounded-full bg-newSep" />
+                <div className="h-[14px] w-full max-w-[220px] rounded-[4px] bg-newSep" />
+                <div className="h-[14px] w-[40px] rounded-[4px] bg-newSep ms-auto" />
+                {showBalance && (
+                  <div className="h-[14px] w-[40px] rounded-[4px] bg-newSep ms-auto" />
+                )}
+              </div>
+            ))}
           {!!data && !data.transactions.length && (
             <div className="px-[12px] py-[20px] text-[14px] text-textItemBlur">
               {t('no_coin_activity', 'No coin activity yet.')}
@@ -405,6 +426,59 @@ const GrantCoins: FC<{ onGranted: () => void }> = ({ onGranted }) => {
   );
 };
 
+const CoinsSkeleton: FC = () => (
+  <div className="bg-newBgColorInner p-[20px] mobile:p-[12px] flex flex-1 flex-col gap-[20px] mobile:gap-[12px] overflow-y-auto animate-pulse">
+    <div className="flex gap-[20px] flex-wrap">
+      <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] bg-btnPrimary/80 border-[1.5px] border-newOutline p-[24px] mobile:p-[18px] flex flex-col gap-[12px]">
+        <div className="h-[14px] w-[140px] rounded-[4px] bg-white/25" />
+        <div className="h-[48px] w-[120px] rounded-[8px] bg-white/25" />
+        <div className="h-[14px] w-[80%] max-w-[320px] rounded-[4px] bg-white/20" />
+        <div className="flex gap-[10px] mt-[4px] flex-wrap">
+          <div className="h-[32px] w-[140px] rounded-[10px] bg-white/15" />
+          <div className="h-[32px] w-[140px] rounded-[10px] bg-white/15" />
+        </div>
+      </div>
+      <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] border border-newTableBorder p-[24px] mobile:p-[18px] flex flex-col gap-[14px]">
+        <div className="h-[16px] w-[160px] rounded-[4px] bg-newSep" />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="flex items-center justify-between">
+            <div className="h-[14px] w-[140px] rounded-[4px] bg-newSep" />
+            <div className="h-[24px] w-[70px] rounded-full bg-newSep" />
+          </div>
+        ))}
+        <div className="h-[12px] w-full rounded-[4px] bg-newSep mt-[4px]" />
+      </div>
+    </div>
+    <div className="flex gap-[20px] flex-wrap items-start">
+      <div className="flex-[2] min-w-[320px] mobile:min-w-0 mobile:basis-full border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+        <div className="h-[16px] w-[120px] rounded-[4px] bg-newSep" />
+        <div className="h-[13px] w-[240px] rounded-[4px] bg-newSep" />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-[44px] w-full rounded-[8px] bg-newSep"
+          />
+        ))}
+      </div>
+      <div className="flex-1 min-w-[300px] mobile:min-w-0 mobile:basis-full border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+        <div className="h-[16px] w-[160px] rounded-[4px] bg-newSep" />
+        <div className="h-[13px] w-full rounded-[4px] bg-newSep" />
+        <div className="flex gap-[8px] flex-wrap">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-[34px] w-[64px] rounded-[8px] bg-newSep"
+            />
+          ))}
+        </div>
+        <div className="h-[44px] w-full rounded-[8px] bg-newSep" />
+        <div className="h-[80px] w-full rounded-[8px] bg-newSep" />
+        <div className="h-[40px] w-[120px] rounded-[8px] bg-newSep" />
+      </div>
+    </div>
+  </div>
+);
+
 export const CoinsComponent: FC = () => {
   const t = useT();
   const user = useUser();
@@ -419,7 +493,7 @@ export const CoinsComponent: FC = () => {
   }, []);
 
   if (!data) {
-    return null;
+    return <CoinsSkeleton />;
   }
 
   const costs = [

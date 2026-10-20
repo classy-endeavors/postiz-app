@@ -525,7 +525,29 @@ const PublicApiContent = () => {
   }, [decision, fetch, mutate, toaster]);
 
   if (!user || !user.publicApi) {
-    return null;
+    return (
+      <div className="flex flex-col gap-[40px] animate-pulse">
+        <div className="flex flex-col gap-[8px]">
+          <div className="h-[14px] w-full max-w-[480px] rounded-[4px] bg-newSep" />
+          <div className="h-[14px] w-full max-w-[520px] rounded-[4px] bg-newSep" />
+          <div className="h-[14px] w-full max-w-[440px] rounded-[4px] bg-newSep" />
+        </div>
+        <div className="rounded-[12px] border border-newBorder overflow-hidden">
+          <div className="px-[20px] py-[14px] border-b border-newBorder flex flex-col gap-[6px]">
+            <div className="h-[15px] w-[80px] rounded-[4px] bg-newSep" />
+            <div className="h-[13px] w-[220px] rounded-[4px] bg-newSep" />
+          </div>
+          <div className="p-[20px] flex flex-col gap-[16px]">
+            <div className="h-[44px] w-full rounded-[8px] bg-newSep" />
+            <div className="flex gap-[8px]">
+              <div className="h-[36px] w-[90px] rounded-[8px] bg-newSep" />
+              <div className="h-[36px] w-[80px] rounded-[8px] bg-newSep" />
+              <div className="h-[36px] w-[90px] rounded-[8px] bg-newSep" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
