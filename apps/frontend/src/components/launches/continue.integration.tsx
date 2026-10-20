@@ -93,9 +93,23 @@ export const ContinueIntegration: FC<{
         return;
       }
 
-      if (data.status === HttpStatusCode.NotAcceptable) {
-        const { msg, returnURL } = await data.json();
-        navigateOrShow(`/launches?msg=${msg}`, returnURL, msg);
+      // 406 (HttpException) or 409 (NotEnoughScopesFilter) — e.g. already connected
+      if (
+        data.status === HttpStatusCode.NotAcceptable ||
+        data.status === HttpStatusCode.Conflict
+      ) {
+        const errorData = await data.json().catch(() => ({}));
+        const msg =
+          errorData.msg ||
+          (typeof errorData.message === 'string'
+            ? errorData.message
+            : errorData.message?.msg) ||
+          'Could not add channel';
+        navigateOrShow(
+          `/launches?msg=${encodeURIComponent(msg)}`,
+          errorData.returnURL,
+          msg
+        );
         return;
       }
 
@@ -104,9 +118,23 @@ export const ContinueIntegration: FC<{
         data.status !== HttpStatusCode.Created
       ) {
         const errorData = await data.json().catch(() => ({}));
-        setErrorMessage(
-          errorData.message || errorData.msg || 'Could not add provider'
-        );
+        const errMsg =
+          errorData.msg ||
+          (typeof errorData.message === 'string'
+            ? errorData.message
+            : errorData.message?.msg) ||
+          'Could not add provider';
+        // Already-connected should never land here, but if a proxy rewrites
+        // the status, still surface it as a toast instead of a silent upsert.
+        if (/already connected/i.test(errMsg)) {
+          navigateOrShow(
+            `/launches?msg=${encodeURIComponent(errMsg)}`,
+            errorData.returnURL,
+            errMsg
+          );
+          return;
+        }
+        setErrorMessage(errMsg);
         setError(true);
         return;
       }
@@ -118,6 +146,7 @@ export const ContinueIntegration: FC<{
         pages,
         returnURL,
         extensionToken,
+        isReconnect,
       } = await data.json();
       const onboarding = resOnboarding || searchParams.onboarding === 'true';
 
@@ -160,12 +189,13 @@ export const ContinueIntegration: FC<{
         return;
       }
 
+      const successMsg = isReconnect ? 'Channel Updated' : 'Channel Added';
       navigateOrShow(
-        `/launches?added=${provider}&msg=Channel Updated${
+        `/launches?added=${provider}&msg=${encodeURIComponent(successMsg)}${
           onboarding ? '&onboarding=true' : ''
         }`,
         returnURL,
-        'Channel Updated'
+        successMsg
       );
     })();
   }, []);

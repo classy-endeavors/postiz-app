@@ -594,11 +594,13 @@ export const LaunchesComponent = () => {
       return;
     }
     if (search.get('msg')) {
-      toast.show(search.get('msg')!, 'success');
+      const msg = search.get('msg')!;
+      const isWarning = /already connected/i.test(msg);
+      toast.show(msg, isWarning ? 'warning' : 'success');
       window?.opener?.postMessage(
         {
-          msg: search.get('msg')!,
-          success: false,
+          msg,
+          success: !isWarning,
         },
         '*'
       );
