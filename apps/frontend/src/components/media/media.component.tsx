@@ -209,18 +209,27 @@ export const useMediaPreview = () => {
   const mediaDirectory = useMediaDirectory();
   return useCallback(
     (path: string) => {
+      // Keep media inside the viewport after modal chrome + backdrop padding
+      // (p-32, title/gap, top inset, pb-50) so nothing scrolls.
+      const mediaClassName =
+        'max-w-[min(100%,calc(100vw-88px))] max-h-[calc(100dvh-220px)] object-contain rounded-[8px]';
       modals.openModal({
         title: '',
         top: 10,
         children: (
-          <div className="w-full h-full p-[50px] flex justify-center items-center">
+          <div className="flex max-h-[calc(100dvh-220px)] max-w-[min(100%,calc(100vw-88px))] justify-center items-center overflow-hidden">
             {hasExtension(path, 'mp4') ? (
-              <div className="w-full h-[75vh] [&_video]:object-contain">
-                <VideoFrame autoplay={true} url={mediaDirectory.set(path)} />
-              </div>
+              <video
+                className={mediaClassName}
+                src={mediaDirectory.set(path)}
+                controls
+                autoPlay
+                playsInline
+                preload="metadata"
+              />
             ) : (
               <img
-                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
+                className={mediaClassName}
                 src={mediaDirectory.set(path)}
                 alt="media"
               />
