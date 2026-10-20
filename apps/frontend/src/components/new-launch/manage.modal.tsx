@@ -676,7 +676,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                         />
                       )}
                     </div>
-                    <div className="flex-1 flex">
+                    <div className="flex-1 flex min-w-0">
                       {!hide && <EditorWrapper totalPosts={1} value="" />}
                     </div>
                     <div
