@@ -44,6 +44,7 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { groupBy, random, sortBy, uniq } from 'lodash';
 import SafeImage from '@gitroom/react/helpers/safe.image';
+import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { extend } from 'dayjs';
 import { isUSCitizen } from './helpers/isuscitizen.utils';
 import { useInterval } from '@mantine/hooks';
@@ -859,10 +860,13 @@ const DayDetail = () => {
                       <div className="flex items-center justify-between gap-[10px]">
                         <span className="flex items-center gap-[8px] min-w-0">
                           <span className="relative shrink-0">
-                            <img
+                            <ImageWithFallback
                               className="w-[22px] h-[22px] rounded-[6px]"
                               src={post.integration.picture || '/no-picture.jpg'}
+                              fallbackSrc="/no-picture.jpg"
                               alt={post.integration.name}
+                              width={22}
+                              height={22}
                             />
                             <img
                               className="w-[12px] h-[12px] rounded-[3px] absolute -bottom-[3px] -end-[3px]"
@@ -1715,9 +1719,13 @@ const CalendarItem: FC<{
         )}
       >
         <div className={clsx('relative min-w-[20px]')}>
-          <img
+          <ImageWithFallback
             className="w-[20px] h-[20px] rounded-[8px]"
             src={post.integration.picture! || '/no-picture.jpg'}
+            fallbackSrc="/no-picture.jpg"
+            alt={post.integration.name}
+            width={20}
+            height={20}
           />
           <img
             className="w-[12px] h-[12px] rounded-[8px] absolute z-10 top-[10px] end-0 border border-fifth"

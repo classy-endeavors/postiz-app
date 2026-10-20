@@ -364,8 +364,10 @@ export class PostsService {
     });
   }
 
-  getDayPosts(orgId: string, query: GetPostsDto) {
-    return this._postRepository.getDayPosts(orgId, query);
+  async getDayPosts(orgId: string, query: GetPostsDto) {
+    return this.withSignedIntegrationPictures(
+      await this._postRepository.getDayPosts(orgId, query)
+    );
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
