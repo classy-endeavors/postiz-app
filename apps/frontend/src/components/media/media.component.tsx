@@ -413,14 +413,31 @@ export const MediaBox: FC<{
   const deleteImage = useCallback(
     (media: Media) => async (e: any) => {
       e.stopPropagation();
-      if (
-        !(await deleteDialog(
-          t(
-            'are_you_sure_you_want_to_delete_the_image',
-            'Are you sure you want to delete the image?'
-          )
-        ))
-      ) {
+      const fileName = media.originalName || media.name;
+      const isVideo = hasExtension(media.path, 'mp4');
+      const description = fileName
+        ? isVideo
+          ? t(
+              'are_you_sure_you_want_to_delete_the_video_named',
+              'Are you sure you want to delete the video "{{name}}"?',
+              { name: fileName }
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_the_image_named',
+              'Are you sure you want to delete the image "{{name}}"?',
+              { name: fileName }
+            )
+        : isVideo
+          ? t(
+              'are_you_sure_you_want_to_delete_the_video',
+              'Are you sure you want to delete this video?'
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_the_image',
+              'Are you sure you want to delete this image?'
+            );
+
+      if (!(await deleteDialog(description))) {
         return;
       }
       await fetch(`/media/${media.id}`, {
@@ -428,7 +445,7 @@ export const MediaBox: FC<{
       });
       mutate();
     },
-    [mutate]
+    [fetch, mutate, t]
   );
 
   const btn = useMemo(() => {
@@ -615,14 +632,14 @@ export const MediaBox: FC<{
               .map((media: any) => (
                 <div
                   className={clsx(
-                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max aspect-square',
+                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max',
                     !standalone && 'cursor-pointer'
                   )}
                   key={media.id}
                 >
                   <div
                     className={clsx(
-                      'w-full h-full rounded-[6px] border-[4px] relative',
+                      'w-full rounded-[6px] border-[4px] relative',
                       !!selected.find((p) => p.id === media.id)
                         ? 'border-[#FF5227]'
                         : 'border-transparent'
@@ -634,12 +651,16 @@ export const MediaBox: FC<{
                         {selected.findIndex((z: any) => z.id === media.id) + 1}
                       </div>
                     ) : (
-                      <DeleteCircleIcon
-                        className="cursor-pointer hidden z-[100] group-hover:block absolute -top-[5px] -end-[5px]"
+                      <button
+                        type="button"
+                        aria-label={t('delete_media', 'Delete media')}
+                        className="cursor-pointer hidden group-hover:flex z-[100] absolute top-[6px] end-[6px] items-center justify-center w-[28px] h-[28px] rounded-full bg-black/60 hover:bg-black/80 shadow-md"
                         onClick={deleteImage(media)}
-                      />
+                      >
+                        <DeleteCircleIcon size={22} />
+                      </button>
                     )}
-                    <div className="w-full h-full rounded-[6px] overflow-hidden relative">
+                    <div className="w-full aspect-square rounded-[6px] overflow-hidden relative bg-newSep">
                       <div className="absolute z-[20] left-[50%] top-[50%] -translate-x-[50%] -translate-y-[50%]">
                         <div
                           onClick={maximize(media)}
@@ -667,6 +688,9 @@ export const MediaBox: FC<{
                             className="w-full h-full object-cover"
                             src={mediaDirectory.set(media.thumbnail)}
                             alt={media.originalName || media.name || 'media'}
+                            onError={(e) => {
+                              e.currentTarget.style.visibility = 'hidden';
+                            }}
                           />
                         ) : (
                           <VideoFrame
@@ -680,10 +704,13 @@ export const MediaBox: FC<{
                           className="w-full h-full object-cover"
                           src={mediaDirectory.set(media.path)}
                           alt={media.originalName || media.name || 'media'}
+                          onError={(e) => {
+                            e.currentTarget.style.visibility = 'hidden';
+                          }}
                         />
                       )}
-                      <div className="absolute inset-x-0 bottom-0 z-[100] flex items-center gap-[8px] p-[10px] bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                        {!!onCreatePost && (
+                      {!!onCreatePost && (
+                        <div className="absolute inset-x-0 bottom-0 z-[100] p-[10px]">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -694,11 +721,14 @@ export const MediaBox: FC<{
                             <PlusIcon size={10} />
                             {t('create_new_post', 'Create Post')}
                           </button>
-                        )}
-                        <div className="min-w-0 flex-1 truncate text-[12px] text-white text-end mobile:hidden">
-                          {media.originalName}
                         </div>
-                      </div>
+                      )}
+                    </div>
+                    <div
+                      className="mt-[6px] h-[18px] px-[2px] truncate text-[12px] text-newTextColor mobile:hidden"
+                      title={media.originalName || media.name || undefined}
+                    >
+                      {media.originalName || media.name}
                     </div>
                   </div>
                 </div>
