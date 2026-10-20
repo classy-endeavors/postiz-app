@@ -250,34 +250,36 @@ const NewInput: FC<InputProps> = (props) => {
         {...props}
         onChange={setValue}
         onSend={(text) => {
-          const send = props.onSend(
-            text +
-              (media.length > 0
-                ? '\n[--Media--]' +
-                  media
-                    .map((m) =>
-                      hasExtension(m.path, 'mp4')
-                        ? `Video: ${m.path}`
-                        : `Image: ${m.path}`
-                    )
-                    .join('\n') +
-                  '\n[--Media--]'
-                : '') +
-              `
-${
-  properties.length
-    ? `[--integrations--]
-Use the following social media platforms: ${JSON.stringify(
-        properties.map((p) => ({
-          id: p.id,
-          platform: p.identifier,
-          profilePicture: p.picture,
-          additionalSettings: p.additionalSettings,
-        }))
-      )}
+          const mediaBlock =
+            media.length > 0
+              ? '\n[--Media--]\n' +
+                media
+                  .map((m) =>
+                    hasExtension(m.path, 'mp4')
+                      ? `Video: ${m.path}`
+                      : `Image: ${m.path}`
+                  )
+                  .join('\n') +
+                '\n[--Media--]'
+              : '';
+
+          const integrationsBlock = properties.length
+            ? `[--integrations--]
+Selected channels for scheduling/drafting only (you can still write captions for any platform style): ${JSON.stringify(
+                properties.map((p) => ({
+                  id: p.id,
+                  platform: p.identifier,
+                  profilePicture: p.picture,
+                  additionalSettings: p.additionalSettings,
+                }))
+              )}
 [--integrations--]`
-    : ``
-}`
+            : `[--integrations--]
+No channels are selected for scheduling/drafting. You can still write or edit captions for any platform. Only ask the user to select/connect a channel when they want a draft or scheduled post.
+[--integrations--]`;
+
+          const send = props.onSend(
+            text + mediaBlock + '\n' + integrationsBlock
           );
           setValue('');
           setMedia([]);

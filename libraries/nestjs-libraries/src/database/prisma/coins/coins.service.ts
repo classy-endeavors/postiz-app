@@ -140,12 +140,15 @@ export class CoinsService {
   }
 
   // Charges before the work runs and refunds when it throws, like useCredit.
-  // The detail (the prompt) is what the history shows instead of the generic label
+  // The detail (the prompt) is what the history shows instead of the generic label.
+  // Optional refundIf runs after a successful call — return true to undo the charge
+  // (e.g. agent replied with a pure capability refusal).
   async spend<T>(
     organizationId: string,
     action: CoinAction,
     func: () => Promise<T>,
-    detail?: string
+    detail?: string,
+    refundIf?: () => boolean | Promise<boolean>
   ): Promise<T> {
     await this.checkBalance(organizationId, COIN_COSTS[action]);
     const text = (detail || '').replace(/\s+/g, ' ').trim();
@@ -161,7 +164,11 @@ export class CoinsService {
     );
 
     try {
-      return await func();
+      const result = await func();
+      if (refundIf && (await refundIf())) {
+        await this._coinsRepository.removeTransaction(organizationId, id);
+      }
+      return result;
     } catch (err) {
       await this._coinsRepository.removeTransaction(organizationId, id);
       throw err;
