@@ -155,7 +155,13 @@ export class CoinsService {
     refundIf?: () => boolean | Promise<boolean>
   ): Promise<T> {
     await this.checkBalance(organizationId, COIN_COSTS[action]);
-    const text = (detail || '').replace(/\s+/g, ' ').trim();
+    // Agent chat appends channel/media blocks for the model; history should only
+    // show the text the user typed.
+    const text = (detail || '')
+      .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
+      .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     const { id } = await this._coinsRepository.addTransaction(
       organizationId,
       -COIN_COSTS[action],

@@ -28,6 +28,18 @@ const defaults: Record<string, string> = {
   image: 'AI image generation',
 };
 
+// Older AI-message rows stored agent channel/media blocks in description
+const readableCoinDetail = (description: string | null | undefined) => {
+  if (!description) {
+    return description;
+  }
+  return description
+    .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
+    .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 interface CoinsHistoryResponse {
   transactions: {
     id: string;
@@ -186,6 +198,13 @@ const CoinsHistory: FC = () => {
           )}
           {data?.transactions.map((transaction) => {
             const pending = transaction.type === 'coin_request';
+            const detail =
+              readableCoinDetail(transaction.description) ||
+              transaction.description;
+            const showQuotedPrompt =
+              prompts.includes(transaction.type) &&
+              !!detail &&
+              detail !== defaults[transaction.type];
             return (
               <div
                 key={transaction.id}
@@ -216,12 +235,9 @@ const CoinsHistory: FC = () => {
                 </div>
                 <div
                   className="text-textItemBlur break-words line-clamp-2"
-                  title={transaction.description || undefined}
+                  title={detail || undefined}
                 >
-                  {prompts.includes(transaction.type) &&
-                  transaction.description !== defaults[transaction.type]
-                    ? `“${transaction.description}”`
-                    : transaction.description}
+                  {showQuotedPrompt ? `“${detail}”` : detail}
                 </div>
                 <div
                   className={clsx(
