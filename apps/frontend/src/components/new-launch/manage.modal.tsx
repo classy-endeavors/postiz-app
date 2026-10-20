@@ -46,6 +46,38 @@ import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
 import { useClickOutside } from '@mantine/hooks';
 
+type ComposerMedia = {
+  id: string;
+  path: string;
+  alt?: string;
+  thumbnail?: string;
+  thumbnailTimestamp?: number;
+};
+
+type ComposerPostValue = {
+  id?: string;
+  content: string;
+  delay?: number;
+  media?: ComposerMedia[];
+};
+
+type ComposerChannelDraft = {
+  id: string;
+  identifier?: string;
+  settings?: Record<string, unknown>;
+  values: ComposerPostValue[];
+};
+
+type ChannelFocusTarget = 'form' | 'preview';
+
+type ChannelIssue = {
+  id: string;
+  identifier: string;
+  name: string;
+  messages: string[];
+  focus: ChannelFocusTarget;
+};
+
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
   const fetch = useFetch();
@@ -57,15 +89,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
   const [links, setLinks] = useState<string[]>([]);
-  const [channelIssues, setChannelIssues] = useState<
-    Array<{
-      id: string;
-      identifier: string;
-      name: string;
-      messages: string[];
-      focus: 'form' | 'preview';
-    }>
-  >([]);
+  const [channelIssues, setChannelIssues] = useState<ChannelIssue[]>([]);
+  const [channelIssuesExpanded, setChannelIssuesExpanded] = useState(true);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
   const postNowMenuRef = useClickOutside<HTMLDivElement>(() =>
     setPostNowOpen(false)
@@ -153,7 +178,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         </div>
       </div>
     );
-  }, [current]);
+  }, [current, integrations, t]);
 
   const changeCustomer = useCallback(
     (customer: string) => {
@@ -167,7 +192,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }))
       );
     },
-    [integrations]
+    [integrations, setSelectedIntegrations]
   );
 
   const askClose = useCallback(async () => {
@@ -190,7 +215,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }
       modal.closeAll();
     }
-  }, [activateExitButton, dummy]);
+  }, [activateExitButton, dummy, t, customClose, modal]);
 
   const deletePost = useCallback(async () => {
     setLoading(true);
@@ -212,7 +237,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     mutate();
     modal.closeAll();
     return;
-  }, [existingData, mutate, modal]);
+  }, [existingData, mutate, modal, t, fetch]);
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
@@ -315,26 +340,26 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       // Pull the local values to build the payload, but rely on the server
       // (`/posts/valid`) for the actual validation — checkValidity now lives
       // server-side so it can't be bypassed.
-      const allValues = await ref.current.getAllValues();
+      const allValues = (await ref.current.getAllValues()) as ComposerChannelDraft[];
 
       const integrationById = (id: string) =>
         selectedIntegrations.find((p) => p.integration.id === id);
 
       const group = existingData.group || makeId(10);
 
-      const posts = allValues.map((post: any) => ({
+      const posts = allValues.map((post) => ({
         integration: {
           id: post.id,
         },
         group,
         settings: { ...(post.settings || {}) },
-        value: post.values.map((value: any) => ({
+        value: post.values.map((value) => ({
           ...(value.id ? { id: value.id } : {}),
           content: value.content,
           delay: value.delay || 0,
           image:
-            (value?.media || []).map(
-              ({ id, path, alt, thumbnail, thumbnailTimestamp }: any) => ({
+            (value.media || []).map(
+              ({ id, path, alt, thumbnail, thumbnailTimestamp }) => ({
                 id,
                 path,
                 alt,
@@ -353,14 +378,20 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           })
         ).json();
 
-        const focus = (id: string, where: 'fix' | 'preview') => {
-          integrationById(id)?.ref?.current?.[where]?.();
+        const focusChannel = (
+          id: string,
+          where: ChannelFocusTarget
+        ) => {
+          const handle = integrationById(id)?.ref?.current as
+            | Partial<Record<ChannelFocusTarget, () => void>>
+            | undefined;
+          handle?.[where]?.();
         };
 
-        const issues: typeof channelIssues = [];
+        const issues: ChannelIssue[] = [];
         for (const item of checkAllValid) {
           const messages: string[] = [];
-          let focusWhere: 'form' | 'preview' = 'preview';
+          let focusWhere: ChannelFocusTarget = 'preview';
 
           if (item.emptyContent) {
             messages.push(
@@ -418,6 +449,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
         if (issues.length) {
           setChannelIssues(issues);
+          setChannelIssuesExpanded(true);
           setLoading(false);
           const first = issues[0];
           setCurrent(first.id);
@@ -427,7 +459,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           } else {
             setShowSettings(false);
           }
-          focus(first.id, first.focus);
+          focusChannel(first.id, first.focus);
           toaster.show(
             t(
               'fix_all_channel_issues',
@@ -453,9 +485,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               messages: allValues
                 // platforms that remove links won't keep shortlinks either
                 .filter(
-                  (p: any) => !integrationById(p.id)?.integration?.stripLinks
+                  (p) => !integrationById(p.id)?.integration?.stripLinks
                 )
-                .flatMap((p: any) => p.values.flatMap((a: any) => a.content)),
+                .flatMap((p) => p.values.flatMap((a) => a.content)),
             }),
           })
         ).json();
@@ -549,7 +581,26 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }
       }
     },
-    [ref, repeater, tags, date, addEditSets, dummy, shortlinkPreferenceData, links]
+    [
+      addEditSets,
+      customClose,
+      date,
+      dummy,
+      existingData,
+      fetch,
+      links,
+      modal,
+      mutate,
+      ref,
+      repeater,
+      selectedIntegrations,
+      setCurrent,
+      setHide,
+      shortlinkPreferenceData,
+      t,
+      tags,
+      toaster,
+    ]
   );
 
   return (
@@ -568,45 +619,6 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </div>
             </div>
             <div className="flex-1 flex flex-col gap-[16px] min-h-0">
-              {!!channelIssues.length && (
-                <div className="mx-[20px] mobile:mx-[12px] mt-[12px] rounded-[12px] border border-statusFailed bg-statusFailedBg px-[14px] py-[12px] flex flex-col gap-[10px] shrink-0">
-                  <div className="text-[14px] font-[700] text-statusFailed">
-                    {t(
-                      'fix_before_scheduling',
-                      'Fix these before scheduling'
-                    )}
-                  </div>
-                  {channelIssues.map((issue) => (
-                    <div key={issue.id} className="flex flex-col gap-[4px]">
-                      <button
-                        type="button"
-                        className="text-start text-[13px] font-[600] text-statusFailed underline-offset-2 hover:underline"
-                        onClick={() => {
-                          setCurrent(issue.id);
-                          setHide(true);
-                          setShowSettings(issue.focus === 'form');
-                          selectedIntegrations
-                            .find((p) => p.integration.id === issue.id)
-                            ?.ref?.current?.[issue.focus]?.();
-                        }}
-                      >
-                        {capitalize(issue.identifier.split('-')[0])} (
-                        {issue.name})
-                      </button>
-                      <ul className="list-disc ps-[18px] text-[13px] text-statusFailed flex flex-col gap-[2px]">
-                        {issue.messages.map((message) => (
-                          <li
-                            key={message}
-                            className="whitespace-pre-wrap break-words"
-                          >
-                            {message}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
               <div
                 className={clsx('flex-1 relative', showSettings && 'hidden')}
               >
@@ -715,6 +727,66 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   </style>
                 </div>
               </div>
+              {!!channelIssues.length && (
+                <div className="mx-[20px] mobile:mx-[12px] mb-[12px] rounded-[12px] border border-statusFailed bg-statusFailedBg shrink-0">
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-[8px] px-[14px] py-[10px] text-start"
+                    onClick={() =>
+                      setChannelIssuesExpanded((expanded) => !expanded)
+                    }
+                    aria-expanded={channelIssuesExpanded}
+                  >
+                    <div className="flex-1 text-[14px] font-[700] text-statusFailed">
+                      {t(
+                        'fix_before_scheduling_count',
+                        'Fix {{count}} channel(s) before scheduling',
+                        { count: channelIssues.length }
+                      )}
+                    </div>
+                    <ChevronDownIcon
+                      rotated={channelIssuesExpanded}
+                      className="text-statusFailed shrink-0"
+                    />
+                  </button>
+                  {channelIssuesExpanded && (
+                    <div className="px-[14px] pb-[12px] flex flex-col gap-[10px] max-h-[140px] overflow-y-auto scrollbar scrollbar-thumb-newColColor scrollbar-track-transparent">
+                      {channelIssues.map((issue) => (
+                        <div key={issue.id} className="flex flex-col gap-[4px]">
+                          <button
+                            type="button"
+                            className="text-start text-[13px] font-[600] text-statusFailed underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setCurrent(issue.id);
+                              setHide(true);
+                              setShowSettings(issue.focus === 'form');
+                              const handle = selectedIntegrations
+                                .find((p) => p.integration.id === issue.id)
+                                ?.ref?.current as
+                                | Partial<Record<ChannelFocusTarget, () => void>>
+                                | undefined;
+                              handle?.[issue.focus]?.();
+                            }}
+                          >
+                            {capitalize(issue.identifier.split('-')[0])} (
+                            {issue.name})
+                          </button>
+                          <ul className="list-disc ps-[18px] text-[13px] text-statusFailed flex flex-col gap-[2px]">
+                            {issue.messages.map((message) => (
+                              <li
+                                key={message}
+                                className="whitespace-pre-wrap break-words"
+                              >
+                                {message}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="w-[580px] flex flex-col mobile:hidden">
