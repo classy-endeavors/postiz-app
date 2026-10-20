@@ -609,7 +609,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         <div className="flex-1 flex min-h-0">
           <div className="flex flex-col flex-1 min-w-0 border-e border-newBorder mobile:border-e-0">
             <div className="bg-newBgColor h-[65px] mobile:h-[56px] rounded-s-[20px] mobile:rounded-none !rounded-b-[0] flex items-center gap-[12px] px-[20px] mobile:px-[14px] text-[20px] mobile:text-[18px] font-[600]">
-              {t('create_post_title', 'Create Post')}
+              {existingData?.integration
+                ? t('edit_post_title', 'Edit Post')
+                : t('create_post_title', 'Create Post')}
               <CreationMethodBadge
                 creationMethod={existingData?.posts?.[0]?.creationMethod}
                 size="sm"
