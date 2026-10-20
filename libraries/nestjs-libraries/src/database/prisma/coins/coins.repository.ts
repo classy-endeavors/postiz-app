@@ -6,10 +6,16 @@ import { CoinsHistoryFilter } from '@gitroom/nestjs-libraries/dtos/coins/coins.d
 export class CoinsRepository {
   constructor(private _coins: PrismaRepository<'coinTransaction'>) {}
 
+  // Pending coin requests are stored as rows but must not move the balance
+  private get settledWhere() {
+    return { type: { not: 'coin_request' } };
+  }
+
   async getBalance(organizationId: string) {
     const load = await this._coins.model.coinTransaction.aggregate({
       where: {
         organizationId,
+        ...this.settledWhere,
       },
       _sum: {
         amount: true,
@@ -73,34 +79,49 @@ export class CoinsRepository {
     return { transactions, total };
   }
 
-  // Sum of the newest `take` transactions, what changed after a history page
+  // Sum of settled amounts among the newest `take` rows (pending requests are
+  // listed in history but do not change the running balance column).
   async getNewestTotal(organizationId: string, take: number) {
     if (!take) {
       return 0;
     }
 
-    const load = await this._coins.model.coinTransaction.aggregate({
+    const newest = await this._coins.model.coinTransaction.findMany({
       where: {
         organizationId,
       },
       orderBy: this.historyOrder,
       take,
-      _sum: {
+      select: {
         amount: true,
+        type: true,
       },
     });
 
-    return load._sum.amount || 0;
+    return newest.reduce(
+      (sum, row) => (row.type === 'coin_request' ? sum : sum + row.amount),
+      0
+    );
   }
 
   async getTotalsSince(organizationId: string, since: Date) {
     const [spent, added] = await Promise.all([
       this._coins.model.coinTransaction.aggregate({
-        where: { organizationId, createdAt: { gte: since }, amount: { lt: 0 } },
+        where: {
+          organizationId,
+          createdAt: { gte: since },
+          amount: { lt: 0 },
+          ...this.settledWhere,
+        },
         _sum: { amount: true },
       }),
       this._coins.model.coinTransaction.aggregate({
-        where: { organizationId, createdAt: { gte: since }, amount: { gt: 0 } },
+        where: {
+          organizationId,
+          createdAt: { gte: since },
+          amount: { gt: 0 },
+          ...this.settledWhere,
+        },
         _sum: { amount: true },
       }),
     ]);
@@ -165,6 +186,29 @@ export class CoinsRepository {
       },
       select: {
         id: true,
+        type: true,
+        organizationId: true,
+      },
+    });
+  }
+
+  // Turns a pending coin_request into the granted admin_grant row in place
+  settleRequest(
+    id: string,
+    organizationId: string,
+    amount: number,
+    description: string
+  ) {
+    return this._coins.model.coinTransaction.updateMany({
+      where: {
+        id,
+        organizationId,
+        type: 'coin_request',
+      },
+      data: {
+        amount,
+        type: 'admin_grant',
+        description,
       },
     });
   }

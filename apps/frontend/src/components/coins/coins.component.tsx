@@ -93,6 +93,7 @@ const CoinsHistory: FC = () => {
     reply: t('coins_activity_reply', 'Comment reply'),
     monthly_grant: t('coins_activity_monthly', 'Monthly coins'),
     admin_grant: t('coins_activity_added', 'Added by team'),
+    coin_request: t('coins_activity_pending', 'Pending request'),
   };
   const filters: { value: HistoryFilter; label: string }[] = [
     { value: 'all', label: t('all', 'All') },
@@ -115,7 +116,7 @@ const CoinsHistory: FC = () => {
           <div className="text-[13px] text-textItemBlur mt-[2px]">
             {t(
               'coins_history_description',
-              'Every coin you spent or received, newest first.'
+              'Every coin you spent, received, or requested, newest first.'
             )}
           </div>
         </div>
@@ -162,59 +163,66 @@ const CoinsHistory: FC = () => {
               {t('no_coin_activity', 'No coin activity yet.')}
             </div>
           )}
-          {data?.transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className={clsx(
-                'grid gap-[12px] px-[12px] py-[10px] text-[14px] items-center border-b border-newTableBorder last:border-b-0',
-                columns
-              )}
-            >
-              <div>
-                <div>{dayjs(transaction.createdAt).format('MMM D, YYYY')}</div>
-                <div className="text-[12px] text-textItemBlur">
-                  {dayjs(transaction.createdAt).format('h:mm A')}
-                </div>
-              </div>
-              <div>
-                <span
-                  className={clsx(
-                    'inline-flex px-[10px] py-[2px] rounded-full text-[12px] font-[600]',
-                    transaction.amount > 0
-                      ? 'bg-statusPublishedBg text-statusPublished'
-                      : 'bg-boxHover text-newTextColor'
-                  )}
-                >
-                  {activities[transaction.type] || transaction.type}
-                </span>
-              </div>
+          {data?.transactions.map((transaction) => {
+            const pending = transaction.type === 'coin_request';
+            return (
               <div
-                className="text-textItemBlur break-words line-clamp-2"
-                title={transaction.description || undefined}
-              >
-                {prompts.includes(transaction.type) &&
-                transaction.description !== defaults[transaction.type]
-                  ? `“${transaction.description}”`
-                  : transaction.description}
-              </div>
-              <div
+                key={transaction.id}
                 className={clsx(
-                  'text-end font-[700]',
-                  transaction.amount > 0
-                    ? 'text-statusPublished'
-                    : 'text-newTextColor'
+                  'grid gap-[12px] px-[12px] py-[10px] text-[14px] items-center border-b border-newTableBorder last:border-b-0',
+                  columns
                 )}
               >
-                {transaction.amount > 0 ? '+' : ''}
-                {transaction.amount}
-              </div>
-              {showBalance && (
-                <div className="text-end text-textItemBlur">
-                  {transaction.balanceAfter}
+                <div>
+                  <div>{dayjs(transaction.createdAt).format('MMM D, YYYY')}</div>
+                  <div className="text-[12px] text-textItemBlur">
+                    {dayjs(transaction.createdAt).format('h:mm A')}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                <div>
+                  <span
+                    className={clsx(
+                      'inline-flex px-[10px] py-[2px] rounded-full text-[12px] font-[600]',
+                      pending
+                        ? 'bg-newButter text-black'
+                        : transaction.amount > 0
+                        ? 'bg-statusPublishedBg text-statusPublished'
+                        : 'bg-boxHover text-newTextColor'
+                    )}
+                  >
+                    {activities[transaction.type] || transaction.type}
+                  </span>
+                </div>
+                <div
+                  className="text-textItemBlur break-words line-clamp-2"
+                  title={transaction.description || undefined}
+                >
+                  {prompts.includes(transaction.type) &&
+                  transaction.description !== defaults[transaction.type]
+                    ? `“${transaction.description}”`
+                    : transaction.description}
+                </div>
+                <div
+                  className={clsx(
+                    'text-end font-[700]',
+                    pending
+                      ? 'text-textItemBlur'
+                      : transaction.amount > 0
+                      ? 'text-statusPublished'
+                      : 'text-newTextColor'
+                  )}
+                >
+                  {transaction.amount > 0 ? '+' : ''}
+                  {transaction.amount}
+                </div>
+                {showBalance && (
+                  <div className="text-end text-textItemBlur">
+                    {pending ? '—' : transaction.balanceAfter}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

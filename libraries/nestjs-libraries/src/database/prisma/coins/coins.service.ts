@@ -108,8 +108,13 @@ export class CoinsService {
 
     return {
       transactions: transactions.map((transaction) => {
-        const row = { ...transaction, balanceAfter };
-        if (balanceAfter !== null) {
+        const pending = transaction.type === 'coin_request';
+        const row = {
+          ...transaction,
+          // Pending requests do not move the balance yet
+          balanceAfter: pending ? null : balanceAfter,
+        };
+        if (balanceAfter !== null && !pending) {
           balanceAfter -= transaction.amount;
         }
         return row;
@@ -217,12 +222,16 @@ export class CoinsService {
       .digest('hex');
   }
 
-  private approvalUrl(organizationId: string, userId: string, amount: number) {
+  private approvalUrl(
+    requestId: string,
+    organizationId: string,
+    userId: string,
+    amount: number
+  ) {
     if (!process.env.ZYNTRA_COINS_APPROVAL_CODE) {
       return '';
     }
 
-    const requestId = makeId(20);
     const params = new URLSearchParams({
       requestId,
       organizationId,
@@ -257,17 +266,35 @@ export class CoinsService {
 
     // The transaction id is the request, so opening the link again grants nothing
     const id = `request-${query.requestId}`;
-    if (await this._coinsRepository.getTransaction(id)) {
+    const existing = await this._coinsRepository.getTransaction(id);
+    if (
+      existing &&
+      existing.organizationId !== query.organizationId
+    ) {
+      throw new HttpException('Invalid approval code', 403);
+    }
+    if (existing?.type === 'admin_grant') {
       return `This request was already approved, ${query.amount} Zyntra Coins were granted before.`;
     }
 
-    await this._coinsRepository.addTransactionOnce(
-      id,
-      query.organizationId,
-      query.amount,
-      'admin_grant',
-      'Coin request approved by the AI Zyntra team'
-    );
+    const description = 'Coin request approved by the AI Zyntra team';
+    if (existing?.type === 'coin_request') {
+      await this._coinsRepository.settleRequest(
+        id,
+        query.organizationId,
+        query.amount,
+        description
+      );
+    } else {
+      // Older Discord links never wrote a pending row
+      await this._coinsRepository.addTransactionOnce(
+        id,
+        query.organizationId,
+        query.amount,
+        'admin_grant',
+        description
+      );
+    }
 
     await this._notificationService.inAppNotification(
       query.organizationId,
@@ -293,8 +320,23 @@ export class CoinsService {
       );
     }
 
+    const requestId = makeId(20);
+    const transactionId = `request-${requestId}`;
+    const description = body.message?.trim()
+      ? body.message.trim()
+      : `Requested ${body.amount} Zyntra Coins`;
+
+    // Visible in history immediately; balance ignores coin_request until approve
+    await this._coinsRepository.addTransactionOnce(
+      transactionId,
+      org.id,
+      body.amount,
+      'coin_request',
+      description
+    );
+
     const balance = await this.getBalance(org.id);
-    const approveUrl = this.approvalUrl(org.id, user.id, body.amount);
+    const approveUrl = this.approvalUrl(requestId, org.id, user.id, body.amount);
     const response = await fetch(process.env.ZYNTRA_COINS_DISCORD_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -325,6 +367,7 @@ export class CoinsService {
     });
 
     if (!response.ok) {
+      await this._coinsRepository.removeTransaction(org.id, transactionId);
       await ioRedis.del(`coinsRequest:${org.id}`);
       Logger.error(
         `Coin request webhook failed with ${response.status}: ${await response.text()}`
