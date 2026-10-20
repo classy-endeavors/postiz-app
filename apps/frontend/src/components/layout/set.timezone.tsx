@@ -17,6 +17,22 @@ export const getTimezone = () => {
   return localStorage.getItem('timezone') || dayjs.tz.guess();
 };
 
+/** Short label for the active timezone (e.g. "ET", "EST", "GMT+5:30"). */
+export const getTimezoneAbbreviation = () => {
+  const tz = getTimezone();
+  try {
+    const part = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      timeZoneName: 'short',
+    })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'timeZoneName');
+    return part?.value || tz;
+  } catch {
+    return tz;
+  }
+};
+
 export const newDayjs = (config?: ConfigType) => {
   return dayjs(config);
 };

@@ -3,6 +3,7 @@ import {
   KeyboardEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -13,26 +14,52 @@ import { useClickOutside } from '@mantine/hooks';
 import { Button } from '@gitroom/react/form/button';
 import { isUSCitizen } from './isuscitizen.utils';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
+import {
+  getTimezoneAbbreviation,
+  newDayjs,
+} from '@gitroom/frontend/components/layout/set.timezone';
 import {
   CalendarIcon,
   DropdownArrowIcon,
 } from '@gitroom/frontend/components/ui/icons';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const HOURS_24 = Array.from({ length: 24 }, (_, i) => i);
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+const clampToFuture = (value: dayjs.Dayjs) => {
+  const now = newDayjs().second(0).millisecond(0);
+  if (value.isBefore(now)) {
+    return now.add(1, 'minute');
+  }
+  return value.second(0).millisecond(0);
+};
 
 const TimePartSelect: FC<{
   value: number;
   options: number[];
   label: string;
+  disabledOptions?: number[];
+  formatValue?: (value: number) => string;
   onChange: (value: number) => void;
-}> = ({ value, options, label, onChange }) => {
+}> = ({
+  value,
+  options,
+  label,
+  disabledOptions = [],
+  formatValue = (v) => String(v).padStart(2, '0'),
+  onChange,
+}) => {
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const typed = useRef('');
   const typedTimer = useRef<number | undefined>(undefined);
   const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
+  const disabledSet = useMemo(() => new Set(disabledOptions), [disabledOptions]);
+  const enabledOptions = useMemo(
+    () => options.filter((option) => !disabledSet.has(option)),
+    [options, disabledSet]
+  );
   const max = options[options.length - 1];
 
   useEffect(() => {
@@ -52,11 +79,15 @@ const TimePartSelect: FC<{
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
+      if (!enabledOptions.length) {
+        return;
+      }
       const direction = event.key === 'ArrowDown' ? 1 : -1;
-      const currentIndex = options.indexOf(value);
+      const currentIndex = Math.max(0, enabledOptions.indexOf(value));
       const nextIndex =
-        (currentIndex + direction + options.length) % options.length;
-      onChange(options[nextIndex]);
+        (currentIndex + direction + enabledOptions.length) %
+        enabledOptions.length;
+      onChange(enabledOptions[nextIndex]);
       setOpen(true);
       return;
     }
@@ -88,17 +119,19 @@ const TimePartSelect: FC<{
     if (parsed > max) {
       typed.current = event.key;
       const single = Number(event.key);
-      if (single <= max) {
+      if (single <= max && !disabledSet.has(single)) {
         onChange(single);
       }
       return;
     }
 
-    onChange(parsed);
-    setOpen(true);
-    if (nextTyped.length === 2 || parsed * 10 > max) {
-      typed.current = '';
-      setOpen(false);
+    if (!disabledSet.has(parsed) && options.includes(parsed)) {
+      onChange(parsed);
+      setOpen(true);
+      if (nextTyped.length === 2 || parsed * 10 > max) {
+        typed.current = '';
+        setOpen(false);
+      }
     }
   };
 
@@ -112,7 +145,7 @@ const TimePartSelect: FC<{
         onKeyDown={onKeyDown}
         className="w-full h-[40px] px-[10px] bg-newBgColorInner border border-newTextColor/10 text-textColor rounded-[8px] outline-none cursor-pointer flex items-center justify-between gap-[6px] text-[14px] font-[600]"
       >
-        <span>{String(value).padStart(2, '0')}</span>
+        <span>{formatValue(value)}</span>
         <DropdownArrowIcon
           size={16}
           rotated={open}
@@ -126,23 +159,30 @@ const TimePartSelect: FC<{
         >
           {options.map((option) => {
             const selected = option === value;
+            const disabled = disabledSet.has(option);
             return (
               <button
                 key={option}
                 type="button"
                 data-selected={selected}
+                disabled={disabled}
                 onClick={() => {
+                  if (disabled) {
+                    return;
+                  }
                   onChange(option);
                   setOpen(false);
                 }}
                 className={clsx(
-                  'w-full h-[32px] px-[12px] text-start text-[13px] font-[600] cursor-pointer',
-                  selected
-                    ? 'bg-[#FF5227] text-white'
-                    : 'text-textColor hover:bg-newBgColor'
+                  'w-full h-[32px] px-[12px] text-start text-[13px] font-[600]',
+                  disabled
+                    ? 'opacity-30 cursor-not-allowed text-textColor'
+                    : selected
+                    ? 'bg-[#FF5227] text-white cursor-pointer'
+                    : 'text-textColor hover:bg-newBgColor cursor-pointer'
                 )}
               >
-                {String(option).padStart(2, '0')}
+                {formatValue(option)}
               </button>
             );
           })}
@@ -159,6 +199,40 @@ export const DatePicker: FC<{
   const { date, onChange } = props;
   const [open, setOpen] = useState(false);
   const t = useT();
+  const use12Hour = isUSCitizen();
+  const timezoneLabel = getTimezoneAbbreviation();
+  const todayKey = newDayjs().format('YYYY-MM-DD');
+  const nowHour = newDayjs().hour();
+  const nowMinute = newDayjs().minute();
+  const isToday = date.format('YYYY-MM-DD') === todayKey;
+  const minDate = newDayjs().startOf('day').toDate();
+
+  const hour12 = date.hour() % 12 || 12;
+  const isAm = date.hour() < 12;
+
+  const disabledHours24 = useMemo(() => {
+    if (!isToday) {
+      return [];
+    }
+    return HOURS_24.filter((hour) => hour < nowHour);
+  }, [isToday, nowHour]);
+
+  const disabledHours12 = useMemo(() => {
+    if (!isToday) {
+      return [];
+    }
+    return HOURS_12.filter((displayHour) => {
+      const as24 = (displayHour % 12) + (isAm ? 0 : 12);
+      return as24 < nowHour;
+    });
+  }, [isToday, isAm, nowHour]);
+
+  const disabledMinutes = useMemo(() => {
+    if (!isToday || date.hour() !== nowHour) {
+      return [];
+    }
+    return MINUTES.filter((minute) => minute < nowMinute);
+  }, [isToday, date, nowHour, nowMinute]);
 
   const changeShow = useCallback(() => {
     setOpen((prev) => !prev);
@@ -170,11 +244,12 @@ export const DatePicker: FC<{
 
   const changeDate = useCallback(
     (day: Date) => {
-      onChange(
+      const next = clampToFuture(
         newDayjs(
           newDayjs(day).format('YYYY-MM-DD') + ' ' + date.format('HH:mm:ss')
         )
       );
+      onChange(next);
     },
     [date, onChange]
   );
@@ -183,10 +258,30 @@ export const DatePicker: FC<{
     (part: 'hour' | 'minute', value: number) => {
       const next =
         part === 'hour' ? date.hour(value) : date.minute(value);
-      onChange(next.second(0));
+      onChange(clampToFuture(next));
     },
     [date, onChange]
   );
+
+  const changeHour12 = useCallback(
+    (displayHour: number) => {
+      const hour24 = (displayHour % 12) + (isAm ? 0 : 12);
+      onChange(clampToFuture(date.hour(hour24)));
+    },
+    [date, isAm, onChange]
+  );
+
+  const changeMeridiem = useCallback(
+    (nextIsAm: boolean) => {
+      const hour24 = (hour12 % 12) + (nextIsAm ? 0 : 12);
+      onChange(clampToFuture(date.hour(hour24)));
+    },
+    [date, hour12, onChange]
+  );
+
+  const displayFormat = use12Hour
+    ? 'MM/DD/YYYY hh:mm A'
+    : 'DD/MM/YYYY HH:mm';
 
   return (
     <div
@@ -200,10 +295,11 @@ export const DatePicker: FC<{
         <div>
           <CalendarIcon />
         </div>
-        <div>
-          {date.format(
-            isUSCitizen() ? 'MM/DD/YYYY hh:mm A' : 'DD/MM/YYYY HH:mm'
-          )}
+        <div className="whitespace-nowrap">
+          {date.format(displayFormat)}{' '}
+          <span className="text-newTextColor/60 font-[500]">
+            {timezoneLabel}
+          </span>
         </div>
       </div>
       {open && (
@@ -214,7 +310,14 @@ export const DatePicker: FC<{
           <Calendar
             onChange={changeDate}
             value={date.toDate()}
+            minDate={minDate}
+            excludeDate={(day) =>
+              newDayjs(day).isBefore(newDayjs().startOf('day'))
+            }
             dayClassName={(day, modifiers) => {
+              if (modifiers.disabled) {
+                return '!text-gray opacity-40 pointer-events-none';
+              }
               if (modifiers.weekend) {
                 return '!text-customColor28';
               }
@@ -233,23 +336,79 @@ export const DatePicker: FC<{
             }}
           />
           <div className="flex flex-col gap-[8px] pt-[12px]">
-            <div className="text-textColor text-[14px] font-[600]">
-              {t('pick_time', 'Pick time')}
+            <div className="flex items-center justify-between gap-[8px]">
+              <div className="text-textColor text-[14px] font-[600]">
+                {t('pick_time', 'Pick time')}
+              </div>
+              <div className="text-[12px] text-newTextColor/60 font-[500]">
+                {timezoneLabel}
+              </div>
             </div>
             <div className="flex gap-[8px] items-center">
-              <TimePartSelect
-                value={date.hour()}
-                options={HOURS}
-                label={t('hours', 'Hours')}
-                onChange={(value) => changeTimePart('hour', value)}
-              />
-              <span className="text-textColor font-[600]">:</span>
-              <TimePartSelect
-                value={date.minute()}
-                options={MINUTES}
-                label={t('minutes', 'Minutes')}
-                onChange={(value) => changeTimePart('minute', value)}
-              />
+              {use12Hour ? (
+                <>
+                  <TimePartSelect
+                    value={hour12}
+                    options={HOURS_12}
+                    disabledOptions={disabledHours12}
+                    label={t('hours', 'Hours')}
+                    formatValue={(v) => String(v)}
+                    onChange={changeHour12}
+                  />
+                  <span className="text-textColor font-[600]">:</span>
+                  <TimePartSelect
+                    value={date.minute()}
+                    options={MINUTES}
+                    disabledOptions={disabledMinutes}
+                    label={t('minutes', 'Minutes')}
+                    onChange={(value) => changeTimePart('minute', value)}
+                  />
+                  <div className="flex h-[40px] rounded-[8px] border border-newTextColor/10 overflow-hidden shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => changeMeridiem(true)}
+                      className={clsx(
+                        'px-[10px] text-[13px] font-[600]',
+                        isAm
+                          ? 'bg-[#FF5227] text-white'
+                          : 'bg-newBgColorInner text-textColor'
+                      )}
+                    >
+                      AM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeMeridiem(false)}
+                      className={clsx(
+                        'px-[10px] text-[13px] font-[600]',
+                        !isAm
+                          ? 'bg-[#FF5227] text-white'
+                          : 'bg-newBgColorInner text-textColor'
+                      )}
+                    >
+                      PM
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <TimePartSelect
+                    value={date.hour()}
+                    options={HOURS_24}
+                    disabledOptions={disabledHours24}
+                    label={t('hours', 'Hours')}
+                    onChange={(value) => changeTimePart('hour', value)}
+                  />
+                  <span className="text-textColor font-[600]">:</span>
+                  <TimePartSelect
+                    value={date.minute()}
+                    options={MINUTES}
+                    disabledOptions={disabledMinutes}
+                    label={t('minutes', 'Minutes')}
+                    onChange={(value) => changeTimePart('minute', value)}
+                  />
+                </>
+              )}
             </div>
           </div>
           <Button className="mt-[12px]" onClick={changeShow}>

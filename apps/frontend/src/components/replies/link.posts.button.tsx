@@ -20,7 +20,7 @@ export const LinkPostsButton = ({
   const [query, setQuery] = useState('');
   const seeded = useRef(false);
   const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
-  const posts = data || [];
+  const posts = Array.isArray(data) ? data : [];
 
   useEffect(() => {
     if (seeded.current || !posts.length || !currentIds.length) {

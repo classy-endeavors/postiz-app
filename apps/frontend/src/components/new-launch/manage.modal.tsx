@@ -207,6 +207,18 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
       setPostNowOpen(false);
       let republish = false;
+
+      if (type === 'schedule' && date.isBefore(dayjs())) {
+        toaster.show(
+          t(
+            'cannot_schedule_in_the_past',
+            'Choose a future date and time to schedule this post.'
+          ),
+          'warning'
+        );
+        return;
+      }
+
       const postState = existingData?.posts?.[0]?.state;
       const needsPublishConfirm =
         (type === 'now' || type === 'schedule') &&

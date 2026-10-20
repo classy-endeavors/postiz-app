@@ -13,7 +13,7 @@ export const CommentsPage = () => {
   const toaster = useToaster();
   const { data, isLoading, mutate } = useReplyPosts();
   const [query, setQuery] = useState('');
-  const posts = data || [];
+  const posts = Array.isArray(data) ? data : [];
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) {
