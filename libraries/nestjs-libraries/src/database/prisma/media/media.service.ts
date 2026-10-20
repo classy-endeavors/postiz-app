@@ -547,8 +547,20 @@ export class MediaService {
     );
   }
 
-  async getMedia(org: string, page: number, search?: string) {
-    const result = await this._mediaRepository.getMedia(org, page, search);
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    type?: 'image' | 'video',
+    sort?: 'newest' | 'oldest' | 'name'
+  ) {
+    const result = await this._mediaRepository.getMedia(
+      org,
+      page,
+      search,
+      type,
+      sort
+    );
     return {
       ...result,
       results: await Promise.all(
