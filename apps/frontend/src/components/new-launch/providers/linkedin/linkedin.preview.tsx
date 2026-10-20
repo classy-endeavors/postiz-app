@@ -1,8 +1,7 @@
 import { useIntegration } from '@gitroom/frontend/components/launches/helpers/use.integration';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
-import { textSlicer } from '@gitroom/helpers/utils/count.length';
+import { formatPreviewHtml } from '@gitroom/helpers/utils/strip.html.validation';
 import { FC } from 'react';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
 
@@ -251,38 +250,15 @@ export const LinkedinPreview: FC<{
   const current = useLaunchStore((state) => state.current);
   const mediaDir = useMediaDirectory();
 
-  const renderContent = topValue.map((p) => {
-    const newContent = stripHtmlValidation(
-      'normal',
-      p.content.replace(
-        /<span.*?data-mention-id="([.\s\S]*?)"[.\s\S]*?>([.\s\S]*?)<\/span>/gi,
-        (match, match1, match2) => {
-          return `[[[${match2}]]]`;
-        }
-      ),
-      true
-    );
-
-    const { start, end } = textSlicer(
+  const renderContent = topValue.map((p) => ({
+    text: formatPreviewHtml(
+      p.content,
       integration?.identifier || '',
       props.maximumCharacters || 10000,
-      newContent
-    );
-
-    const finalValue =
-      newContent
-        .slice(start, end)
-        .replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-          return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-        }) +
-      `<mark class="bg-red-500" data-tooltip-id="tooltip" data-tooltip-content="This text will be cropped">` +
-      newContent.slice(end).replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-        return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-      }) +
-      `</mark>`;
-
-    return { text: finalValue, images: p.image };
-  });
+      '#ae8afc'
+    ),
+    images: p.image,
+  }));
   return (
     <div className="py-[15px] flex flex-col px-[15px] w-full gap-[20px] bg-bgLinkedin rounded-[12px]">
       <div className="flex gap-[8px]">
@@ -318,7 +294,8 @@ export const LinkedinPreview: FC<{
         </div>
       </div>
       <div
-        className="text-[14px] font-[400] whitespace-pre-line"
+        dir="auto"
+        className="text-[14px] font-[400] whitespace-pre-wrap break-all"
         dangerouslySetInnerHTML={{
           __html: renderContent?.[0]?.text,
         }}
@@ -452,7 +429,8 @@ export const LinkedinPreview: FC<{
                     </div>
                   </div>
                   <div
-                    className="whitespace-pre-line text-[14px] font-[400]"
+                    dir="auto"
+                    className="whitespace-pre-wrap break-all text-[14px] font-[400]"
                     dangerouslySetInnerHTML={{
                       __html: value.text,
                     }}

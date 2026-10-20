@@ -16,7 +16,7 @@ const bareDomain = new RegExp(
   `(?<![\\w@./-])(?:[a-zA-Z0-9-]+\\.)+(?:${bareDomainTlds})\\b(?:\\/[-a-zA-Z0-9()@:%_+.~#?&/=]*)?`
 );
 
-const urlRegex = () =>
+export const urlRegex = () =>
   new RegExp(`(?:${schemeUrl.source})|(?:${bareDomain.source})`, 'gmi');
 
 export function hasLinks(text?: string | null): boolean {

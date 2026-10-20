@@ -1,5 +1,7 @@
 import striptags from 'striptags';
 import { parseFragment, serialize } from 'parse5';
+import { textSlicer } from '@gitroom/helpers/utils/count.length';
+import { urlRegex } from '@gitroom/helpers/utils/strip.links';
 
 const bold = {
   a: '𝗮',
@@ -302,4 +304,85 @@ export const convertToAscii = (value: string): string => {
 
       return match.replace(p1, replacer.join(''));
     });
+};
+
+const escapePreviewHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const wrapPreviewAccent = (value: string, accentColor: string) =>
+  `<span class="font-bold font-[arial]" style="color: ${accentColor}">${value}</span>`;
+
+// Highlight URLs, #hashtags and @handles in already-escaped plain text
+const highlightPreviewEntities = (escaped: string, accentColor: string) => {
+  const withUrls = escaped.replace(urlRegex(), (url) =>
+    wrapPreviewAccent(url, accentColor)
+  );
+
+  return withUrls
+    .split(/(<span\b[^>]*>[\s\S]*?<\/span>)/g)
+    .map((chunk) => {
+      if (chunk.startsWith('<span')) {
+        return chunk;
+      }
+      return chunk
+        .replace(
+          /(^|[^\w&])(#[\p{L}\p{N}_]+)/gu,
+          (_, before, tag) =>
+            `${before}${wrapPreviewAccent(tag, accentColor)}`
+        )
+        .replace(
+          /(^|[^\w&])(@[\p{L}\p{N}_.]+)/gu,
+          (_, before, handle) =>
+            `${before}${wrapPreviewAccent(handle, accentColor)}`
+        );
+    })
+    .join('');
+};
+
+const stylePreviewPlainText = (text: string, accentColor: string) =>
+  text
+    .split(/(\[\[\[[\s\S]*?]]])/g)
+    .map((part) => {
+      if (part.startsWith('[[[') && part.endsWith(']]]')) {
+        return wrapPreviewAccent(
+          escapePreviewHtml(part.slice(3, -3)),
+          accentColor
+        );
+      }
+      return highlightPreviewEntities(escapePreviewHtml(part), accentColor);
+    })
+    .join('');
+
+// Shared by composer previews: mentions, URLs, hashtags, @handles + crop mark
+export const formatPreviewHtml = (
+  content: string,
+  identifier: string,
+  maximumCharacters = 10000,
+  accentColor = '#FCA18A'
+) => {
+  const newContent = stripHtmlValidation(
+    'normal',
+    content.replace(
+      /<span.*?data-mention-id="([.\s\S]*?)"[.\s\S]*?>([.\s\S]*?)<\/span>/gi,
+      (_match, _id, label) => `[[[${label}]]]`
+    ),
+    true
+  );
+
+  const { start, end } = textSlicer(
+    identifier || '',
+    maximumCharacters,
+    newContent
+  );
+
+  return (
+    stylePreviewPlainText(newContent.slice(start, end), accentColor) +
+    `<mark class="bg-red-500" data-tooltip-id="tooltip" data-tooltip-content="This text will be cropped">` +
+    stylePreviewPlainText(newContent.slice(end), accentColor) +
+    `</mark>`
+  );
 };

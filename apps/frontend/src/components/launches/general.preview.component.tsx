@@ -3,10 +3,9 @@ import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import clsx from 'clsx';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
 import { FC } from 'react';
-import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import { formatPreviewHtml } from '@gitroom/helpers/utils/strip.html.validation';
 
 export const GeneralPreviewComponent: FC<{
   maximumCharacters?: number;
@@ -15,38 +14,14 @@ export const GeneralPreviewComponent: FC<{
   const current = useLaunchStore((state) => state.current);
   const mediaDir = useMediaDirectory();
 
-  const renderContent = topValue.map((p) => {
-    const newContent = stripHtmlValidation(
-      'normal',
-      p.content.replace(
-        /<span.*?data-mention-id="([.\s\S]*?)"[.\s\S]*?>([.\s\S]*?)<\/span>/gi,
-        (match, match1, match2) => {
-          return `[[[${match2}]]]`;
-        }
-      ),
-      true
-    );
-
-    const { start, end } = textSlicer(
+  const renderContent = topValue.map((p) => ({
+    text: formatPreviewHtml(
+      p.content,
       integration?.identifier || '',
-      props.maximumCharacters || 10000,
-      newContent
-    );
-
-    const finalValue =
-      newContent
-        .slice(start, end)
-        .replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-          return `<span class="font-bold font-[arial]" style="color: #FCA18A">${match1}</span>`;
-        }) +
-      `<mark class="bg-red-500" data-tooltip-id="tooltip" data-tooltip-content="This text will be cropped">` +
-      newContent.slice(end).replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-        return `<span class="font-bold font-[arial]" style="color: #FCA18A">${match1}</span>`;
-      }) +
-      `</mark>`;
-
-    return { text: finalValue, images: p.image };
-  });
+      props.maximumCharacters || 10000
+    ),
+    images: p.image,
+  }));
 
   return (
     <div className={clsx('w-full p-[15px]')}>
@@ -86,7 +61,7 @@ export const GeneralPreviewComponent: FC<{
                 <div className="flex-1 w-[2px] h-[calc(100%-10px)] bg-customColor25 absolute top-[10px] z-[1]" />
               )}
             </div>
-            <div className="flex-1 flex flex-col gap-[4px]">
+            <div className="flex-1 flex flex-col gap-[4px] min-w-0">
               <div className="flex">
                 <div className="h-[22px] text-[15px] font-[700]">
                   {current === 'global' ? 'Global Edit' : integration?.name}
@@ -111,7 +86,11 @@ export const GeneralPreviewComponent: FC<{
                 </div>
               </div>
               <div
-                className={clsx('text-wrap whitespace-pre', 'preview')}
+                dir="auto"
+                className={clsx(
+                  'whitespace-pre-wrap break-all overflow-hidden',
+                  'preview'
+                )}
                 dangerouslySetInnerHTML={{
                   __html: value.text,
                 }}

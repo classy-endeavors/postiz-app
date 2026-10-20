@@ -1,8 +1,6 @@
 import { useIntegration } from '@gitroom/frontend/components/launches/helpers/use.integration';
-import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
-import { textSlicer } from '@gitroom/helpers/utils/count.length';
+import { formatPreviewHtml } from '@gitroom/helpers/utils/strip.html.validation';
 import { FC } from 'react';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
 import { SliderComponent } from '@gitroom/frontend/components/third-parties/slider.component';
@@ -11,42 +9,19 @@ export const InstagramPreview: FC<{
   maximumCharacters?: number;
 }> = (props) => {
   const { value: topValue, integration } = useIntegration();
-  const current = useLaunchStore((state) => state.current);
   const mediaDir = useMediaDirectory();
 
-  const renderContent = topValue.map((p) => {
-    const newContent = stripHtmlValidation(
-      'normal',
-      p.content.replace(
-        /<span.*?data-mention-id="([.\s\S]*?)"[.\s\S]*?>([.\s\S]*?)<\/span>/gi,
-        (match, match1, match2) => {
-          return `[[[${match2}]]]`;
-        }
-      ),
-      true
-    );
-
-    const { start, end } = textSlicer(
-      integration?.identifier || '',
-      props.maximumCharacters || 10000,
-      newContent
-    );
-
-    const finalValue =
+  const renderContent = topValue.map((p) => ({
+    text:
       `<strong class="text-[15px] font-[600]">${integration?.name} </strong>` +
-      newContent
-        .slice(start, end)
-        .replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-          return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-        }) +
-      `<mark class="bg-red-500" data-tooltip-id="tooltip" data-tooltip-content="This text will be cropped">` +
-      newContent.slice(end).replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-        return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-      }) +
-      `</mark>`;
-
-    return { text: finalValue, images: p.image };
-  });
+      formatPreviewHtml(
+        p.content,
+        integration?.identifier || '',
+        props.maximumCharacters || 10000,
+        '#ae8afc'
+      ),
+    images: p.image,
+  }));
   return (
     <div className="py-[10px] flex flex-col px-[15px] w-full gap-[10px] bg-bgInstagram rounded-[12px]">
       <div className="flex gap-[10px] items-center">
@@ -82,7 +57,8 @@ export const InstagramPreview: FC<{
         />
       )}
       <div
-        className="text-[14px] font-[400] whitespace-pre-line"
+        dir="auto"
+        className="text-[14px] font-[400] whitespace-pre-wrap break-all"
         dangerouslySetInnerHTML={{
           __html: renderContent?.[0]?.text,
         }}
@@ -181,7 +157,8 @@ export const InstagramPreview: FC<{
                 <div className="flex flex-col gap-[6px] flex-1">
                   <div className="flex gap-[4px] py-[8px]">
                     <div
-                      className="whitespace-pre-line text-[14px] font-[400] flex-1"
+                      dir="auto"
+                      className="whitespace-pre-wrap break-all text-[14px] font-[400] flex-1 min-w-0"
                       dangerouslySetInnerHTML={{
                         __html: value.text,
                       }}
