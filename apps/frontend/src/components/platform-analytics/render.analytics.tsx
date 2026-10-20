@@ -3,7 +3,6 @@ import { Integration } from '@prisma/client';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
-import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import clsx from 'clsx';
 
@@ -259,8 +258,37 @@ export const RenderAnalytics: FC<{
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-[48px]">
-        <LoadingComponent />
+      <div className="flex flex-col gap-[16px] animate-pulse">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner px-[16px] py-[14px] flex flex-col gap-[10px]"
+            >
+              <div className="h-[11px] w-[72px] rounded-[4px] bg-newSep" />
+              <div className="h-[28px] w-[88px] rounded-[6px] bg-newSep" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner overflow-hidden"
+            >
+              <div className="flex items-center gap-[10px] px-[16px] pt-[14px] pb-[8px]">
+                <div className="w-[8px] h-[8px] rounded-full bg-newSep" />
+                <div className="h-[11px] w-[90px] rounded-[4px] bg-newSep" />
+              </div>
+              <div className="px-[12px] py-[8px]">
+                <div className="h-[120px] rounded-[8px] bg-newSep" />
+              </div>
+              <div className="px-[16px] pb-[14px]">
+                <div className="h-[30px] w-[100px] rounded-[6px] bg-newSep" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

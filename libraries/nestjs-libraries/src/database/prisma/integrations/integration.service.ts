@@ -125,6 +125,48 @@ export class IntegrationService {
     return this._integrationRepository.checkPreviousConnections(org, id);
   }
 
+  getIntegrationByInternalId(org: string, internalId: string) {
+    return this._integrationRepository.getIntegrationByInternalId(
+      org,
+      internalId
+    );
+  }
+
+  // Used when Add Channel completes OAuth for an account the org already has.
+  // Matches by internal id (and hyphen-stripped form — TikTok strips hyphens)
+  // or by the same provider + profile/username so a format drift cannot create
+  // a silent second channel.
+  async findAlreadyConnectedChannel(
+    org: string,
+    provider: string,
+    internalId: string,
+    username?: string
+  ) {
+    const normalizedId = String(internalId || '').replace(/-/g, '');
+    const list = await this._integrationRepository.getIntegrationsList(org);
+    const profile = (username || '').trim().toLowerCase();
+
+    return (
+      list.find((channel) => {
+        if (channel.providerIdentifier !== provider) {
+          return false;
+        }
+        const channelId = String(channel.internalId || '').replace(/-/g, '');
+        if (normalizedId && channelId && channelId === normalizedId) {
+          return true;
+        }
+        if (!profile) {
+          return false;
+        }
+        const channelProfile = String(channel.profile || '')
+          .trim()
+          .toLowerCase();
+        const channelName = String(channel.name || '').trim().toLowerCase();
+        return channelProfile === profile || channelName === profile;
+      }) || null
+    );
+  }
+
   async createOrUpdateIntegration(
     additionalSettings:
       | {

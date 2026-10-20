@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useCallback, useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import dayjs from 'dayjs';
 import clsx from 'clsx';
@@ -26,6 +26,18 @@ const prompts = ['message', 'image'];
 const defaults: Record<string, string> = {
   message: 'AI agent message',
   image: 'AI image generation',
+};
+
+// Older AI-message rows stored agent channel/media blocks in description
+const readableCoinDetail = (description: string | null | undefined) => {
+  if (!description) {
+    return description;
+  }
+  return description
+    .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
+    .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 interface CoinsHistoryResponse {
@@ -93,6 +105,7 @@ const CoinsHistory: FC = () => {
     reply: t('coins_activity_reply', 'Comment reply'),
     monthly_grant: t('coins_activity_monthly', 'Monthly coins'),
     admin_grant: t('coins_activity_added', 'Added by team'),
+    coin_request: t('coins_activity_pending', 'Pending request'),
   };
   const filters: { value: HistoryFilter; label: string }[] = [
     { value: 'all', label: t('all', 'All') },
@@ -115,7 +128,7 @@ const CoinsHistory: FC = () => {
           <div className="text-[13px] text-textItemBlur mt-[2px]">
             {t(
               'coins_history_description',
-              'Every coin you spent or received, newest first.'
+              'Every coin you spent, received, or requested, newest first.'
             )}
           </div>
         </div>
@@ -157,64 +170,96 @@ const CoinsHistory: FC = () => {
               <div className="text-end">{t('balance', 'Balance')}</div>
             )}
           </div>
+          {!data &&
+            Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={index}
+                className={clsx(
+                  'grid gap-[12px] px-[12px] py-[10px] items-center border-b border-newTableBorder animate-pulse',
+                  columns
+                )}
+              >
+                <div className="flex flex-col gap-[6px]">
+                  <div className="h-[14px] w-[90px] rounded-[4px] bg-newSep" />
+                  <div className="h-[10px] w-[60px] rounded-[4px] bg-newSep" />
+                </div>
+                <div className="h-[22px] w-[90px] rounded-full bg-newSep" />
+                <div className="h-[14px] w-full max-w-[220px] rounded-[4px] bg-newSep" />
+                <div className="h-[14px] w-[40px] rounded-[4px] bg-newSep ms-auto" />
+                {showBalance && (
+                  <div className="h-[14px] w-[40px] rounded-[4px] bg-newSep ms-auto" />
+                )}
+              </div>
+            ))}
           {!!data && !data.transactions.length && (
             <div className="px-[12px] py-[20px] text-[14px] text-textItemBlur">
               {t('no_coin_activity', 'No coin activity yet.')}
             </div>
           )}
-          {data?.transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className={clsx(
-                'grid gap-[12px] px-[12px] py-[10px] text-[14px] items-center border-b border-newTableBorder last:border-b-0',
-                columns
-              )}
-            >
-              <div>
-                <div>{dayjs(transaction.createdAt).format('MMM D, YYYY')}</div>
-                <div className="text-[12px] text-textItemBlur">
-                  {dayjs(transaction.createdAt).format('h:mm A')}
-                </div>
-              </div>
-              <div>
-                <span
-                  className={clsx(
-                    'inline-flex px-[10px] py-[2px] rounded-full text-[12px] font-[600]',
-                    transaction.amount > 0
-                      ? 'bg-statusPublishedBg text-statusPublished'
-                      : 'bg-boxHover text-newTextColor'
-                  )}
-                >
-                  {activities[transaction.type] || transaction.type}
-                </span>
-              </div>
+          {data?.transactions.map((transaction) => {
+            const pending = transaction.type === 'coin_request';
+            const detail =
+              readableCoinDetail(transaction.description) ||
+              transaction.description;
+            const showQuotedPrompt =
+              prompts.includes(transaction.type) &&
+              !!detail &&
+              detail !== defaults[transaction.type];
+            return (
               <div
-                className="text-textItemBlur break-words line-clamp-2"
-                title={transaction.description || undefined}
-              >
-                {prompts.includes(transaction.type) &&
-                transaction.description !== defaults[transaction.type]
-                  ? `“${transaction.description}”`
-                  : transaction.description}
-              </div>
-              <div
+                key={transaction.id}
                 className={clsx(
-                  'text-end font-[700]',
-                  transaction.amount > 0
-                    ? 'text-statusPublished'
-                    : 'text-newTextColor'
+                  'grid gap-[12px] px-[12px] py-[10px] text-[14px] items-center border-b border-newTableBorder last:border-b-0',
+                  columns
                 )}
               >
-                {transaction.amount > 0 ? '+' : ''}
-                {transaction.amount}
-              </div>
-              {showBalance && (
-                <div className="text-end text-textItemBlur">
-                  {transaction.balanceAfter}
+                <div>
+                  <div>{dayjs(transaction.createdAt).format('MMM D, YYYY')}</div>
+                  <div className="text-[12px] text-textItemBlur">
+                    {dayjs(transaction.createdAt).format('h:mm A')}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                <div>
+                  <span
+                    className={clsx(
+                      'inline-flex px-[10px] py-[2px] rounded-full text-[12px] font-[600]',
+                      pending
+                        ? 'bg-newButter text-black'
+                        : transaction.amount > 0
+                        ? 'bg-statusPublishedBg text-statusPublished'
+                        : 'bg-boxHover text-newTextColor'
+                    )}
+                  >
+                    {activities[transaction.type] || transaction.type}
+                  </span>
+                </div>
+                <div
+                  className="text-textItemBlur break-words line-clamp-2"
+                  title={detail || undefined}
+                >
+                  {showQuotedPrompt ? `“${detail}”` : detail}
+                </div>
+                <div
+                  className={clsx(
+                    'text-end font-[700]',
+                    pending
+                      ? 'text-textItemBlur'
+                      : transaction.amount > 0
+                      ? 'text-statusPublished'
+                      : 'text-newTextColor'
+                  )}
+                >
+                  {transaction.amount > 0 ? '+' : ''}
+                  {transaction.amount}
+                </div>
+                {showBalance && (
+                  <div className="text-end text-textItemBlur">
+                    {pending ? '—' : transaction.balanceAfter}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -225,6 +270,8 @@ const CoinsHistory: FC = () => {
   );
 };
 
+const MIN_COIN_REQUEST = 1;
+
 const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
   const fetch = useFetch();
   const toaster = useToaster();
@@ -232,12 +279,47 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
   const [amount, setAmount] = useState('100');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  const parsedAmount = Number(amount);
+  const amountValid =
+    amount.trim() !== '' &&
+    Number.isInteger(parsedAmount) &&
+    parsedAmount >= MIN_COIN_REQUEST;
+
+  const amountError = useMemo(() => {
+    if (!touched) {
+      return undefined;
+    }
+    if (amount.trim() === '') {
+      return t(
+        'coins_request_amount_required',
+        'Enter an amount (minimum {{min}} coin)',
+        { min: MIN_COIN_REQUEST }
+      );
+    }
+    if (!Number.isInteger(parsedAmount) || parsedAmount < MIN_COIN_REQUEST) {
+      return t(
+        'coins_request_amount_invalid',
+        'Enter a whole number of at least {{min}} coin',
+        { min: MIN_COIN_REQUEST }
+      );
+    }
+    return undefined;
+  }, [amount, parsedAmount, t, touched]);
 
   const send = useCallback(async () => {
+    setTouched(true);
+    if (!amountValid) {
+      return;
+    }
     setLoading(true);
     const response = await fetch('/coins/request', {
       method: 'POST',
-      body: JSON.stringify({ amount: +amount, message: message || undefined }),
+      body: JSON.stringify({
+        amount: parsedAmount,
+        message: message || undefined,
+      }),
     });
     setLoading(false);
     if (!response.ok) {
@@ -257,9 +339,11 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
       ),
       'success'
     );
+    setAmount('');
     setMessage('');
+    setTouched(false);
     onSent();
-  }, [amount, message]);
+  }, [amountValid, parsedAmount, message, fetch, toaster, t, onSent]);
 
   return (
     <div className="bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
@@ -270,7 +354,8 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         <div className="text-[13px] text-textItemBlur mt-[2px]">
           {t(
             'request_more_coins_description',
-            'Tell us how many coins you need and we will add them to your account.'
+            'Tell us how many coins you need (minimum {{min}}) and we will add them to your account.',
+            { min: MIN_COIN_REQUEST }
           )}
         </div>
       </div>
@@ -279,7 +364,10 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
           <button
             key={preset}
             type="button"
-            onClick={() => setAmount(preset)}
+            onClick={() => {
+              setAmount(preset);
+              setTouched(false);
+            }}
             className={clsx(
               'px-[14px] h-[34px] rounded-[8px] border-[1.5px] text-[13px] font-[600] transition-colors',
               amount === preset
@@ -295,11 +383,16 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         label={t('amount', 'Amount')}
         name="amount"
         type="number"
-        min={1}
+        min={MIN_COIN_REQUEST}
+        step={1}
         disableForm={true}
-        removeError={true}
+        error={amountError}
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onBlur={() => setTouched(true)}
+        onChange={(e) => {
+          setAmount(e.target.value);
+          setTouched(true);
+        }}
       />
       <Input
         label={t('message_optional', 'Message (optional)')}
@@ -318,7 +411,7 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         <Button
           className="rounded-[8px]"
           loading={loading}
-          disabled={!(+amount >= 1)}
+          disabled={!amountValid}
           onClick={send}
         >
           {t('send_request', 'Send request')}
@@ -397,6 +490,59 @@ const GrantCoins: FC<{ onGranted: () => void }> = ({ onGranted }) => {
   );
 };
 
+const CoinsSkeleton: FC = () => (
+  <div className="bg-newBgColorInner p-[20px] mobile:p-[12px] flex flex-1 flex-col gap-[20px] mobile:gap-[12px] overflow-y-auto animate-pulse">
+    <div className="flex gap-[20px] flex-wrap">
+      <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] bg-btnPrimary/80 border-[1.5px] border-newOutline p-[24px] mobile:p-[18px] flex flex-col gap-[12px]">
+        <div className="h-[14px] w-[140px] rounded-[4px] bg-white/25" />
+        <div className="h-[48px] w-[120px] rounded-[8px] bg-white/25" />
+        <div className="h-[14px] w-[80%] max-w-[320px] rounded-[4px] bg-white/20" />
+        <div className="flex gap-[10px] mt-[4px] flex-wrap">
+          <div className="h-[32px] w-[140px] rounded-[10px] bg-white/15" />
+          <div className="h-[32px] w-[140px] rounded-[10px] bg-white/15" />
+        </div>
+      </div>
+      <div className="flex-1 min-w-[280px] mobile:min-w-0 mobile:basis-full rounded-[16px] border border-newTableBorder p-[24px] mobile:p-[18px] flex flex-col gap-[14px]">
+        <div className="h-[16px] w-[160px] rounded-[4px] bg-newSep" />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="flex items-center justify-between">
+            <div className="h-[14px] w-[140px] rounded-[4px] bg-newSep" />
+            <div className="h-[24px] w-[70px] rounded-full bg-newSep" />
+          </div>
+        ))}
+        <div className="h-[12px] w-full rounded-[4px] bg-newSep mt-[4px]" />
+      </div>
+    </div>
+    <div className="flex gap-[20px] flex-wrap items-start">
+      <div className="flex-[2] min-w-[320px] mobile:min-w-0 mobile:basis-full border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+        <div className="h-[16px] w-[120px] rounded-[4px] bg-newSep" />
+        <div className="h-[13px] w-[240px] rounded-[4px] bg-newSep" />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-[44px] w-full rounded-[8px] bg-newSep"
+          />
+        ))}
+      </div>
+      <div className="flex-1 min-w-[300px] mobile:min-w-0 mobile:basis-full border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+        <div className="h-[16px] w-[160px] rounded-[4px] bg-newSep" />
+        <div className="h-[13px] w-full rounded-[4px] bg-newSep" />
+        <div className="flex gap-[8px] flex-wrap">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-[34px] w-[64px] rounded-[8px] bg-newSep"
+            />
+          ))}
+        </div>
+        <div className="h-[44px] w-full rounded-[8px] bg-newSep" />
+        <div className="h-[80px] w-full rounded-[8px] bg-newSep" />
+        <div className="h-[40px] w-[120px] rounded-[8px] bg-newSep" />
+      </div>
+    </div>
+  </div>
+);
+
 export const CoinsComponent: FC = () => {
   const t = useT();
   const user = useUser();
@@ -411,7 +557,7 @@ export const CoinsComponent: FC = () => {
   }, []);
 
   if (!data) {
-    return null;
+    return <CoinsSkeleton />;
   }
 
   const costs = [
@@ -439,7 +585,7 @@ export const CoinsComponent: FC = () => {
           <div className="text-[14px] text-white/85">
             {t(
               'coins_monthly_description',
-              'You get {{monthly}} free coins every month. Unused coins carry over.',
+              'You get {{monthly}} free coins when you sign up, then {{monthly}} every month. Unused coins carry over.',
               { monthly: data.monthly }
             )}
           </div>
@@ -476,11 +622,19 @@ export const CoinsComponent: FC = () => {
               </div>
             </div>
           ))}
-          <div className="text-[12px] text-textItemBlur">
-            {t(
-              'coins_post_note',
-              'A post is charged once per channel when it is scheduled. Editing it later is free, drafts are free.'
-            )}
+          <div className="text-[12px] text-textItemBlur flex flex-col gap-[4px]">
+            <div>
+              {t(
+                'coins_post_note',
+                'A post is charged once per channel when it is scheduled. Editing it later is free, drafts are free.'
+              )}
+            </div>
+            <div>
+              {t(
+                'coins_post_non_refundable',
+                'Scheduling fees are non-refundable — deleting a post before it publishes does not return coins.'
+              )}
+            </div>
           </div>
         </div>
       </div>

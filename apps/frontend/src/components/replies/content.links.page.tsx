@@ -14,7 +14,7 @@ export const ContentLinksPage = () => {
   const fetch = useFetch();
   const toaster = useToaster();
   const { data, isLoading, mutate } = useReplyPosts();
-  const posts = data || [];
+  const posts = Array.isArray(data) ? data : [];
   const [selected, setSelected] = useState('');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);

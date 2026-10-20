@@ -16,7 +16,6 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import useCookie from 'react-use-cookie';
 import { useMediaQuery } from '@mantine/hooks';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
-import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
 const allowedIntegrations = [
   'tiktok',
@@ -104,9 +103,36 @@ export const PlatformAnalytics = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[15px] transition-all items-center justify-center">
-        <LoadingComponent />
-      </div>
+      <>
+        <div className="bg-newBgColorInner p-[20px] flex flex-col gap-[15px] w-[260px] mobile:w-full mobile:p-[12px] animate-pulse">
+          <div className="h-[20px] w-[100px] rounded-[4px] bg-newSep" />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="flex gap-[12px] items-center">
+              <div className="w-[36px] h-[36px] rounded-[8px] bg-newSep" />
+              <div className="h-[14px] flex-1 rounded-[4px] bg-newSep" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[14px] animate-pulse">
+          <div className="h-[40px] w-[200px] rounded-[8px] bg-newSep" />
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-[14px] border-[1.5px] border-newSep h-[78px] bg-newSep/40"
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-[14px] border-[1.5px] border-newSep h-[220px] bg-newSep/40"
+              />
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 

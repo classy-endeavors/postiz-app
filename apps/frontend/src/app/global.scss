@@ -616,6 +616,11 @@ html[dir='rtl'] [dir='ltr'] {
 
 .ProseMirror {
   font-family: inherit;
+  max-width: 100%;
+  // Long unbroken strings (e.g. xxxxx…) must wrap or the composer column
+  // grows sideways and covers the channel picker.
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ProseMirror:focus {
@@ -646,6 +651,8 @@ html[dir='rtl'] [dir='ltr'] {
 
 .ProseMirror * {
   white-space: break-spaces;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ProseMirror h2,

@@ -22,7 +22,11 @@ import EventEmitter from 'events';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import clsx from 'clsx';
 import { VideoFrame } from '@gitroom/react/helpers/video.frame';
-import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
+import {
+  acceptAttributeForMediaTypes,
+  describeAllowedMediaTypes,
+  useUppyUploader,
+} from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
@@ -209,18 +213,27 @@ export const useMediaPreview = () => {
   const mediaDirectory = useMediaDirectory();
   return useCallback(
     (path: string) => {
+      // Keep media inside the viewport after modal chrome + backdrop padding
+      // (p-32, title/gap, top inset, pb-50) so nothing scrolls.
+      const mediaClassName =
+        'max-w-[min(100%,calc(100vw-88px))] max-h-[calc(100dvh-220px)] object-contain rounded-[8px]';
       modals.openModal({
         title: '',
         top: 10,
         children: (
-          <div className="w-full h-full p-[50px] flex justify-center items-center">
+          <div className="flex max-h-[calc(100dvh-220px)] max-w-[min(100%,calc(100vw-88px))] justify-center items-center overflow-hidden">
             {hasExtension(path, 'mp4') ? (
-              <div className="w-full h-[75vh] [&_video]:object-contain">
-                <VideoFrame autoplay={true} url={mediaDirectory.set(path)} />
-              </div>
+              <video
+                className={mediaClassName}
+                src={mediaDirectory.set(path)}
+                controls
+                autoPlay
+                playsInline
+                preload="metadata"
+              />
             ) : (
               <img
-                className="max-w-full max-h-[75vh] object-contain rounded-[8px]"
+                className={mediaClassName}
                 src={mediaDirectory.set(path)}
                 alt="media"
               />
@@ -241,23 +254,38 @@ export const MediaBox: FC<{
 }> = ({ type, standalone, setMedia, onCreatePost }) => {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
+  const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>(
+    type || 'all'
+  );
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [debouncedSearch] = useDebounce(search, 300);
   const fetch = useFetch();
   const modals = useModals();
   const toaster = useToaster();
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, mediaType, sort]);
   const loadMedia = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(page + 1) });
+    const params = new URLSearchParams({ page: String(page + 1), sort });
     if (debouncedSearch.trim()) {
       params.set('search', debouncedSearch.trim());
     }
+    if (mediaType !== 'all') {
+      params.set('type', mediaType);
+    }
     return (await fetch(`/media?${params.toString()}`)).json();
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, mediaType, sort]);
+  // Signed S3 URLs change on every refetch; revalidate-on-focus blanked video
+  // thumbnails (metadata reload) whenever the tab regained focus. Refresh on a
+  // long interval so signatures stay valid without focus thrash.
   const { data, mutate, isLoading } = useSWR(
-    `get-media-${page}-${debouncedSearch}`,
-    loadMedia
+    `get-media-${page}-${debouncedSearch}-${mediaType}-${sort}`,
+    loadMedia,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      refreshInterval: 2 * 60 * 60 * 1000,
+    }
   );
   const [selected, setSelected] = useState([]);
   const t = useT();
@@ -265,13 +293,22 @@ export const MediaBox: FC<{
   const mediaDirectory = useMediaDirectory();
   const [loading, setLoading] = useState(false);
 
+  const allowedFileTypes =
+    type == 'image'
+      ? 'image/*'
+      : type == 'video'
+      ? 'video/mp4'
+      : 'image/*,video/mp4';
+  const allowedTypesLabel = describeAllowedMediaTypes(allowedFileTypes);
+  const allowedTypesHint =
+    type == 'image'
+      ? t('upload_hint_images', 'PNG, JPG, GIF, WebP')
+      : type == 'video'
+      ? t('upload_hint_mp4_only', 'MP4 only')
+      : t('upload_hint_images_or_mp4', 'Images or MP4');
+
   const uppy = useUppyUploader({
-    allowedFileTypes:
-      type == 'image'
-        ? 'image/*'
-        : type == 'video'
-        ? 'video/mp4'
-        : 'image/*,video/mp4',
+    allowedFileTypes,
     onUploadSuccess: async (arr) => {
       await mutate();
       if (standalone) {
@@ -389,14 +426,31 @@ export const MediaBox: FC<{
   const deleteImage = useCallback(
     (media: Media) => async (e: any) => {
       e.stopPropagation();
-      if (
-        !(await deleteDialog(
-          t(
-            'are_you_sure_you_want_to_delete_the_image',
-            'Are you sure you want to delete the image?'
-          )
-        ))
-      ) {
+      const fileName = media.originalName || media.name;
+      const isVideo = hasExtension(media.path, 'mp4');
+      const description = fileName
+        ? isVideo
+          ? t(
+              'are_you_sure_you_want_to_delete_the_video_named',
+              'Are you sure you want to delete the video "{{name}}"?',
+              { name: fileName }
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_the_image_named',
+              'Are you sure you want to delete the image "{{name}}"?',
+              { name: fileName }
+            )
+        : isVideo
+          ? t(
+              'are_you_sure_you_want_to_delete_the_video',
+              'Are you sure you want to delete this video?'
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_the_image',
+              'Are you sure you want to delete this image?'
+            );
+
+      if (!(await deleteDialog(description))) {
         return;
       }
       await fetch(`/media/${media.id}`, {
@@ -404,15 +458,26 @@ export const MediaBox: FC<{
       });
       mutate();
     },
-    [mutate]
+    [fetch, mutate, t]
   );
 
   const btn = useMemo(() => {
     return (
       <button
+        type="button"
         disabled={loading}
+        title={t(
+          'upload_allowed_types_title',
+          'Upload {{allowed}}',
+          { allowed: allowedTypesLabel }
+        )}
+        aria-label={t(
+          'upload_allowed_types_title',
+          'Upload {{allowed}}',
+          { allowed: allowedTypesLabel }
+        )}
         onClick={() => uploaderRef?.current?.click()}
-        className="relative cursor-pointer bg-btnSimple changeColor flex gap-[8px] h-[44px] px-[18px] justify-center items-center rounded-[8px]"
+        className="relative cursor-pointer bg-btnSimple changeColor flex gap-[8px] min-h-[44px] px-[18px] py-[6px] justify-center items-center rounded-[8px]"
       >
         {loading ? (
           <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%]">
@@ -421,10 +486,20 @@ export const MediaBox: FC<{
         ) : (
           <PlusIcon size={14} />
         )}
-        <div className={loading ? 'invisible' : undefined}>{t('upload', 'Upload')}</div>
+        <div
+          className={clsx(
+            'flex flex-col items-start leading-tight',
+            loading && 'invisible'
+          )}
+        >
+          <div className="text-[14px] font-[600]">{t('upload', 'Upload')}</div>
+          <div className="text-[11px] font-[500] text-newTextColor/70">
+            {allowedTypesHint}
+          </div>
+        </div>
       </button>
     );
-  }, [t, loading]);
+  }, [t, loading, allowedTypesHint, allowedTypesLabel]);
 
   return (
     <DropFiles disabled={loading} className="flex flex-col flex-1" onDrop={dragAndDrop}>
@@ -447,14 +522,41 @@ export const MediaBox: FC<{
               className="w-full h-[44px] px-[14px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#FF5227]"
             />
           </div>
+          {!type && (
+            <select
+              value={mediaType}
+              onChange={(e) =>
+                setMediaType(e.target.value as 'all' | 'image' | 'video')
+              }
+              aria-label={t('filter_media_type', 'Filter by type')}
+              className="h-[44px] px-[12px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#FF5227]"
+            >
+              <option value="all">{t('all_media', 'All')}</option>
+              <option value="image">{t('images_only', 'Images')}</option>
+              <option value="video">{t('videos_only', 'Videos')}</option>
+            </select>
+          )}
+          <select
+            value={sort}
+            onChange={(e) =>
+              setSort(e.target.value as 'newest' | 'oldest' | 'name')
+            }
+            aria-label={t('sort_media', 'Sort media')}
+            className="h-[44px] px-[12px] rounded-[8px] bg-newBgColorInner border border-newColColor text-[14px] outline-none focus:border-[#FF5227]"
+          >
+            <option value="newest">{t('sort_newest', 'Newest')}</option>
+            <option value="oldest">{t('sort_oldest', 'Oldest')}</option>
+            <option value="name">{t('sort_name', 'Name')}</option>
+          </select>
           <input
             type="file"
             ref={uploaderRef}
             onChange={addToUpload}
             className="hidden"
             multiple={true}
+            accept={acceptAttributeForMediaTypes(allowedFileTypes)}
           />
-          <div className="flex gap-[8px]">
+          <div className="flex gap-[8px] items-center">
             {btn}
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
@@ -487,6 +589,7 @@ export const MediaBox: FC<{
               hidePauseResumeButton={true}
               hideCancelButton={true}
               hideProgressAfterFinish={true}
+              disableThumbnailGenerator={true}
             />
           </div>
           <div className="w-full h-[46px] uppyChange" />
@@ -523,13 +626,14 @@ export const MediaBox: FC<{
                 </div>
                 <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
                   {t(
-                    'select_or_upload_pictures_max_1gb',
-                    'Select or upload pictures (maximum 1 GB per upload).'
+                    'select_or_upload_media_max_1gb',
+                    'Select or upload {{allowed}} (maximum 1 GB per upload).',
+                    { allowed: allowedTypesLabel }
                   )}{' '}
                   {'\n'}
                   {t(
-                    'you_can_drag_drop_pictures',
-                    'You can also drag & drop pictures.'
+                    'you_can_drag_drop_media',
+                    'You can also drag & drop files here.'
                   )}
                 </div>
                 <div className="forceChange flex gap-[8px]">
@@ -554,6 +658,7 @@ export const MediaBox: FC<{
             )}
             {data?.results
               ?.filter((f: any) => {
+                // Modal can still force image/video via prop; page filter is server-side.
                 if (type === 'video') {
                   return hasExtension(f.path, 'mp4');
                 } else if (type === 'image') {
@@ -564,14 +669,14 @@ export const MediaBox: FC<{
               .map((media: any) => (
                 <div
                   className={clsx(
-                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max aspect-square',
+                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max',
                     !standalone && 'cursor-pointer'
                   )}
                   key={media.id}
                 >
                   <div
                     className={clsx(
-                      'w-full h-full rounded-[6px] border-[4px] relative',
+                      'w-full rounded-[6px] border-[4px] relative',
                       !!selected.find((p) => p.id === media.id)
                         ? 'border-[#FF5227]'
                         : 'border-transparent'
@@ -583,25 +688,16 @@ export const MediaBox: FC<{
                         {selected.findIndex((z: any) => z.id === media.id) + 1}
                       </div>
                     ) : (
-                      <DeleteCircleIcon
-                        className="cursor-pointer hidden z-[100] group-hover:block absolute -top-[5px] -end-[5px]"
-                        onClick={deleteImage(media)}
-                      />
-                    )}
-                    <div className="absolute bottom-[10px] end-[10px] z-[100] mobile:hidden">{media.originalName}</div>
-                    {!!onCreatePost && (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCreatePost(media);
-                        }}
-                        className="absolute bottom-[10px] start-[10px] z-[100] flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                        type="button"
+                        aria-label={t('delete_media', 'Delete media')}
+                        className="cursor-pointer hidden group-hover:flex z-[100] absolute top-[6px] end-[6px] items-center justify-center w-[28px] h-[28px] rounded-full bg-black/60 hover:bg-black/80 shadow-md"
+                        onClick={deleteImage(media)}
                       >
-                        <PlusIcon size={10} />
-                        {t('create_new_post', 'Create Post')}
+                        <DeleteCircleIcon size={22} />
                       </button>
                     )}
-                    <div className="w-full h-full rounded-[6px] overflow-hidden relative">
+                    <div className="w-full aspect-square rounded-[6px] overflow-hidden relative bg-newSep">
                       <div className="absolute z-[20] left-[50%] top-[50%] -translate-x-[50%] -translate-y-[50%]">
                         <div
                           onClick={maximize(media)}
@@ -622,16 +718,54 @@ export const MediaBox: FC<{
                         </div>
                       </div>
                       {hasExtension(media.path, 'mp4') ? (
-                        <VideoFrame url={mediaDirectory.set(media.path)} />
+                        media.thumbnail ? (
+                          <img
+                            width="100%"
+                            height="100%"
+                            className="w-full h-full object-cover"
+                            src={mediaDirectory.set(media.thumbnail)}
+                            alt={media.originalName || media.name || 'media'}
+                            onError={(e) => {
+                              e.currentTarget.style.visibility = 'hidden';
+                            }}
+                          />
+                        ) : (
+                          <VideoFrame
+                            url={mediaDirectory.set(media.path)}
+                          />
+                        )
                       ) : (
                         <img
                           width="100%"
                           height="100%"
                           className="w-full h-full object-cover"
                           src={mediaDirectory.set(media.path)}
-                          alt="media"
+                          alt={media.originalName || media.name || 'media'}
+                          onError={(e) => {
+                            e.currentTarget.style.visibility = 'hidden';
+                          }}
                         />
                       )}
+                      {!!onCreatePost && (
+                        <div className="absolute inset-x-0 bottom-0 z-[100] p-[10px]">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCreatePost(media);
+                            }}
+                            className="shrink-0 flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                          >
+                            <PlusIcon size={10} />
+                            {t('create_new_post', 'Create Post')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className="mt-[6px] h-[18px] px-[2px] truncate text-[12px] text-newTextColor mobile:hidden"
+                      title={media.originalName || media.name || undefined}
+                    >
+                      {media.originalName || media.name}
                     </div>
                   </div>
                 </div>

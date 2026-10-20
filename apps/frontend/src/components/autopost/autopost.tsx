@@ -74,7 +74,7 @@ export const Autopost: FC = () => {
       <div className="text-customColor18 mt-[4px]">
         {t(
           'autopost_can_automatically_posts_your_rss_new_items_to_social_media',
-          'Autopost can automatically posts your RSS new items to social media'
+          'Autopost can automatically post new RSS items to social media'
         )}
       </div>
       <div className="my-[16px] mt-[16px] bg-sixth border-fifth items-center border rounded-[4px] p-[24px] flex gap-[24px]">

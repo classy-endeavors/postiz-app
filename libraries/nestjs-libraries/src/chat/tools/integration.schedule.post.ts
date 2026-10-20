@@ -266,7 +266,7 @@ If validation fails, the result contains output.errors describing what to fix; t
               if (validation.tooLong) {
                 return {
                   output: {
-                    errors: `${validation.name}: The maximum characters is ${validation.maximumCharacters}, please fix it, and try integrationSchedulePostTool again.`,
+                    errors: `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit, please fix it, and try integrationSchedulePostTool again.`,
                   },
                 };
               }

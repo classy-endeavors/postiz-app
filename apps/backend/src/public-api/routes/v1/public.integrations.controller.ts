@@ -183,14 +183,17 @@ export class PublicIntegrationsController {
 
     if (body.type !== 'draft') {
       for (const item of validation) {
+        if (item.tooLong) {
+          fail(
+            item,
+            `Caption exceeds the ${item.maximumCharacters} character limit`
+          );
+        }
         if (!item.valid) {
           fail(item, item.settingsError || 'Please fix your settings');
         }
         if (item.errors !== true) {
           fail(item, item.errors as string);
-        }
-        if (item.tooLong) {
-          fail(item, 'post is too long, please fix it');
         }
       }
     }

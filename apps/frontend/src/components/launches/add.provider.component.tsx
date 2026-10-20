@@ -16,6 +16,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
+import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 const resolver = classValidatorResolver(ApiKeyDto);
 
 export const useAddProvider = (
@@ -341,6 +342,7 @@ export const AddProviderComponent: FC<{
   const router = useRouter();
   const fetch = useFetch();
   const modal = useModals();
+  const t = useT();
   const providerNotices = useMemo(
     () =>
       social
@@ -364,18 +366,26 @@ export const AddProviderComponent: FC<{
       ) =>
       async () => {
         const onboardingParam = onboarding ? 'onboarding=true' : '';
-        const gotoIntegration = async (externalUrl?: string) => {
+        const gotoIntegration = async (
+          externalUrl?: string,
+          refreshInternalId?: string
+        ) => {
           // Mobile WebView: reuse the existing `externalUrl` param to
           // carry the `postiz://` deep link so the backend redirects
           // back to the iOS/Android app after OAuth completes, instead
           // of the default web redirect.
           const params = [
-            `externalUrl=${encodeURIComponent(externalUrl)}`,
+            externalUrl
+              ? `externalUrl=${encodeURIComponent(externalUrl)}`
+              : '',
             onboardingParam,
             isMobile
               ? `redirectUrl=${encodeURIComponent('postiz://integrations')}`
               : redirectUrl
               ? `redirectUrl=${encodeURIComponent(redirectUrl)}`
+              : '',
+            refreshInternalId
+              ? `refresh=${encodeURIComponent(refreshInternalId)}`
               : '',
           ]
             .filter(Boolean)
@@ -462,12 +472,38 @@ export const AddProviderComponent: FC<{
           });
           return;
         }
+
+        // Warn before OAuth when this provider already has a channel —
+        // same message users previously only saw after the full connect flow.
+        if (!invite) {
+          const list = await (await fetch('/integrations/list')).json();
+          const existing = (list?.integrations || []).filter(
+            (integration: { identifier: string; disabled?: boolean }) =>
+              integration.identifier === identifier && !integration.disabled
+          );
+          if (existing.length) {
+            const label = existing
+              .map((integration: { name: string }) => `"${integration.name}"`)
+              .join(', ');
+            const message = `This account is already connected as ${label}. Open that channel and choose Reconnect if you need to refresh it.`;
+            const shouldReconnect = await deleteDialog(
+              message,
+              t('reconnect', 'Reconnect'),
+              t('already_connected', 'Already connected'),
+              t('cancel', 'Cancel')
+            );
+            if (!shouldReconnect) {
+              return;
+            }
+            await gotoIntegration(undefined, existing[0].internalId);
+            return;
+          }
+        }
+
         await gotoIntegration();
       },
-    [onboarding]
+    [onboarding, fetch, isMobile, redirectUrl, modal, toaster, router, t]
   );
-
-  const t = useT();
 
   return (
     <div className="w-full min-w-0 flex flex-col gap-[20px] rounded-[4px] relative">

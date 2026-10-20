@@ -694,16 +694,16 @@ export const Editor: FC<{
   }
 
   return (
-    <div className="flex flex-col gap-[20px] flex-1">
+    <div className="flex flex-col gap-[20px] flex-1 min-w-0">
       <div
         className={clsx(
-          'relative flex-1 px-[12px] pt-[12px] pb-[12px] flex flex-col',
+          'relative flex-1 min-w-0 px-[12px] pt-[12px] pb-[12px] flex flex-col',
           num > 0 && '!rounded-bs-[0]'
         )}
         id={id}
       >
-        <div className="relative cursor-text flex flex-1 flex-col">
-          <div {...getRootProps()} className="flex flex-1 flex-col">
+        <div className="relative cursor-text flex flex-1 flex-col min-w-0">
+          <div {...getRootProps()} className="flex flex-1 flex-col min-w-0">
             <div
               className={clsx(
                 'absolute left-0 top-0 w-full h-full bg-black/70 z-[300] transition-all items-center justify-center flex text-white text-sm',
@@ -712,7 +712,7 @@ export const Editor: FC<{
             >
               {t('drop_files_here_to_upload', 'Drop your files here to upload')}
             </div>
-            <div className="px-[10px] pt-[10px] bg-newBgColorInner rounded-t-[6px] relative z-[99]">
+            <div className="px-[10px] pt-[10px] bg-newBgColorInner rounded-t-[6px] relative z-[99] min-w-0 max-w-full overflow-hidden">
               <OnlyEditor
                 value={props.value}
                 editorType={editorType}
@@ -742,6 +742,7 @@ export const Editor: FC<{
                   hidePauseResumeButton={true}
                   hideCancelButton={true}
                   hideProgressAfterFinish={true}
+                  disableThumbnailGenerator={true}
                 />
               </div>
             </div>
@@ -1032,6 +1033,12 @@ export const OnlyEditor = forwardRef<
     content: value || '',
     shouldRerenderOnTransaction: true,
     immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        dir: 'auto',
+        class: 'max-w-full min-w-0',
+      },
+    },
     // @ts-ignore
     onPaste: paste,
     onUpdate: (innerProps) => {
@@ -1043,5 +1050,10 @@ export const OnlyEditor = forwardRef<
     editor,
   }));
 
-  return <EditorContent editor={editor} />;
+  return (
+    <EditorContent
+      editor={editor}
+      className="max-w-full min-w-0 overflow-hidden"
+    />
+  );
 });

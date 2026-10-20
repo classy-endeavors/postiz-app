@@ -55,7 +55,7 @@ export class InstagramProvider
     settings: any
   ): Promise<string | true> {
     if (!firstPost?.length) {
-      return 'Should have at least one media';
+      return 'Instagram needs at least one image or video';
     }
     if (firstPost.length > 10) {
       return 'Instagram carousel only supports up to 10 media attachments';

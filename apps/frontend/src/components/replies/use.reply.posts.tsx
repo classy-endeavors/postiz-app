@@ -24,9 +24,14 @@ export interface ReplyPost {
 
 export const useReplyPosts = () => {
   const fetch = useFetch();
-  const load = useCallback(async () => {
-    return (await fetch('/replies/posts')).json();
-  }, []);
+  const load = useCallback(async (): Promise<ReplyPost[]> => {
+    const response = await fetch('/replies/posts');
+    if (!response.ok) {
+      return [];
+    }
+    const result = await response.json();
+    return Array.isArray(result) ? result : [];
+  }, [fetch]);
 
   return useSWR<ReplyPost[]>('reply-posts', load, {
     revalidateOnFocus: false,

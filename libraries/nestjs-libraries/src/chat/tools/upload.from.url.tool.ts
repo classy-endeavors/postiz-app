@@ -15,7 +15,8 @@ export class UploadFromUrlTool implements AgentToolInterface {
       id: 'uploadFromUrlTool',
       description: `Upload a remote image or video into the media library from a public URL.
 Use this before scheduling a post when the user provides an external media URL (not already hosted on our domain),
-so the attachment passes the upload-domain validation. Returns the hosted media { id, path } to use as an attachment, or { error } on failure.`,
+so the attachment passes the upload-domain validation. Returns the hosted media { id, path } to use as an attachment, or { error } on failure.
+Google Drive share/view links (drive.google.com/file/d/<id>/view?usp=sharing) are accepted — pass them as-is; do not convert them yourself.`,
       mcp: {
         annotations: {
           title: 'Upload Media From URL',
@@ -29,7 +30,9 @@ so the attachment passes the upload-domain validation. Returns the hosted media 
         url: z
           .string()
           .url()
-          .describe('The public URL of the image or video to upload'),
+          .describe(
+            'The public URL of the image or video to upload. Google Drive share/view links are supported.'
+          ),
       }),
       // Mastra validates a tool's return against this schema, so it must also
       // allow the graceful { error } shape. Fields are optional (rather than

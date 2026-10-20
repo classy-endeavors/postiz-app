@@ -190,9 +190,11 @@ export class MediaController {
   getMedia(
     @GetOrgFromRequest() org: Organization,
     @Query('page') page: number,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @Query('type') type?: 'image' | 'video',
+    @Query('sort') sort?: 'newest' | 'oldest' | 'name'
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(org.id, page, search, type, sort);
   }
 
   @Get('/video-options')

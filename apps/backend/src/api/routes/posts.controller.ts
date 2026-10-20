@@ -237,14 +237,23 @@ export class PostsController {
 
     if (rawBody?.type !== 'draft') {
       for (const item of validation) {
+        // Character limits first so a stricter channel is never masked by a
+        // media/settings error from another selected channel.
+        if (item.tooLong) {
+          fail(
+            item,
+            `Caption exceeds the ${item.maximumCharacters} character limit`
+          );
+        }
         if (!item.valid) {
-          fail(item, item.settingsError || 'Please fix your settings');
+          const settingsMessages =
+            item.settingsErrors?.length > 0
+              ? item.settingsErrors.join('; ')
+              : item.settingsError || 'Please fix your settings';
+          fail(item, settingsMessages);
         }
         if (item.errors !== true) {
           fail(item, item.errors as string);
-        }
-        if (item.tooLong) {
-          fail(item, 'post is too long, please fix it');
         }
       }
     }

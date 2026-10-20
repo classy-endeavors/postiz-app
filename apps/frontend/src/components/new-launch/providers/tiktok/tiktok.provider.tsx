@@ -349,7 +349,7 @@ const TikTokSettings: FC<{
           <div className="text-[14px] my-[10px] text-balance">
             {t(
               'turn_on_to_disclose_video_promotes',
-              'Turn on to disclose that this video promotes goods or services in\n          exchange for something of value. You video could promote yourself, a\n          third party, or both.'
+              'Turn on to disclose that this video promotes goods or services in exchange for something of value. Your video could promote yourself, a third party, or both.'
             )}
           </div>
         </div>

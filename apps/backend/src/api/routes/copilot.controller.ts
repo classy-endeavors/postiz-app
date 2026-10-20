@@ -63,6 +63,45 @@ const userMessageText = (req: Request): string => {
     : '';
 };
 
+const assistantTextFromMessage = (message: any): string => {
+  const content = message?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (content?.content && typeof content.content === 'string') {
+    return content.content;
+  }
+  const parts = content?.parts || content;
+  if (Array.isArray(parts)) {
+    return parts
+      .filter((part: any) => part?.type === 'text' || typeof part?.text === 'string')
+      .map((part: any) => part.text || '')
+      .join(' ');
+  }
+  return '';
+};
+
+// Refund only when the model falsely claims it cannot write text at all.
+// Real limits (edit/merge media, missing channel for schedule) stay charged.
+const isTextCapabilityRefusal = (text: string) => {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized || normalized.length > 600) {
+    return false;
+  }
+  return /(?:cannot|can't|unable to|do not have|don't have).{0,40}(?:generate text|generate or modify text|functionality to do that|write (?:text|a caption|the caption)|modify text)/i.test(
+    normalized
+  );
+};
+
+const threadIdFromRequest = (req: Request): string | undefined => {
+  return (
+    req?.body?.body?.threadId ||
+    req?.body?.threadId ||
+    req?.body?.body?.thread_id ||
+    req?.headers?.['x-thread-id']
+  );
+};
+
 @Controller('/copilot')
 export class CopilotController {
   constructor(
@@ -158,7 +197,29 @@ export class CopilotController {
       organization.id,
       'message',
       async () => copilotRuntimeHandler(req, res),
-      userMessageText(req)
+      userMessageText(req),
+      async () => {
+        const threadId = threadIdFromRequest(req);
+        if (!threadId || threadId === 'new') {
+          return false;
+        }
+        try {
+          const memory = await mastra.getAgent('postiz').getMemory();
+          const recalled = await memory.recall({
+            resourceId: organization.id,
+            threadId,
+          });
+          const lastAssistant = [...(recalled?.messages || [])]
+            .reverse()
+            .find((message: any) => message?.role === 'assistant');
+          return isTextCapabilityRefusal(
+            assistantTextFromMessage(lastAssistant)
+          );
+        } catch (err) {
+          Logger.warn(`Could not check agent reply for coin refund: ${err}`);
+          return false;
+        }
+      }
     );
   }
 

@@ -525,7 +525,29 @@ const PublicApiContent = () => {
   }, [decision, fetch, mutate, toaster]);
 
   if (!user || !user.publicApi) {
-    return null;
+    return (
+      <div className="flex flex-col gap-[40px] animate-pulse">
+        <div className="flex flex-col gap-[8px]">
+          <div className="h-[14px] w-full max-w-[480px] rounded-[4px] bg-newSep" />
+          <div className="h-[14px] w-full max-w-[520px] rounded-[4px] bg-newSep" />
+          <div className="h-[14px] w-full max-w-[440px] rounded-[4px] bg-newSep" />
+        </div>
+        <div className="rounded-[12px] border border-newBorder overflow-hidden">
+          <div className="px-[20px] py-[14px] border-b border-newBorder flex flex-col gap-[6px]">
+            <div className="h-[15px] w-[80px] rounded-[4px] bg-newSep" />
+            <div className="h-[13px] w-[220px] rounded-[4px] bg-newSep" />
+          </div>
+          <div className="p-[20px] flex flex-col gap-[16px]">
+            <div className="h-[44px] w-full rounded-[8px] bg-newSep" />
+            <div className="flex gap-[8px]">
+              <div className="h-[36px] w-[90px] rounded-[8px] bg-newSep" />
+              <div className="h-[36px] w-[80px] rounded-[8px] bg-newSep" />
+              <div className="h-[36px] w-[90px] rounded-[8px] bg-newSep" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -678,7 +700,7 @@ const McpConnectContent = () => {
   return <McpSection user={user} mcpBase={mcpUrl || backendUrl} />;
 };
 
-const McpHero = ({ orgName }: { orgName?: string }) => {
+const McpHero = () => {
   const t = useT();
   const capabilities = [
     t('mcp_cap_schedule', 'Schedule and list posts'),
@@ -717,9 +739,6 @@ const McpHero = ({ orgName }: { orgName?: string }) => {
             <span className="text-[12px] font-[600] px-[10px] py-[3px] rounded-full bg-[#FF5227]/15 text-[#FF5227]">
               {t('model_context_protocol', 'Model Context Protocol')}
             </span>
-            {!!orgName && (
-              <span className="text-[13px] text-textItemBlur">{orgName}</span>
-            )}
           </div>
           <div className="text-[14px] text-textItemBlur max-w-[680px] leading-[1.6]">
             {t(
@@ -757,26 +776,11 @@ const McpHero = ({ orgName }: { orgName?: string }) => {
 
 export const PublicComponent = () => {
   const t = useT();
-  const fetch = useFetch();
-  const user = useUser();
   const [subTab, setSubTab] = useState<'mcp' | 'api' | 'developer'>('mcp');
-  const loadOrganizations = useCallback(async () => {
-    return await (await fetch('/user/organizations')).json();
-  }, []);
-  const { data: organizations } = useSWR('organizations', loadOrganizations, {
-    revalidateIfStale: false,
-    revalidateOnFocus: false,
-    refreshWhenOffline: false,
-    refreshWhenHidden: false,
-    revalidateOnReconnect: false,
-  });
-  const currentOrg = useMemo(() => {
-    return organizations?.find((org: any) => org?.id === user?.orgId);
-  }, [organizations, user?.orgId]);
 
   return (
     <div className="flex flex-col gap-[24px]">
-      <McpHero orgName={currentOrg?.name} />
+      <McpHero />
       <div className="self-start flex gap-[4px] p-[4px] rounded-[12px] border border-newBorder bg-newBgColorInner">
         {(['mcp', 'api', 'developer'] as const).map((tab) => (
           <button

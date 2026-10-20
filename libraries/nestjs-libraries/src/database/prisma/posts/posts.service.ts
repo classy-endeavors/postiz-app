@@ -364,8 +364,10 @@ export class PostsService {
     });
   }
 
-  getDayPosts(orgId: string, query: GetPostsDto) {
-    return this._postRepository.getDayPosts(orgId, query);
+  async getDayPosts(orgId: string, query: GetPostsDto) {
+    return this.withSignedIntegrationPictures(
+      await this._postRepository.getDayPosts(orgId, query)
+    );
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
@@ -975,7 +977,7 @@ export class PostsService {
 
         // Settings DTO validation — mirrors the client `form.trigger()`.
         let valid = true;
-        let settingsError = '';
+        let settingsErrors: string[] = [];
         if (provider?.dto) {
           const instance = plainToInstance(provider.dto, settings, {
             enableImplicitConversion: false,
@@ -983,9 +985,10 @@ export class PostsService {
           const validationErrors = await validate(instance as object, {
             skipMissingProperties: false,
           });
-          settingsError = this.firstValidationError(validationErrors);
+          settingsErrors = this.allValidationErrors(validationErrors);
           valid = validationErrors.length === 0;
         }
+        const settingsError = settingsErrors[0] || '';
 
         // Provider-specific media validation (the old client `checkValidity`).
         let errors: string | true = true;
@@ -1022,6 +1025,7 @@ export class PostsService {
           name: integration.name,
           valid,
           settingsError,
+          settingsErrors,
           errors,
           emptyContent,
           tooLong,
@@ -1031,20 +1035,25 @@ export class PostsService {
     );
   }
 
-  /** Returns the first class-validator message (incl. nested children), or ''. */
-  private firstValidationError(errors: any[]): string {
+  /** Returns every class-validator message (incl. nested children). */
+  private allValidationErrors(errors: any[]): string[] {
+    const messages: string[] = [];
     for (const e of errors || []) {
       if (e?.constraints) {
-        return Object.values(e.constraints as Record<string, string>)[0] || '';
+        messages.push(
+          ...Object.values(e.constraints as Record<string, string>)
+        );
       }
-      const child = e?.children?.length
-        ? this.firstValidationError(e.children)
-        : '';
-      if (child) {
-        return child;
+      if (e?.children?.length) {
+        messages.push(...this.allValidationErrors(e.children));
       }
     }
-    return '';
+    return [...new Set(messages.filter(Boolean))];
+  }
+
+  /** Returns the first class-validator message (incl. nested children), or ''. */
+  private firstValidationError(errors: any[]): string {
+    return this.allValidationErrors(errors)[0] || '';
   }
 
   // A schedule-type save targeting an already-PUBLISHED post republishes it to
@@ -1378,7 +1387,7 @@ export class PostsService {
 
       if (validation.tooLong) {
         throw new BadRequestException(
-          `${validation.name}: The maximum characters is ${validation.maximumCharacters}`
+          `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit`
         );
       }
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { FC, useCallback, useMemo, useState } from 'react';
+import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { Integrations } from '@gitroom/frontend/components/launches/calendar.context';
 import dayjs from 'dayjs';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -9,10 +9,8 @@ import { Button } from '@gitroom/react/form/button';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-// @ts-ignore
-import useKeypress from 'react-use-keypress';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
-import { sortBy } from 'lodash';
+import { isEqual, sortBy } from 'lodash';
 import { usePreventWindowUnload } from '@gitroom/react/helpers/use.prevent.window.unload';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
@@ -34,38 +32,37 @@ const minutes = [...Array(60).keys()].map((i) => ({
   value: i,
 }));
 
+const normalizedTimes = (slots: { time: number }[]) =>
+  sortBy(
+    slots.map((slot) => slot.time),
+    (value) => value
+  );
+
 export const TimeTable: FC<{
   integration: Integrations;
   mutate: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }> = (props) => {
   const t = useT();
   const {
     integration: { time },
     mutate,
+    onDirtyChange,
   } = props;
   const [currentTimes, setCurrentTimes] = useState([...time]);
   const [hour, setHour] = useState(0);
   const [minute, setMinute] = useState(0);
   const fetch = useFetch();
   const modal = useModals();
-  usePreventWindowUnload(true);
+  const dirty = !isEqual(
+    normalizedTimes(currentTimes),
+    normalizedTimes(time)
+  );
+  usePreventWindowUnload(dirty);
 
-  const askClose = useCallback(async () => {
-    if (
-      !(await deleteDialog(
-        t(
-          'are_you_sure_you_want_to_close_the_window',
-          'Are you sure you want to close the window?'
-        ),
-        t('yes_close', 'Yes, close')
-      ))
-    ) {
-      return;
-    }
-    modal.closeAll();
-  }, []);
-
-  useKeypress('Escape', askClose);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const removeSlot = useCallback(
     (index: number) => async () => {

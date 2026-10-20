@@ -38,6 +38,40 @@ export class CompressionWrapper<M = any, B = any> extends Compressor<any, any> {
   }
 }
 
+/** Human-readable upload formats for UI hints and toasts (not MIME lists). */
+export function describeAllowedMediaTypes(allowedFileTypes: string) {
+  const parts = allowedFileTypes.split(',').map((part) => part.trim());
+  const hasImages = parts.some(
+    (part) => part === 'image/*' || part.startsWith('image/')
+  );
+  const hasVideo = parts.some((part) => part.includes('video'));
+
+  if (hasImages && hasVideo) {
+    return 'images (PNG, JPG, GIF, WebP) and MP4 video';
+  }
+  if (hasImages) {
+    return 'images (PNG, JPG, GIF, WebP)';
+  }
+  if (hasVideo) {
+    return 'MP4 video';
+  }
+  return allowedFileTypes;
+}
+
+export function acceptAttributeForMediaTypes(allowedFileTypes: string) {
+  const parts = allowedFileTypes.split(',').map((part) => part.trim());
+  const accept: string[] = [];
+
+  if (parts.some((part) => part === 'image/*' || part.startsWith('image/'))) {
+    accept.push('image/png', 'image/jpeg', 'image/gif', 'image/webp');
+  }
+  if (parts.some((part) => part.includes('video'))) {
+    accept.push('video/mp4');
+  }
+
+  return accept.join(',') || allowedFileTypes;
+}
+
 export function useUppyUploader(props: {
   // @ts-ignore
   onUploadSuccess: (result: UploadResult) => void;
@@ -117,15 +151,16 @@ export function useUppyUploader(props: {
             });
 
             if (!isAllowed) {
-              const error = new Error(
-                `File type "${fileType}" is not allowed for file "${file.name}". Allowed types: ${allowedFileTypes}`
+              const allowedLabel = describeAllowedMediaTypes(allowedFileTypes);
+              const friendly = t(
+                'file_type_not_supported_friendly',
+                "This file type isn't supported. You can upload {{allowed}}.",
+                { allowed: allowedLabel }
               );
+              const error = new Error(friendly);
               uppy2.log(error.message, 'error');
-              uppy2.info(error.message, 'error', 5000);
-              toast.show(
-                `File type "${fileType}" is not allowed. Allowed types: ${allowedFileTypes}`,
-                'warning'
-              );
+              uppy2.info(friendly, 'error', 5000);
+              toast.show(friendly, 'warning');
               uppy2.removeFile(file.id);
               return reject(error);
             }

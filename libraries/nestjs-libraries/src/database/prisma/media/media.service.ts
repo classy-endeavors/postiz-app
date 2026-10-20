@@ -25,6 +25,9 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import {
   getMaxSize,
+  googleDriveConfirmDownload,
+  googleDriveFileId,
+  resolveRemoteUploadUrl,
   uploadStreamToStorage,
 } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import {
@@ -213,11 +216,75 @@ export class MediaService {
   // and a few upload parts are ever in memory, so a 1 GB video does not cost
   // 1 GB of heap
   async uploadFromUrl(org: string, url: string) {
-    let response: globalThis.Response;
+    const response = await this.fetchRemoteUpload(url);
+
+    // Cheap early exit when the server declares the size; Content-Length may
+    // be absent or wrong, so the stream cap below is what really enforces it.
+    // The type isn't known yet (sniffed below), so this uses the largest cap
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (declaredSize && declaredSize > getMaxSize('video/mp4')) {
+      await response.body!.cancel();
+      throw new BadRequestException('File is too large.');
+    }
+
+    const uploaded = await uploadStreamToStorage(
+      this.storage,
+      response.body!,
+      declaredSize
+    );
+    return this.saveFile(org, uploaded.originalname, uploaded.path);
+  }
+
+  // Fetches a remote media URL, rewriting Google Drive share/view links to the
+  // public direct-download endpoint so we get the file bytes (not the HTML
+  // viewer that would fail the type sniffer as "Unsupported file type").
+  private async fetchRemoteUpload(url: string): Promise<globalThis.Response> {
+    const resolved = resolveRemoteUploadUrl(url);
+    let response = await this.safeFetchRemote(resolved);
+
+    const contentType = (
+      response.headers.get('content-type') || ''
+    ).toLowerCase();
+    if (
+      contentType.includes('text/html') &&
+      googleDriveFileId(url || resolved)
+    ) {
+      const html = await response.text();
+      const retry = googleDriveConfirmDownload(resolved, html, response);
+      if (!retry) {
+        throw new BadRequestException(
+          'Could not download this Google Drive file. Make sure it is shared publicly ("Anyone with the link").'
+        );
+      }
+      response = await this.safeFetchRemote(retry.url, retry.headers);
+    }
+
+    if (!response.ok || !response.body) {
+      throw new BadRequestException('Failed to fetch URL');
+    }
+
+    const finalType = (
+      response.headers.get('content-type') || ''
+    ).toLowerCase();
+    if (finalType.includes('text/html')) {
+      throw new BadRequestException(
+        'Could not download this Google Drive file. Make sure it is shared publicly ("Anyone with the link").'
+      );
+    }
+
+    return response;
+  }
+
+  private async safeFetchRemote(
+    url: string,
+    headers?: Record<string, string>
+  ): Promise<globalThis.Response> {
     try {
-      response = await fetch(url, {
+      return await fetch(url, {
         // @ts-ignore — undici option, not in lib.dom fetch types
         dispatcher: ssrfSafeDispatcher,
+        redirect: 'follow',
+        ...(headers ? { headers } : {}),
       });
     } catch (err) {
       // Network-level failure (DNS, connection refused, SSRF block, etc.) —
@@ -225,25 +292,6 @@ export class MediaService {
       // reason reachable for callers that want to surface it
       throw new BadRequestException('Failed to fetch URL', { cause: err });
     }
-    if (!response.ok || !response.body) {
-      throw new BadRequestException('Failed to fetch URL');
-    }
-
-    // Cheap early exit when the server declares the size; Content-Length may
-    // be absent or wrong, so the stream cap below is what really enforces it.
-    // The type isn't known yet (sniffed below), so this uses the largest cap
-    const declaredSize = Number(response.headers.get('content-length'));
-    if (declaredSize && declaredSize > getMaxSize('video/mp4')) {
-      await response.body.cancel();
-      throw new BadRequestException('File is too large.');
-    }
-
-    const uploaded = await uploadStreamToStorage(
-      this.storage,
-      response.body,
-      declaredSize
-    );
-    return this.saveFile(org, uploaded.originalname, uploaded.path);
   }
 
   async saveFile(
@@ -547,8 +595,20 @@ export class MediaService {
     );
   }
 
-  async getMedia(org: string, page: number, search?: string) {
-    const result = await this._mediaRepository.getMedia(org, page, search);
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    type?: 'image' | 'video',
+    sort?: 'newest' | 'oldest' | 'name'
+  ) {
+    const result = await this._mediaRepository.getMedia(
+      org,
+      page,
+      search,
+      type,
+      sort
+    );
     return {
       ...result,
       results: await Promise.all(

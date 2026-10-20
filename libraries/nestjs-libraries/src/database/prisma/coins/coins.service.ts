@@ -12,17 +12,16 @@ import {
 } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import {
+  COIN_COSTS,
+  CoinAction,
+  MONTHLY_COINS,
+} from '@gitroom/nestjs-libraries/database/prisma/coins/coins.constants';
+
+export { COIN_COSTS, MONTHLY_COINS };
+export type { CoinAction };
 
 dayjs.extend(utc);
-
-export const MONTHLY_COINS = 100;
-export const COIN_COSTS = {
-  message: 1,
-  image: 5,
-  post: 2,
-  reply: 1,
-};
-export type CoinAction = keyof typeof COIN_COSTS;
 
 const DESCRIPTIONS: Record<CoinAction, string> = {
   message: 'AI agent message',
@@ -108,8 +107,13 @@ export class CoinsService {
 
     return {
       transactions: transactions.map((transaction) => {
-        const row = { ...transaction, balanceAfter };
-        if (balanceAfter !== null) {
+        const pending = transaction.type === 'coin_request';
+        const row = {
+          ...transaction,
+          // Pending requests do not move the balance yet
+          balanceAfter: pending ? null : balanceAfter,
+        };
+        if (balanceAfter !== null && !pending) {
           balanceAfter -= transaction.amount;
         }
         return row;
@@ -140,15 +144,24 @@ export class CoinsService {
   }
 
   // Charges before the work runs and refunds when it throws, like useCredit.
-  // The detail (the prompt) is what the history shows instead of the generic label
+  // The detail (the prompt) is what the history shows instead of the generic label.
+  // Optional refundIf runs after a successful call — return true to undo the charge
+  // (e.g. agent replied with a pure capability refusal).
   async spend<T>(
     organizationId: string,
     action: CoinAction,
     func: () => Promise<T>,
-    detail?: string
+    detail?: string,
+    refundIf?: () => boolean | Promise<boolean>
   ): Promise<T> {
     await this.checkBalance(organizationId, COIN_COSTS[action]);
-    const text = (detail || '').replace(/\s+/g, ' ').trim();
+    // Agent chat appends channel/media blocks for the model; history should only
+    // show the text the user typed.
+    const text = (detail || '')
+      .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
+      .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     const { id } = await this._coinsRepository.addTransaction(
       organizationId,
       -COIN_COSTS[action],
@@ -161,7 +174,11 @@ export class CoinsService {
     );
 
     try {
-      return await func();
+      const result = await func();
+      if (refundIf && (await refundIf())) {
+        await this._coinsRepository.removeTransaction(organizationId, id);
+      }
+      return result;
     } catch (err) {
       await this._coinsRepository.removeTransaction(organizationId, id);
       throw err;
@@ -210,12 +227,16 @@ export class CoinsService {
       .digest('hex');
   }
 
-  private approvalUrl(organizationId: string, userId: string, amount: number) {
+  private approvalUrl(
+    requestId: string,
+    organizationId: string,
+    userId: string,
+    amount: number
+  ) {
     if (!process.env.ZYNTRA_COINS_APPROVAL_CODE) {
       return '';
     }
 
-    const requestId = makeId(20);
     const params = new URLSearchParams({
       requestId,
       organizationId,
@@ -250,17 +271,35 @@ export class CoinsService {
 
     // The transaction id is the request, so opening the link again grants nothing
     const id = `request-${query.requestId}`;
-    if (await this._coinsRepository.getTransaction(id)) {
+    const existing = await this._coinsRepository.getTransaction(id);
+    if (
+      existing &&
+      existing.organizationId !== query.organizationId
+    ) {
+      throw new HttpException('Invalid approval code', 403);
+    }
+    if (existing?.type === 'admin_grant') {
       return `This request was already approved, ${query.amount} Zyntra Coins were granted before.`;
     }
 
-    await this._coinsRepository.addTransactionOnce(
-      id,
-      query.organizationId,
-      query.amount,
-      'admin_grant',
-      'Coin request approved by the AI Zyntra team'
-    );
+    const description = 'Coin request approved by the AI Zyntra team';
+    if (existing?.type === 'coin_request') {
+      await this._coinsRepository.settleRequest(
+        id,
+        query.organizationId,
+        query.amount,
+        description
+      );
+    } else {
+      // Older Discord links never wrote a pending row
+      await this._coinsRepository.addTransactionOnce(
+        id,
+        query.organizationId,
+        query.amount,
+        'admin_grant',
+        description
+      );
+    }
 
     await this._notificationService.inAppNotification(
       query.organizationId,
@@ -286,8 +325,23 @@ export class CoinsService {
       );
     }
 
+    const requestId = makeId(20);
+    const transactionId = `request-${requestId}`;
+    const description = body.message?.trim()
+      ? body.message.trim()
+      : `Requested ${body.amount} Zyntra Coins`;
+
+    // Visible in history immediately; balance ignores coin_request until approve
+    await this._coinsRepository.addTransactionOnce(
+      transactionId,
+      org.id,
+      body.amount,
+      'coin_request',
+      description
+    );
+
     const balance = await this.getBalance(org.id);
-    const approveUrl = this.approvalUrl(org.id, user.id, body.amount);
+    const approveUrl = this.approvalUrl(requestId, org.id, user.id, body.amount);
     const response = await fetch(process.env.ZYNTRA_COINS_DISCORD_WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -318,6 +372,7 @@ export class CoinsService {
     });
 
     if (!response.ok) {
+      await this._coinsRepository.removeTransaction(org.id, transactionId);
       await ioRedis.del(`coinsRequest:${org.id}`);
       Logger.error(
         `Coin request webhook failed with ${response.status}: ${await response.text()}`
