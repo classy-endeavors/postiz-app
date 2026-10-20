@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useCallback, useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import dayjs from 'dayjs';
 import clsx from 'clsx';
@@ -254,6 +254,8 @@ const CoinsHistory: FC = () => {
   );
 };
 
+const MIN_COIN_REQUEST = 1;
+
 const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
   const fetch = useFetch();
   const toaster = useToaster();
@@ -261,12 +263,47 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
   const [amount, setAmount] = useState('100');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  const parsedAmount = Number(amount);
+  const amountValid =
+    amount.trim() !== '' &&
+    Number.isInteger(parsedAmount) &&
+    parsedAmount >= MIN_COIN_REQUEST;
+
+  const amountError = useMemo(() => {
+    if (!touched) {
+      return undefined;
+    }
+    if (amount.trim() === '') {
+      return t(
+        'coins_request_amount_required',
+        'Enter an amount (minimum {{min}} coin)',
+        { min: MIN_COIN_REQUEST }
+      );
+    }
+    if (!Number.isInteger(parsedAmount) || parsedAmount < MIN_COIN_REQUEST) {
+      return t(
+        'coins_request_amount_invalid',
+        'Enter a whole number of at least {{min}} coin',
+        { min: MIN_COIN_REQUEST }
+      );
+    }
+    return undefined;
+  }, [amount, parsedAmount, t, touched]);
 
   const send = useCallback(async () => {
+    setTouched(true);
+    if (!amountValid) {
+      return;
+    }
     setLoading(true);
     const response = await fetch('/coins/request', {
       method: 'POST',
-      body: JSON.stringify({ amount: +amount, message: message || undefined }),
+      body: JSON.stringify({
+        amount: parsedAmount,
+        message: message || undefined,
+      }),
     });
     setLoading(false);
     if (!response.ok) {
@@ -286,9 +323,11 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
       ),
       'success'
     );
+    setAmount('');
     setMessage('');
+    setTouched(false);
     onSent();
-  }, [amount, message]);
+  }, [amountValid, parsedAmount, message, fetch, toaster, t, onSent]);
 
   return (
     <div className="bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[12px]">
@@ -299,7 +338,8 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         <div className="text-[13px] text-textItemBlur mt-[2px]">
           {t(
             'request_more_coins_description',
-            'Tell us how many coins you need and we will add them to your account.'
+            'Tell us how many coins you need (minimum {{min}}) and we will add them to your account.',
+            { min: MIN_COIN_REQUEST }
           )}
         </div>
       </div>
@@ -308,7 +348,10 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
           <button
             key={preset}
             type="button"
-            onClick={() => setAmount(preset)}
+            onClick={() => {
+              setAmount(preset);
+              setTouched(false);
+            }}
             className={clsx(
               'px-[14px] h-[34px] rounded-[8px] border-[1.5px] text-[13px] font-[600] transition-colors',
               amount === preset
@@ -324,11 +367,16 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         label={t('amount', 'Amount')}
         name="amount"
         type="number"
-        min={1}
+        min={MIN_COIN_REQUEST}
+        step={1}
         disableForm={true}
-        removeError={true}
+        error={amountError}
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onBlur={() => setTouched(true)}
+        onChange={(e) => {
+          setAmount(e.target.value);
+          setTouched(true);
+        }}
       />
       <Input
         label={t('message_optional', 'Message (optional)')}
@@ -347,7 +395,7 @@ const RequestCoins: FC<{ onSent: () => void }> = ({ onSent }) => {
         <Button
           className="rounded-[8px]"
           loading={loading}
-          disabled={!(+amount >= 1)}
+          disabled={!amountValid}
           onClick={send}
         >
           {t('send_request', 'Send request')}
