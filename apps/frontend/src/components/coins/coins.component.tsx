@@ -585,7 +585,7 @@ export const CoinsComponent: FC = () => {
           <div className="text-[14px] text-white/85">
             {t(
               'coins_monthly_description',
-              'You get {{monthly}} free coins every month. Unused coins carry over.',
+              'You get {{monthly}} free coins when you sign up, then {{monthly}} every month. Unused coins carry over.',
               { monthly: data.monthly }
             )}
           </div>

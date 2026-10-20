@@ -165,7 +165,7 @@ export function RegisterAfter({
             <div className="text-[14px] text-textItemBlur mt-[6px]">
               {t(
                 'sign_up_subtitle',
-                'Start free with 100 Zyntra Coins every month.'
+                'Start free with 100 Zyntra Coins when you sign up, then 100 more every month.'
               )}
             </div>
           </div>
