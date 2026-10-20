@@ -45,6 +45,7 @@ import { useShortlinkPreference } from '@gitroom/frontend/components/settings/sh
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
 import { useClickOutside } from '@mantine/hooks';
+import { mutate as globalMutate } from 'swr';
 
 type ComposerMedia = {
   id: string;
@@ -564,6 +565,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
         if (!addEditSets) {
           mutate();
+          if (type === 'schedule' || type === 'now') {
+            globalMutate('/coins/balance');
+          }
           toaster.show(
             !existingData.integration
               ? t('added_successfully', 'Added successfully')
