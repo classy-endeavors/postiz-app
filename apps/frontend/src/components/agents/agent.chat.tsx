@@ -28,7 +28,7 @@ import {
   PropertiesContext,
 } from '@gitroom/frontend/components/agents/agent';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { gqlToAGUI, TextMessage } from '@copilotkit/runtime-client-gql';
 import { AddEditModal } from '@gitroom/frontend/components/new-launch/add.edit.modal';
@@ -40,6 +40,7 @@ import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { useCoinsBalance } from '@gitroom/frontend/components/coins/use.coins.balance';
 import Link from 'next/link';
 import { useMediaPreview } from '@gitroom/frontend/components/media/media.component';
+import { useSWRConfig } from 'swr';
 
 type AgentMessage = ReturnType<
   typeof useCopilotChatInternal
@@ -48,13 +49,26 @@ type AgentMessage = ReturnType<
 export const AgentChat: FC = () => {
   const { backendUrl } = useVariables();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { properties } = useContext(PropertiesContext);
   const t = useT();
   const { data: coins } = useCoinsBalance();
 
+  // Mint a stable thread id up front so the URL can restore this chat on reload.
+  // CopilotKit's auto-minted ids are reminted on remount and never reach the URL.
+  useEffect(() => {
+    if (params.id === 'new') {
+      router.replace(`/agents/${crypto.randomUUID()}`);
+    }
+  }, [params.id, router]);
+
+  if (params.id === 'new') {
+    return null;
+  }
+
   return (
     <CopilotKit
-      {...(params.id === 'new' ? {} : { threadId: params.id })}
+      threadId={params.id}
       credentials="include"
       runtimeUrl={backendUrl + '/copilot/agent'}
       useSingleEndpoint={true}
@@ -66,6 +80,7 @@ export const AgentChat: FC = () => {
     >
       <Hooks />
       <LoadMessages id={params.id} />
+      <RefreshThreadsOnActivity />
       <div
         style={
           {
@@ -150,11 +165,6 @@ const LoadMessages: FC<{ id: string }> = ({ id }) => {
 
   useEffect(() => {
     currentId.current = id;
-    if (id === 'new') {
-      loaded.current = { id, messages: [] };
-      agentRef.current.setMessages([]);
-      return;
-    }
     loaded.current = null;
     loadMessages(id);
   }, [id]);
@@ -175,6 +185,32 @@ const LoadMessages: FC<{ id: string }> = ({ id }) => {
       agent.setMessages(loaded.current.messages);
     }
   }, [agent, agent.messages, id]);
+
+  return null;
+};
+
+// Sidebar is a separate SWR cache; refresh when a run finishes so new chats appear
+// (Mastra title generation can lag a bit behind the first reply).
+const RefreshThreadsOnActivity: FC = () => {
+  const { isLoading, messages } = useCopilotChatInternal();
+  const { mutate } = useSWRConfig();
+  const wasLoading = useRef(false);
+  const lastCount = useRef(0);
+
+  useEffect(() => {
+    const finishedRun =
+      wasLoading.current && !isLoading && messages.length > lastCount.current;
+    wasLoading.current = isLoading;
+
+    if (!finishedRun) {
+      return;
+    }
+
+    lastCount.current = messages.length;
+    mutate('threads');
+    const timer = setTimeout(() => mutate('threads'), 2500);
+    return () => clearTimeout(timer);
+  }, [isLoading, messages.length, mutate]);
 
   return null;
 };

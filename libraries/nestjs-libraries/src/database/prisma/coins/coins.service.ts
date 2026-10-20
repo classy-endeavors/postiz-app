@@ -12,17 +12,16 @@ import {
 } from '@gitroom/nestjs-libraries/dtos/coins/coins.dto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import {
+  COIN_COSTS,
+  CoinAction,
+  MONTHLY_COINS,
+} from '@gitroom/nestjs-libraries/database/prisma/coins/coins.constants';
+
+export { COIN_COSTS, MONTHLY_COINS };
+export type { CoinAction };
 
 dayjs.extend(utc);
-
-export const MONTHLY_COINS = 100;
-export const COIN_COSTS = {
-  message: 1,
-  image: 5,
-  post: 2,
-  reply: 1,
-};
-export type CoinAction = keyof typeof COIN_COSTS;
 
 const DESCRIPTIONS: Record<CoinAction, string> = {
   message: 'AI agent message',
