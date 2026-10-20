@@ -235,10 +235,14 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     await fetch(`/posts/${existingData.group}`, {
       method: 'DELETE',
     });
+    toaster.show(
+      t('post_deleted_successfully', 'Post deleted successfully'),
+      'success'
+    );
     mutate();
     modal.closeAll();
     return;
-  }, [existingData, mutate, modal, t, fetch]);
+  }, [existingData, mutate, modal, t, fetch, toaster]);
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
