@@ -197,8 +197,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     if (
       !(await deleteDialog(
         t(
-          'are_you_sure_you_want_to_delete_post',
-          'Are you sure you want to delete this post?'
+          'are_you_sure_you_want_to_delete_post_no_refund',
+          'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
         ),
         t('yes_delete_it', 'Yes, delete it!')
       ))
@@ -372,6 +372,19 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           }
 
           if (type !== 'draft') {
+            // Surface character-limit failures before media/settings so a
+            // stricter channel (e.g. TikTok 2000) is never hidden behind
+            // "needs media" from another selected channel.
+            if (item.tooLong) {
+              messages.push(
+                t(
+                  'post_exceeds_character_limit',
+                  'Caption exceeds the {{max}} character limit',
+                  { max: item.maximumCharacters }
+                )
+              );
+            }
+
             if (item.valid === false) {
               const settingsMessages: string[] =
                 Array.isArray(item.settingsErrors) && item.settingsErrors.length
@@ -389,12 +402,6 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
             if (item.errors !== true) {
               messages.push(String(item.errors));
-            }
-
-            if (item.tooLong) {
-              messages.push(
-                t('post_is_too_long', 'post is too long, please fix it')
-              );
             }
           }
 

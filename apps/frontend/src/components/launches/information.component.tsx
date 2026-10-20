@@ -161,7 +161,8 @@ export const InformationComponent: FC<{
       return null;
     }
 
-    // Get all limits from non-internal integrations, sorted ascending
+    // Always show the strictest (smallest) limit among selected channels so
+    // the pill matches the channel that would actually block scheduling.
     const limits = selectedIntegrations
       .map((p, index) => ({
         limit: chars?.[p.integration.id] || 0,
@@ -171,14 +172,7 @@ export const InformationComponent: FC<{
       .filter((item) => !item.isInternal && item.limit > 0)
       .sort((a, b) => a.limit - b.limit);
 
-    if (!limits.length) {
-      return null;
-    }
-
-    // Find the smallest limit that hasn't been exceeded yet
-    // If all are exceeded, show the smallest one
-    const validLimit = limits.find((item) => item.count <= item.limit);
-    return validLimit ?? limits[0];
+    return limits[0] ?? null;
   }, [isGlobal, selectedIntegrations, chars, isInternal, countFor]);
 
   return (

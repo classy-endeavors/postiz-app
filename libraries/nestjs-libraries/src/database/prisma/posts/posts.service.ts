@@ -1387,7 +1387,7 @@ export class PostsService {
 
       if (validation.tooLong) {
         throw new BadRequestException(
-          `${validation.name}: The maximum characters is ${validation.maximumCharacters}`
+          `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit`
         );
       }
     }
