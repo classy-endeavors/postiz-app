@@ -476,11 +476,19 @@ export const CoinsComponent: FC = () => {
               </div>
             </div>
           ))}
-          <div className="text-[12px] text-textItemBlur">
-            {t(
-              'coins_post_note',
-              'A post is charged once per channel when it is scheduled. Editing it later is free, drafts are free.'
-            )}
+          <div className="text-[12px] text-textItemBlur flex flex-col gap-[4px]">
+            <div>
+              {t(
+                'coins_post_note',
+                'A post is charged once per channel when it is scheduled. Editing it later is free, drafts are free.'
+              )}
+            </div>
+            <div>
+              {t(
+                'coins_post_non_refundable',
+                'Scheduling fees are non-refundable — deleting a post before it publishes does not return coins.'
+              )}
+            </div>
           </div>
         </div>
       </div>

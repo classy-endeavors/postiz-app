@@ -220,8 +220,8 @@ const usePostActions = (onMutate?: () => void) => {
       if (
         !(await deleteDialog(
           t(
-            'are_you_sure_you_want_to_delete_post',
-            'Are you sure you want to delete post?'
+            'are_you_sure_you_want_to_delete_post_no_refund',
+            'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
           )
         ))
       ) {
