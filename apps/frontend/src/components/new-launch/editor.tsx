@@ -742,6 +742,7 @@ export const Editor: FC<{
                   hidePauseResumeButton={true}
                   hideCancelButton={true}
                   hideProgressAfterFinish={true}
+                  disableThumbnailGenerator={true}
                 />
               </div>
             </div>

@@ -22,7 +22,11 @@ import EventEmitter from 'events';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import clsx from 'clsx';
 import { VideoFrame } from '@gitroom/react/helpers/video.frame';
-import { useUppyUploader } from '@gitroom/frontend/components/media/new.uploader';
+import {
+  acceptAttributeForMediaTypes,
+  describeAllowedMediaTypes,
+  useUppyUploader,
+} from '@gitroom/frontend/components/media/new.uploader';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
@@ -289,13 +293,22 @@ export const MediaBox: FC<{
   const mediaDirectory = useMediaDirectory();
   const [loading, setLoading] = useState(false);
 
+  const allowedFileTypes =
+    type == 'image'
+      ? 'image/*'
+      : type == 'video'
+      ? 'video/mp4'
+      : 'image/*,video/mp4';
+  const allowedTypesLabel = describeAllowedMediaTypes(allowedFileTypes);
+  const allowedTypesHint =
+    type == 'image'
+      ? t('upload_hint_images', 'PNG, JPG, GIF, WebP')
+      : type == 'video'
+      ? t('upload_hint_mp4_only', 'MP4 only')
+      : t('upload_hint_images_or_mp4', 'Images or MP4');
+
   const uppy = useUppyUploader({
-    allowedFileTypes:
-      type == 'image'
-        ? 'image/*'
-        : type == 'video'
-        ? 'video/mp4'
-        : 'image/*,video/mp4',
+    allowedFileTypes,
     onUploadSuccess: async (arr) => {
       await mutate();
       if (standalone) {
@@ -451,9 +464,20 @@ export const MediaBox: FC<{
   const btn = useMemo(() => {
     return (
       <button
+        type="button"
         disabled={loading}
+        title={t(
+          'upload_allowed_types_title',
+          'Upload {{allowed}}',
+          { allowed: allowedTypesLabel }
+        )}
+        aria-label={t(
+          'upload_allowed_types_title',
+          'Upload {{allowed}}',
+          { allowed: allowedTypesLabel }
+        )}
         onClick={() => uploaderRef?.current?.click()}
-        className="relative cursor-pointer bg-btnSimple changeColor flex gap-[8px] h-[44px] px-[18px] justify-center items-center rounded-[8px]"
+        className="relative cursor-pointer bg-btnSimple changeColor flex gap-[8px] min-h-[44px] px-[18px] py-[6px] justify-center items-center rounded-[8px]"
       >
         {loading ? (
           <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%]">
@@ -462,10 +486,20 @@ export const MediaBox: FC<{
         ) : (
           <PlusIcon size={14} />
         )}
-        <div className={loading ? 'invisible' : undefined}>{t('upload', 'Upload')}</div>
+        <div
+          className={clsx(
+            'flex flex-col items-start leading-tight',
+            loading && 'invisible'
+          )}
+        >
+          <div className="text-[14px] font-[600]">{t('upload', 'Upload')}</div>
+          <div className="text-[11px] font-[500] text-newTextColor/70">
+            {allowedTypesHint}
+          </div>
+        </div>
       </button>
     );
-  }, [t, loading]);
+  }, [t, loading, allowedTypesHint, allowedTypesLabel]);
 
   return (
     <DropFiles disabled={loading} className="flex flex-col flex-1" onDrop={dragAndDrop}>
@@ -520,8 +554,9 @@ export const MediaBox: FC<{
             onChange={addToUpload}
             className="hidden"
             multiple={true}
+            accept={acceptAttributeForMediaTypes(allowedFileTypes)}
           />
-          <div className="flex gap-[8px]">
+          <div className="flex gap-[8px] items-center">
             {btn}
             <ThirdPartyMediaLibrary onImported={() => mutate()} />
           </div>
@@ -554,6 +589,7 @@ export const MediaBox: FC<{
               hidePauseResumeButton={true}
               hideCancelButton={true}
               hideProgressAfterFinish={true}
+              disableThumbnailGenerator={true}
             />
           </div>
           <div className="w-full h-[46px] uppyChange" />
@@ -590,13 +626,14 @@ export const MediaBox: FC<{
                 </div>
                 <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
                   {t(
-                    'select_or_upload_pictures_max_1gb',
-                    'Select or upload pictures (maximum 1 GB per upload).'
+                    'select_or_upload_media_max_1gb',
+                    'Select or upload {{allowed}} (maximum 1 GB per upload).',
+                    { allowed: allowedTypesLabel }
                   )}{' '}
                   {'\n'}
                   {t(
-                    'you_can_drag_drop_pictures',
-                    'You can also drag & drop pictures.'
+                    'you_can_drag_drop_media',
+                    'You can also drag & drop files here.'
                   )}
                 </div>
                 <div className="forceChange flex gap-[8px]">
