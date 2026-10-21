@@ -1063,6 +1063,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       });
       const stats = channels.items?.[0]?.statistics;
       if (stats) {
+        // Channel statistics are lifetime totals — not scoped to the selected
+        // analytics date range (unlike the YouTube Analytics day series below).
         const views = Number(stats.viewCount || 0);
         const videos = Number(stats.videoCount || 0);
         if (!stats.hiddenSubscriberCount) {
@@ -1073,17 +1075,17 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           });
         }
         result.push({
-          label: 'Total Views',
+          label: 'Lifetime Views',
           percentageChange: 0,
           data: [{ total: String(views), date: today }],
         });
         result.push({
-          label: 'Videos',
+          label: 'Lifetime Videos',
           percentageChange: 0,
           data: [{ total: String(videos), date: today }],
         });
         result.push({
-          label: 'Avg Views per Video',
+          label: 'Avg Views per Video (lifetime)',
           percentageChange: 0,
           data: [
             { total: String(videos ? Math.round(views / videos) : 0), date: today },

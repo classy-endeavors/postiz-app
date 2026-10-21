@@ -255,6 +255,22 @@ export const RenderAnalytics: FC<{
       ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length > 1),
     [data]
   );
+  // YouTube only: lifetime channel tiles + period day-series can disagree
+  // (e.g. 7-day charts at 0 while Lifetime Views is non-zero).
+  const showYoutubePeriodNotice = useMemo(() => {
+    if (integration.identifier !== 'youtube') {
+      return false;
+    }
+    const hasLifetimeTotals = stats.some((item) =>
+      /lifetime/i.test(item.label)
+    );
+    if (!series.length) {
+      return hasLifetimeTotals;
+    }
+    return series.every((item) =>
+      item.data.every((point) => Number(point.total || 0) === 0)
+    );
+  }, [integration.identifier, series, stats]);
 
   if (loading) {
     return (
@@ -306,6 +322,22 @@ export const RenderAnalytics: FC<{
 
   return (
     <div className="flex flex-col gap-[16px]">
+      {showYoutubePeriodNotice && (
+        <div className="rounded-[12px] border border-newSep bg-newTextColor/[0.03] px-[16px] py-[12px] text-[13px] text-newTextColor/80">
+          {t(
+            'analytics_period_empty_or_delayed',
+            'No activity in this date range (or platform analytics are still catching up — YouTube can lag 48–72 hours). Channel totals above are lifetime, not limited to this period.'
+          )}
+        </div>
+      )}
+      {integration.identifier === 'tiktok' && (
+        <div className="rounded-[12px] border border-newSep bg-newTextColor/[0.03] px-[16px] py-[12px] text-[13px] text-newTextColor/80">
+          {t(
+            'tiktok_analytics_lifetime_hint',
+            'These numbers are lifetime totals for your TikTok account. Day-by-day or date-range breakdowns (like in TikTok Studio) aren’t available here yet.'
+          )}
+        </div>
+      )}
       {!!stats.length && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
           {stats.map((item) => (

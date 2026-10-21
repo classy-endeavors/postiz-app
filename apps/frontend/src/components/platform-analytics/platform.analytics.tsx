@@ -66,8 +66,13 @@ export const PlatformAnalytics = () => {
   const currentIntegration = useMemo(() => {
     return sortedIntegrations[current];
   }, [current, sortedIntegrations]);
+  const isTikTok = currentIntegration?.identifier === 'tiktok';
   const options = useMemo(() => {
     if (!currentIntegration) {
+      return [];
+    }
+    // Display API has no period analytics — hide the date filter for TikTok.
+    if (currentIntegration.identifier === 'tiktok') {
       return [];
     }
     const arr = [];
@@ -82,7 +87,8 @@ export const PlatformAnalytics = () => {
       });
     }
     if (
-      ['youtube', 'linkedin-page'].indexOf(currentIntegration.identifier) !== -1
+      ['youtube', 'linkedin-page'].indexOf(currentIntegration.identifier) !==
+      -1
     ) {
       arr.push({
         key: 90,
@@ -95,11 +101,14 @@ export const PlatformAnalytics = () => {
     if (!currentIntegration) {
       return 7;
     }
+    if (isTikTok) {
+      return 90;
+    }
     if (options.find((p) => p.key === key)) {
       return key;
     }
     return options[0]?.key;
-  }, [key, currentIntegration]);
+  }, [key, currentIntegration, isTikTok, options]);
 
   if (isLoading) {
     return (
@@ -263,25 +272,27 @@ export const PlatformAnalytics = () => {
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
-        {!!options.length && (
+        {!!currentIntegration && (isTikTok || !!options.length) && (
           <div className="flex-1 flex flex-col gap-[14px]">
-            <div className="max-w-[200px]">
-              <Select
-                label=""
-                name="date"
-                disableForm={true}
-                hideErrors={true}
-                onChange={(e) => setKey(+e.target.value)}
-              >
-                {options.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.value}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {!!options.length && (
+              <div className="max-w-[200px]">
+                <Select
+                  label=""
+                  name="date"
+                  disableForm={true}
+                  hideErrors={true}
+                  onChange={(e) => setKey(+e.target.value)}
+                >
+                  {options.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.value}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
             <div className="flex-1">
-              {!!keys && !!currentIntegration && !refresh && (
+              {!!keys && !refresh && (
                 <RenderAnalytics integration={currentIntegration} date={keys} />
               )}
             </div>
