@@ -97,22 +97,36 @@ export const AddEditModalInner: FC<AddEditModalProps> = (props) => {
       }
     }
 
-    if (existingData.integration) {
-      const integration = integrations.find(
-        (i) => i.id === existingData.integration
-      );
-      if (!integration) {
-        toaster.show(
-          t(
-            'we_are_experiencing_some_difficulty_try_to_refresh_the_page',
-            'We are experiencing some difficulty, try to refresh the page'
-          ),
-          'warning'
+    const channels = existingData.channels?.length
+      ? existingData.channels
+      : existingData.integration
+      ? [
+          {
+            integration: existingData.integration,
+            settings: existingData.settings,
+            posts: existingData.posts,
+          },
+        ]
+      : [];
+
+    if (channels.length) {
+      for (const channel of channels) {
+        const integration = integrations.find(
+          (i) => i.id === channel.integration
         );
-        modal.closeAll();
-        return;
+        if (!integration) {
+          toaster.show(
+            t(
+              'we_are_experiencing_some_difficulty_try_to_refresh_the_page',
+              'We are experiencing some difficulty, try to refresh the page'
+            ),
+            'warning'
+          );
+          modal.closeAll();
+          return;
+        }
+        addOrRemoveSelectedIntegration(integration, channel.settings);
       }
-      addOrRemoveSelectedIntegration(integration, existingData.settings);
     }
 
     if (props?.selectedChannels?.length) {
@@ -159,7 +173,81 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
   );
 
   useEffect(() => {
-    if (existingData.integration) {
+    const wrapContent = (content: string) =>
+      content.indexOf('<p>') > -1
+        ? content
+        : content
+            .split('\n')
+            .map((line: string) => `<p>${line}</p>`)
+            .join('');
+
+    const toValues = (posts: any[]) =>
+      posts.map((post) => ({
+        delay: post.delay,
+        content: wrapContent(post.content),
+        id: post.id,
+        media: (post.image || post.media || []) as any[],
+      }));
+
+    const valueKey = (values: any[]) =>
+      JSON.stringify(
+        (values || []).map((value) => ({
+          content: value.content,
+          delay: value.delay || 0,
+          media: value.media || value.image || [],
+        }))
+      );
+
+    const channels = existingData.channels?.length
+      ? existingData.channels
+      : existingData.integration
+      ? [
+          {
+            integration: existingData.integration,
+            settings: existingData.settings,
+            posts: existingData.posts,
+          },
+        ]
+      : [];
+
+    if (channels.length > 1) {
+      const first = channels[0];
+      if (first.posts?.[0]?.intervalInDays) {
+        setRepeater(first.posts[0].intervalInDays);
+      }
+      setTags(
+        // @ts-ignore
+        first.posts?.[0]?.tags?.map((p: any) => ({
+          label: p.tag.name,
+          value: p.tag.name,
+        })) || []
+      );
+      const sameCaption = channels.every(
+        (channel) => valueKey(toValues(channel.posts)) === valueKey(toValues(first.posts))
+      );
+      if (sameCaption) {
+        addGlobalValue(
+          0,
+          toValues(first.posts).map((value) => ({
+            ...value,
+            id: makeId(10),
+          }))
+        );
+        setCurrent('global');
+      } else {
+        for (const channel of channels) {
+          addInternalValue(0, channel.integration, toValues(channel.posts));
+        }
+        addGlobalValue(
+          0,
+          toValues(first.posts).map((value) => ({
+            ...value,
+            id: makeId(10),
+          }))
+        );
+        setCurrent(first.integration);
+      }
+    } else if (existingData.integration) {
       if (existingData?.posts?.[0]?.intervalInDays) {
         setRepeater(existingData.posts[0].intervalInDays);
       }
@@ -173,64 +261,63 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
       addInternalValue(
         0,
         existingData.integration,
-        existingData.posts.map((post) => ({
-          delay: post.delay,
-          content:
-            post.content.indexOf('<p>') > -1
-              ? post.content
-              : post.content
-                  .split('\n')
-                  .map((line: string) => `<p>${line}</p>`)
-                  .join(''),
-          id: post.id,
-          // @ts-ignore
-          media: post.image as any[],
-        }))
+        toValues(existingData.posts)
       );
       setCurrent(existingData.integration);
     } else {
       setEditor('normal');
+      if (props.set?.inter) {
+        setRepeater(props.set.inter);
+      }
+      if (props.set?.tags?.length) {
+        setTags(props.set.tags);
+      }
     }
 
     if (props.focusedChannel) {
       setCurrent(props.focusedChannel);
     }
 
-    addGlobalValue(
-      0,
-      props.onlyValues?.length
-        ? props.onlyValues.map((p) => ({
-            content:
-              p.content.indexOf('<p>') > -1
-                ? p.content
-                : p.content
-                    .split('\n')
-                    .map((line: string) => `<p>${line}</p>`)
-                    .join(''),
+    const editingGroup = (existingData.channels?.length || 0) > 1;
+    if (!editingGroup) {
+      const setPosts = props.set?.posts as
+        | Array<{ integration?: { id: string }; value: any[] }>
+        | undefined;
+      if (props.onlyValues?.length) {
+        addGlobalValue(
+          0,
+          props.onlyValues.map((p) => ({
+            content: wrapContent(p.content),
             id: makeId(10),
+            delay: 0,
             media: p.image || [],
           }))
-        : props.set?.posts?.length
-        ? props.set.posts[0].value.map((p: any) => ({
+        );
+      } else if (setPosts?.length) {
+        // Sets / duplicates: shared caption in global; each channel keeps its
+        // own settings from the selection effect in AddEditModalInner.
+        const firstValues = setPosts[0].value || [];
+        addGlobalValue(
+          0,
+          firstValues.map((p: any) => ({
             id: makeId(10),
-            content:
-              p.content.indexOf('<p>') > -1
-                ? p.content
-                : p.content
-                    .split('\n')
-                    .map((line: string) => `<p>${line}</p>`)
-                    .join(''),
-            // @ts-ignore
-            media: p.media,
+            content: wrapContent(p.content || ''),
+            delay: p.delay || 0,
+            media: p.media || p.image || [],
           }))
-        : [
-            {
-              content: '',
-              id: makeId(10),
-              media: [],
-            },
-          ]
-    );
+        );
+        setCurrent('global');
+      } else {
+        addGlobalValue(0, [
+          {
+            content: '',
+            id: makeId(10),
+            delay: 0,
+            media: [],
+          },
+        ]);
+      }
+    }
 
     return () => {
       reset();

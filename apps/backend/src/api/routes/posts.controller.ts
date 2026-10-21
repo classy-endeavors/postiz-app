@@ -302,9 +302,10 @@ export class PostsController {
   @Delete('/:group')
   deletePost(
     @GetOrgFromRequest() org: Organization,
-    @Param('group') group: string
+    @Param('group') group: string,
+    @Query('integration') integration?: string
   ) {
-    return this._postsService.deletePost(org.id, group);
+    return this._postsService.deletePost(org.id, group, integration);
   }
 
   @Put('/:id/date')

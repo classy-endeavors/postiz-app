@@ -135,4 +135,11 @@ export class CreatePostDto {
   @IsArray()
   @IsString({ each: true })
   links?: string[];
+
+  // group: channels saved together stay one post. Channels left out of the
+  // payload are removed. channel: only the channels in the payload change;
+  // the rest of the group keeps its caption and time.
+  @IsOptional()
+  @IsIn(['group', 'channel'])
+  applyTo?: 'group' | 'channel';
 }

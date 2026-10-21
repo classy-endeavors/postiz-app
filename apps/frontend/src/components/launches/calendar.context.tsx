@@ -63,7 +63,7 @@ export const CalendarContext = createContext({
   }) => {
     /** empty **/
   },
-  changeDate: (id: string, date: dayjs.Dayjs) => {
+  changeDate: (id: string, date: dayjs.Dayjs, publishDate?: string | Date) => {
     /** empty **/
   },
   detailDay: null as string | null,
@@ -192,11 +192,16 @@ export const CalendarWeekProvider: FC<{
   const loadData = useCallback(async () => {
     // The month grid also shows the leading/trailing days of the neighbour months
     const rangeUnit = filters.display === 'month' ? 'isoWeek' : 'day';
+    // toISOString keeps milliseconds. format() drops them, so a post at the
+    // last ms of the local day (e.g. 23:59:59.999) falls outside the range.
     const modifiedParams = new URLSearchParams({
       display: filters.display,
       customer: filters?.customer?.toString() || '',
-      startDate: newDayjs(filters.startDate).startOf(rangeUnit).utc().format(),
-      endDate: newDayjs(filters.endDate).endOf(rangeUnit).utc().format(),
+      startDate: newDayjs(filters.startDate)
+        .startOf(rangeUnit)
+        .utc()
+        .toISOString(),
+      endDate: newDayjs(filters.endDate).endOf(rangeUnit).utc().toISOString(),
     }).toString();
 
     const data = await (await fetch(`/posts?${modifiedParams}`)).json();
@@ -312,18 +317,34 @@ export const CalendarWeekProvider: FC<{
   const listTotalPages = Math.ceil(listTotal / 100);
 
   const changeDate = useCallback(
-    (id: string, date: dayjs.Dayjs) => {
-      setInternalData((d) =>
-        d.map((post: Post) => {
-          if (post.id === id) {
-            return {
-              ...post,
-              publishDate: date.utc().format('YYYY-MM-DDTHH:mm:ss'),
-            };
+    (id: string, date: dayjs.Dayjs, publishDate?: string | Date) => {
+      setInternalData((d) => {
+        const source = d.find(
+          (post: Post) =>
+            post.id === id &&
+            (!publishDate ||
+              dayjs.utc(post.publishDate).toISOString() ===
+                dayjs.utc(publishDate).toISOString())
+        );
+        const sourceTime = dayjs
+          .utc(publishDate || source?.publishDate)
+          .toISOString();
+        return d.map((post: Post) => {
+          const samePost = post.id === id;
+          const sameGroupSlot =
+            !!source?.group &&
+            post.group === source.group &&
+            post.id !== id &&
+            dayjs.utc(post.publishDate).toISOString() === sourceTime;
+          if (!samePost && !sameGroupSlot) {
+            return post;
           }
-          return post;
-        })
-      );
+          return {
+            ...post,
+            publishDate: date.utc().format('YYYY-MM-DDTHH:mm:ss'),
+          };
+        });
+      });
     },
     [posts, internalData]
   );
@@ -337,11 +358,15 @@ export const CalendarWeekProvider: FC<{
   // Combined reload function that handles both calendar and list views
   const swr = useSWRConfig();
   const reloadCalendarView = useCallback(() => {
+    // Invalidate every calendar/list cache. Creating from List leaves the
+    // week/day SWR keys stale for up to refreshInterval otherwise.
+    swr.mutate(
+      (key) =>
+        typeof key === 'string' &&
+        (key.startsWith('/posts-') || key.startsWith('/posts-list-'))
+    );
     mutateCalendar();
     mutateList();
-    swr.mutate(
-      (key) => typeof key === 'string' && key.startsWith('/posts-day-')
-    );
   }, [mutateCalendar, mutateList, swr]);
 
   // Determine loading state based on current view

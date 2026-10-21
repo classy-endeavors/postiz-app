@@ -178,6 +178,16 @@ export class MediaController {
     res.status(200).json({ ...upload, saved: saveFile });
   }
 
+  @Get('/exists')
+  async mediaExists(
+    @GetOrgFromRequest() org: Organization,
+    @Query('name') name: string
+  ) {
+    return {
+      exists: await this._mediaService.hasOriginalName(org.id, name || ''),
+    };
+  }
+
   @Get('/:id/status')
   getMediaStatus(
     @GetOrgFromRequest() org: Organization,

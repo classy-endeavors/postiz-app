@@ -59,6 +59,37 @@ import { useShallow } from 'zustand/react/shallow';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useDebounce } from 'use-debounce';
+import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
+
+const formatFileSize = (bytes?: number | null) => {
+  if (!bytes || bytes <= 0) {
+    return '';
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+};
+
+const mediaMetaLine = (media: {
+  createdAt?: string | Date;
+  fileSize?: number | null;
+}) => {
+  const parts: string[] = [];
+  if (media.createdAt) {
+    // Avoid ll/LT — those need dayjs localizedFormat and otherwise print as
+    // the literal "ll LT" (reads like "|| LT" in many fonts).
+    parts.push(newDayjs(media.createdAt).format('MMM D, YYYY h:mm A'));
+  }
+  const size = formatFileSize(media.fileSize);
+  if (size) {
+    parts.push(size);
+  }
+  return parts.join(' · ');
+};
 const Polonto = dynamic(
   () => import('@gitroom/frontend/components/launches/polonto')
 );
@@ -346,9 +377,46 @@ export const MediaBox: FC<{
     modals.closeCurrent();
   }, [selected]);
 
+  const warnIfDuplicateNames = useCallback(
+    async (files: File[]) => {
+      const names = [
+        ...new Set(files.map((file) => file.name).filter(Boolean)),
+      ];
+      const duplicates: string[] = [];
+      for (const name of names) {
+        const result = await (
+          await fetch(`/media/exists?name=${encodeURIComponent(name)}`)
+        ).json();
+        if (result?.exists) {
+          duplicates.push(name);
+        }
+      }
+      if (!duplicates.length) {
+        return true;
+      }
+      // Do not wrap names in quotes — i18next escapes " to &quot; in the dialog.
+      return deleteDialog(
+        duplicates.length === 1
+          ? t(
+              'media_duplicate_name_warning',
+              'A file named {{name}} is already in your media library. Upload another copy anyway?',
+              { name: duplicates[0] }
+            )
+          : t(
+              'media_duplicate_names_warning',
+              'These file names are already in your media library: {{names}}. Upload another copy anyway?',
+              { names: duplicates.join(', ') }
+            ),
+        t('yes_upload', 'Yes, upload')
+      );
+    },
+    [fetch, t]
+  );
+
   const addToUpload = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []);
+      e.target.value = '';
       const totalSize = files.reduce((acc, file) => acc + file.size, 0);
 
       if (totalSize > MAX_UPLOAD_SIZE) {
@@ -362,12 +430,16 @@ export const MediaBox: FC<{
         return;
       }
 
+      if (!(await warnIfDuplicateNames(files))) {
+        return;
+      }
+
       setLoading(true);
 
       // @ts-ignore
       uppy.addFiles(files);
     },
-    [toaster, t]
+    [toaster, t, uppy, warnIfDuplicateNames]
   );
 
   const dragAndDrop = useCallback(
@@ -405,13 +477,17 @@ export const MediaBox: FC<{
         return;
       }
 
+      if (!(await warnIfDuplicateNames(files))) {
+        return;
+      }
+
       setLoading(true);
 
       for (const file of files) {
         uppy.addFile(file);
       }
     },
-    [toaster, t]
+    [toaster, t, uppy, warnIfDuplicateNames]
   );
 
   const preview = useMediaPreview();
@@ -625,21 +701,32 @@ export const MediaBox: FC<{
                       )}
                 </div>
                 <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
-                  {t(
-                    'select_or_upload_media_max_1gb',
-                    'Select or upload {{allowed}} (maximum 1 GB per upload).',
-                    { allowed: allowedTypesLabel }
-                  )}{' '}
-                  {'\n'}
-                  {t(
-                    'you_can_drag_drop_media',
-                    'You can also drag & drop files here.'
-                  )}
+                  {debouncedSearch
+                    ? t(
+                        'try_different_media_search',
+                        'Try a different file name, or clear the search to browse your library.'
+                      )
+                    : (
+                        <>
+                          {t(
+                            'select_or_upload_media_max_1gb',
+                            'Select or upload {{allowed}} (maximum 1 GB per upload).',
+                            { allowed: allowedTypesLabel }
+                          )}{' '}
+                          {'\n'}
+                          {t(
+                            'you_can_drag_drop_media',
+                            'You can also drag & drop files here.'
+                          )}
+                        </>
+                      )}
                 </div>
-                <div className="forceChange flex gap-[8px]">
-                  {btn}
-                  <ThirdPartyMediaLibrary onImported={() => mutate()} />
-                </div>
+                {!debouncedSearch && (
+                  <div className="forceChange flex gap-[8px]">
+                    {btn}
+                    <ThirdPartyMediaLibrary onImported={() => mutate()} />
+                  </div>
+                )}
               </>
             )}
             {isLoading && (
@@ -666,7 +753,9 @@ export const MediaBox: FC<{
                 }
                 return true;
               })
-              .map((media: any) => (
+              .map((media: any) => {
+                const meta = mediaMetaLine(media);
+                return (
                 <div
                   className={clsx(
                     'group px-[3px] py-[3px] float-left rounded-[6px] w8-max',
@@ -761,15 +850,26 @@ export const MediaBox: FC<{
                         </div>
                       )}
                     </div>
-                    <div
-                      className="mt-[6px] h-[18px] px-[2px] truncate text-[12px] text-newTextColor mobile:hidden"
-                      title={media.originalName || media.name || undefined}
-                    >
-                      {media.originalName || media.name}
+                    <div className="mt-[6px] px-[2px] mobile:hidden min-w-0">
+                      <div
+                        className="h-[18px] truncate text-[12px] text-newTextColor"
+                        title={media.originalName || media.name || undefined}
+                      >
+                        {media.originalName || media.name}
+                      </div>
+                      {!!meta && (
+                        <div
+                          className="h-[16px] truncate text-[11px] text-textItemBlur"
+                          title={meta}
+                        >
+                          {meta}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
           </div>
         </div>
         {(data?.pages || 0) > 1 && (

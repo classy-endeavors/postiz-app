@@ -121,6 +121,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     activateExitButton,
     setHide,
     setCurrent,
+    groupScope,
+    setGroupScope,
+    addOrRemoveSelectedIntegration,
+    addInternalValue,
+    globalValues,
+    internalValues,
   } = useLaunchStore(
     useShallow((state) => ({
       hide: state.hide,
@@ -138,6 +144,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       setSelectedIntegrations: state.setSelectedIntegrations,
       locked: state.locked,
       activateExitButton: state.activateExitButton,
+      groupScope: state.groupScope,
+      setGroupScope: state.setGroupScope,
+      addOrRemoveSelectedIntegration: state.addOrRemoveSelectedIntegration,
+      addInternalValue: state.addInternalValue,
+      globalValues: state.global,
+      internalValues: state.internal,
     }))
   );
 
@@ -220,19 +232,34 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
   const deletePost = useCallback(async () => {
     setLoading(true);
+    const channelCount = existingData.channels?.length || 1;
+    const deleteAll = groupScope === 'group' && channelCount > 1;
     if (
       !(await deleteDialog(
-        t(
-          'are_you_sure_you_want_to_delete_post_no_refund',
-          'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
-        ),
+        deleteAll
+          ? t(
+              'are_you_sure_you_want_to_delete_post_all_channels',
+              'Are you sure you want to delete this post on all {{count}} channels? Coins spent to schedule it are not refunded.',
+              { count: channelCount }
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_post_no_refund',
+              'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
+            ),
         t('yes_delete_it', 'Yes, delete it!')
       ))
     ) {
       setLoading(false);
       return;
     }
-    await fetch(`/posts/${existingData.group}`, {
+    const onlyIntegration =
+      groupScope === 'channel'
+        ? selectedIntegrations[0]?.integration.id
+        : '';
+    const integrationQuery = onlyIntegration
+      ? `?integration=${encodeURIComponent(onlyIntegration)}`
+      : '';
+    await fetch(`/posts/${existingData.group}${integrationQuery}`, {
       method: 'DELETE',
     });
     toaster.show(
@@ -242,7 +269,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     mutate();
     modal.closeAll();
     return;
-  }, [existingData, mutate, modal, t, fetch, toaster]);
+  }, [existingData, groupScope, mutate, modal, selectedIntegrations, t, fetch, toaster]);
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
@@ -367,29 +394,44 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         selectedIntegrations.find((p) => p.integration.id === id);
 
       const group = existingData.group || makeId(10);
+      const channels = existingData.channels || [];
+      const usedIds = new Set<string>();
 
-      const posts = allValues.map((post) => ({
-        integration: {
-          id: post.id,
-        },
-        group,
-        settings: { ...(post.settings || {}) },
-        value: post.values.map((value) => ({
-          ...(value.id ? { id: value.id } : {}),
-          content: value.content,
-          delay: value.delay || 0,
-          image:
-            (value.media || []).map(
-              ({ id, path, alt, thumbnail, thumbnailTimestamp }) => ({
-                id,
-                path,
-                alt,
-                thumbnail,
-                thumbnailTimestamp,
-              })
-            ) || [],
-        })),
-      }));
+      const posts = allValues.map((post) => {
+        const channel = channels.find((item) => item.integration === post.id);
+        return {
+          integration: {
+            id: post.id,
+          },
+          group,
+          settings: { ...(post.settings || {}) },
+          value: post.values.map((value, index) => {
+            const owned = channel?.posts?.[index]?.id as string | undefined;
+            let id: string | undefined = owned || value.id;
+            if (id && usedIds.has(id)) {
+              id = undefined;
+            }
+            if (id) {
+              usedIds.add(id);
+            }
+            return {
+              ...(id ? { id } : {}),
+              content: value.content,
+              delay: value.delay || 0,
+              image:
+                (value.media || []).map(
+                  ({ id: mediaId, path, alt, thumbnail, thumbnailTimestamp }) => ({
+                    id: mediaId,
+                    path,
+                    alt,
+                    thumbnail,
+                    thumbnailTimestamp,
+                  })
+                ) || [],
+            };
+          }),
+        };
+      });
 
       if (!dummy) {
         const checkAllValid = await (
@@ -541,6 +583,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         date: date.utc().toISOString(),
         posts,
         links,
+        applyTo: groupScope,
       };
 
       if (dummy) {
@@ -612,6 +655,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       dummy,
       existingData,
       fetch,
+      groupScope,
       links,
       modal,
       mutate,
@@ -626,6 +670,47 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       toaster,
     ]
   );
+
+  const groupedChannels = existingData.channels || [];
+  const editingMany = groupedChannels.length > 1;
+  const channelChoices = groupedChannels.map((channel) => ({
+    id: channel.integration,
+    name:
+      integrations.find((item) => item.id === channel.integration)?.name ||
+      t('channel', 'channel'),
+  }));
+  const narrowToChannel = (integrationId: string) => {
+    const alreadyInternal = internalValues.some(
+      (item) => item.integration.id === integrationId
+    );
+    if (!alreadyInternal && globalValues.length) {
+      const channel = groupedChannels.find(
+        (item) => item.integration === integrationId
+      );
+      addInternalValue(
+        0,
+        integrationId,
+        globalValues.map((value, index) => ({
+          ...value,
+          id: (channel?.posts?.[index]?.id as string | undefined) || value.id,
+        }))
+      );
+    }
+    for (const selected of selectedIntegrations) {
+      if (selected.integration.id !== integrationId) {
+        addOrRemoveSelectedIntegration(
+          selected.integration,
+          selected.settings
+        );
+      }
+    }
+    setCurrent(integrationId);
+    setGroupScope('channel');
+  };
+  const onlyChannelName =
+    channelChoices.find(
+      (channel) => channel.id === selectedIntegrations[0]?.integration.id
+    )?.name || channelChoices[0]?.name;
 
   return (
     <div className="w-full h-full flex-1 p-[40px] mobile:p-0 flex relative">
@@ -675,6 +760,45 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       ))}
                     </div>
                   )}
+                  {editingMany && groupScope === 'group' && (
+                    <div className="rounded-[12px] border border-newOutline bg-newBgColor px-[14px] py-[12px] flex flex-col gap-[10px]">
+                      <div className="text-[13px] text-newTextColor">
+                        {t(
+                          'edit_applies_to_all_channels',
+                          'Caption and time apply to all {{count}} channels: {{names}}.',
+                          {
+                            count: channelChoices.length,
+                            names: channelChoices
+                              .map((channel) => channel.name)
+                              .join(', '),
+                          }
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-[8px]">
+                        {channelChoices.map((channel) => (
+                          <button
+                            key={channel.id}
+                            type="button"
+                            onClick={() => narrowToChannel(channel.id)}
+                            className="h-[32px] px-[12px] rounded-[8px] border border-newOutline bg-newBgColorInner text-[12px] font-[700] text-newTextColor"
+                          >
+                            {t('edit_only_channel', 'Edit only {{name}}', {
+                              name: channel.name,
+                            })}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {editingMany && groupScope === 'channel' && (
+                    <div className="rounded-[12px] border border-newOutline bg-newBgColor px-[14px] py-[12px] text-[13px] text-newTextColor">
+                      {t(
+                        'editing_one_channel_only',
+                        'Editing {{name}} only. The other channels keep their caption and time.',
+                        { name: onlyChannelName }
+                      )}
+                    </div>
+                  )}
                   <div className="flex w-full mobile:flex-wrap mobile:gap-[8px]">
                     <div className="flex flex-1">
                       <PicksSocialsComponent toolTip={true} />
@@ -690,7 +814,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   </div>
                   <div className="flex flex-1 gap-[6px] flex-col">
                     <div>
-                      {!existingData.integration && (
+                      {(!existingData.integration ||
+                        (editingMany && groupScope === 'group')) && (
                         <SelectCurrent
                           errorIds={channelIssues.map((issue) => issue.id)}
                         />

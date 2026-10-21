@@ -19,12 +19,14 @@ export const PicksSocialsComponent: FC<{ toolTip?: boolean }> = ({
     addOrRemoveSelectedIntegration,
     integrations,
     selectedIntegrations,
+    groupScope,
   } = useLaunchStore(
     useShallow((state) => ({
       integrations: state.integrations,
       selectedIntegrations: state.selectedIntegrations,
       addOrRemoveSelectedIntegration: state.addOrRemoveSelectedIntegration,
       locked: state.locked,
+      groupScope: state.groupScope,
     }))
   );
 
@@ -36,7 +38,18 @@ export const PicksSocialsComponent: FC<{ toolTip?: boolean }> = ({
             {integrations
               .filter((f) => {
                 if (exising.integration) {
-                  return f.id === exising.integration;
+                  const channelIds = (exising.channels || []).map(
+                    (channel) => channel.integration
+                  );
+                  if (groupScope === 'group' && channelIds.length > 1) {
+                    return channelIds.includes(f.id);
+                  }
+                  const selectedIds = selectedIntegrations.map(
+                    (selected) => selected.integration.id
+                  );
+                  return selectedIds.length
+                    ? selectedIds.includes(f.id)
+                    : f.id === exising.integration;
                 }
                 return !f.inBetweenSteps && !f.disabled;
               })
