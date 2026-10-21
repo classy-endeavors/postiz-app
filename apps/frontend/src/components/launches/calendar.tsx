@@ -196,9 +196,65 @@ const usePostActions = (onMutate?: () => void) => {
       const publishDate = dayjs
         .utc(date || data.posts[0].publishDate)
         .local();
-      const ExistingData = !isDuplicate
-        ? ExistingDataContextProvider
-        : Fragment;
+      // Duplicate is a new create: keep channels + per-channel settings, but
+      // drop group/ids so save does not overwrite the original.
+      const duplicateChannels = (
+        data.channels?.length
+          ? data.channels
+          : [
+              {
+                integration: data.integration,
+                settings: data.settings,
+                posts: data.posts,
+              },
+            ]
+      ) as Array<{
+        integration: string;
+        settings: any;
+        posts: any[];
+      }>;
+      const firstDuplicatePosts = duplicateChannels[0]?.posts || [];
+      const duplicateSet = isDuplicate
+        ? {
+            ...(firstDuplicatePosts[0]?.intervalInDays
+              ? { inter: firstDuplicatePosts[0].intervalInDays }
+              : {}),
+            tags:
+              firstDuplicatePosts[0]?.tags?.map((p: any) => ({
+                label: p.tag.name,
+                value: p.tag.name,
+              })) || [],
+            posts: duplicateChannels.map((channel) => ({
+              integration: { id: channel.integration },
+              settings: channel.settings || {},
+              value: (channel.posts || []).map((p: any) => ({
+                content: p.content,
+                delay: p.delay || 0,
+                media: p.image || [],
+              })),
+            })),
+          }
+        : undefined;
+      const modalBody = (
+        <AddEditModal
+          {...(duplicateSet ? { set: duplicateSet } : {})}
+          allIntegrations={integrations.map((p) => ({ ...p }))}
+          reopenModal={editPost(post)}
+          mutate={mutate}
+          integrations={
+            isDuplicate
+              ? integrations
+              : integrations
+                  .slice(0)
+                  .filter((f) => f.id === data.integration)
+                  .map((p) => ({
+                    ...p,
+                    picture: data.integrationPicture,
+                  }))
+          }
+          date={publishDate}
+        />
+      );
       modal.openModal({
         id: 'add-edit-modal',
         closeOnClickOutside: false,
@@ -210,37 +266,12 @@ const usePostActions = (onMutate?: () => void) => {
         classNames: {
           modal: 'w-[100%] max-w-[1400px] text-textColor',
         },
-        children: (
-          <ExistingData value={data}>
-            <AddEditModal
-              {...(isDuplicate
-                ? {
-                    onlyValues: data.posts.map(
-                      ({ image, settings, content }: any) => ({
-                        image,
-                        settings,
-                        content,
-                      })
-                    ),
-                  }
-                : {})}
-              allIntegrations={integrations.map((p) => ({ ...p }))}
-              reopenModal={editPost(post)}
-              mutate={mutate}
-              integrations={
-                isDuplicate
-                  ? integrations
-                  : integrations
-                      .slice(0)
-                      .filter((f) => f.id === data.integration)
-                      .map((p) => ({
-                        ...p,
-                        picture: data.integrationPicture,
-                      }))
-              }
-              date={publishDate}
-            />
-          </ExistingData>
+        children: isDuplicate ? (
+          modalBody
+        ) : (
+          <ExistingDataContextProvider value={data}>
+            {modalBody}
+          </ExistingDataContextProvider>
         ),
         size: '80%',
         title: ``,
