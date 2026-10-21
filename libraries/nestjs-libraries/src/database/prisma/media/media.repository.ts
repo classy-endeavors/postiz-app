@@ -173,6 +173,8 @@ export class MediaRepository {
         thumbnail: true,
         alt: true,
         thumbnailTimestamp: true,
+        createdAt: true,
+        fileSize: true,
       },
       skip: pageNum * 18,
       take: 18,
@@ -182,5 +184,23 @@ export class MediaRepository {
       pages,
       results,
     };
+  }
+
+  // Exact name match (case-insensitive) so the library can warn before a
+  // second upload of the same filename.
+  hasOriginalName(org: string, originalName: string) {
+    return this._media.model.media.findFirst({
+      where: {
+        organizationId: org,
+        deletedAt: null,
+        originalName: {
+          equals: originalName,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
   }
 }

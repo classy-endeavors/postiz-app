@@ -617,6 +617,16 @@ export class MediaService {
     };
   }
 
+  async hasOriginalName(org: string, originalName: string) {
+    if (!originalName?.trim()) {
+      return false;
+    }
+    return !!(await this._mediaRepository.hasOriginalName(
+      org,
+      originalName.trim()
+    ));
+  }
+
   async saveMediaInformation(org: string, data: SaveMediaInformationDto) {
     const media = await this._mediaRepository.saveMediaInformation(org, data);
     return (await this.withSignedAccess(media))!;
