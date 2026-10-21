@@ -22,6 +22,7 @@ import { shuffle } from 'lodash';
 import { CreateGeneratedPostsDto } from '@gitroom/nestjs-libraries/dtos/generator/create.generated.posts.dto';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { v4 as uuidv4 } from 'uuid';
 import utc from 'dayjs/plugin/utc';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
@@ -640,13 +641,39 @@ export class PostsService {
   async getPostsByGroup(orgId: string, group: string) {
     const convertToJPEG = false;
     const loadAll = await this._postRepository.getPostsByGroup(orgId, group);
-    const posts = this.arrangePostsByGroup(loadAll, undefined);
-    if (!posts.length) {
+    const byIntegration = new Map<string, typeof loadAll>();
+    for (const row of loadAll) {
+      const list = byIntegration.get(row.integrationId) || [];
+      list.push(row);
+      byIntegration.set(row.integrationId, list);
+    }
+
+    const channels = await Promise.all(
+      [...byIntegration.values()].map((rows) =>
+        this.presentChannel(rows, convertToJPEG)
+      )
+    );
+    const first = channels[0];
+    if (!first?.posts?.length) {
       throw new NotFoundException('Post not found');
     }
 
     return {
-      group: posts?.[0]?.group,
+      group: first.posts[0]?.group,
+      posts: first.posts,
+      integrationPicture: first.integrationPicture,
+      integration: first.integration,
+      settings: first.settings,
+      channels,
+    };
+  }
+
+  private async presentChannel(rows: any[], convertToJPEG: boolean) {
+    const posts = this.arrangePostsByGroup(rows, undefined);
+    return {
+      integration: posts[0]?.integrationId as string,
+      integrationPicture: posts[0]?.integration?.picture as string | undefined,
+      settings: JSON.parse(posts[0]?.settings || '{}'),
       posts: await Promise.all(
         (posts || []).map(async (post) => ({
           ...post,
@@ -657,9 +684,6 @@ export class PostsService {
           ),
         }))
       ),
-      integrationPicture: posts[0]?.integration?.picture,
-      integration: posts[0].integrationId,
-      settings: JSON.parse(posts[0].settings || '{}'),
     };
   }
 
@@ -829,11 +853,17 @@ export class PostsService {
     } catch (err) {}
   }
 
-  async deletePost(orgId: string, group: string) {
-    const post = await this._postRepository.deletePost(orgId, group);
+  async deletePost(orgId: string, group: string, integrationId?: string) {
+    const posts = await this._postRepository.deletePost(
+      orgId,
+      group,
+      integrationId
+    );
 
-    if (post?.id) {
-      await this.terminateWorkflows(post.id);
+    for (const post of posts) {
+      if (post?.id) {
+        await this.terminateWorkflows(post.id);
+      }
     }
 
     return { error: true };
@@ -1182,6 +1212,23 @@ export class PostsService {
         await this._coinsService.checkCoins(orgId, 'post', toCharge.size);
       }
     }
+    // Channels that share a client group are one post. A different group
+    // string per channel (or none) stays its own post.
+    const applyToGroup = body.applyTo === 'group';
+    const groupKeyByIndex = body.posts.map(
+      (post, index) => post.group || `new:${index}`
+    );
+    const persistedByKey = new Map<string, string>();
+    for (const key of groupKeyByIndex) {
+      if (!persistedByKey.has(key)) {
+        persistedByKey.set(key, keepGroup ? key : uuidv4());
+      }
+    }
+    const writtenByKey = new Map<
+      string,
+      { integrationId: string; ids: string[] }[]
+    >();
+
     for (const [index, post] of body.posts.entries()) {
       const existing = existingPosts[index];
       this.guardAgainstDirectPublishEdit(existing);
@@ -1211,6 +1258,8 @@ export class PostsService {
         content: removeLinks ? stripLinks(updateContent[i]) : updateContent[i],
       }));
 
+      const groupKey = groupKeyByIndex[index];
+      const assignedGroup = persistedByKey.get(groupKey) as string;
       const { posts } = await this._postRepository.createOrUpdatePost(
         body.type,
         orgId,
@@ -1219,8 +1268,16 @@ export class PostsService {
         body.tags,
         creationMethod,
         body.inter,
-        keepGroup
+        keepGroup,
+        assignedGroup
       );
+
+      const written = writtenByKey.get(groupKey) || [];
+      written.push({
+        integrationId: post.integration.id,
+        ids: posts.map((item) => item.id),
+      });
+      writtenByKey.set(groupKey, written);
 
       if (!posts?.length) {
         return [] as any[];
@@ -1271,6 +1328,35 @@ export class PostsService {
         postId: posts[0].id,
         integration: post.integration.id,
       });
+    }
+
+    for (const [groupKey, written] of writtenByKey) {
+      if (groupKey.startsWith('new:')) {
+        continue;
+      }
+
+      const persisted = persistedByKey.get(groupKey) as string;
+      const removed: string[] = [];
+      if (keepGroup || !applyToGroup) {
+        for (const item of written) {
+          removed.push(
+            ...(await this._postRepository.softDeleteIntegrationExcept(
+              orgId,
+              groupKey,
+              item.integrationId,
+              item.ids
+            ))
+          );
+        }
+      } else if (groupKey !== persisted) {
+        removed.push(
+          ...(await this._postRepository.softDeleteGroup(orgId, groupKey))
+        );
+      }
+
+      for (const id of removed) {
+        await this.terminateWorkflows(id);
+      }
     }
 
     if (body.links) {
@@ -1485,14 +1571,25 @@ export class PostsService {
     republish = false
   ) {
     const getPostById = await this._postRepository.getPostById(id, orgId);
-    this.guardAgainstDirectPublishEdit(getPostById);
+    if (!getPostById) {
+      throw new NotFoundException('Post not found');
+    }
+    const grouped = getPostById?.group
+      ? await this._postRepository.getPostsByGroup(orgId, getPostById.group)
+      : [];
+    const roots = grouped.filter((post) => !post.parentPostId);
+    const targets = roots.length ? roots : getPostById ? [getPostById] : [];
 
-    if (action === 'schedule' && !republish) {
-      this.guardAgainstRepublish(getPostById, 'changeDate');
+    for (const post of targets) {
+      this.guardAgainstDirectPublishEdit(post);
+      if (action === 'schedule' && !republish) {
+        this.guardAgainstRepublish(post, 'changeDate');
+      }
     }
 
     // schedule: Set status to QUEUE and change date (reschedule the post)
-    // update: Just change the date without changing the status
+    // update: Just change the date without changing the status.
+    // Every channel in the group moves together.
     const newDate = await this._postRepository.changeDate(
       orgId,
       id,
@@ -1502,16 +1599,16 @@ export class PostsService {
     );
 
     if (action === 'schedule') {
-      try {
-        await this.startWorkflow(
-          getPostById.integration.providerIdentifier
-            .split('-')[0]
-            .toLowerCase(),
-          getPostById.id,
-          orgId,
-          getPostById.state === 'DRAFT' ? 'DRAFT' : 'QUEUE'
-        );
-      } catch (err) {}
+      for (const post of targets) {
+        try {
+          await this.startWorkflow(
+            post.integration.providerIdentifier.split('-')[0].toLowerCase(),
+            post.id,
+            orgId,
+            post.state === 'DRAFT' ? 'DRAFT' : 'QUEUE'
+          );
+        } catch (err) {}
+      }
     }
 
     return newDate;

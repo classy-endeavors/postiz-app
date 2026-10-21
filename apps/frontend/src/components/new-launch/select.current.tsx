@@ -15,6 +15,7 @@ import {
   useDecisionModal,
   useModals,
 } from '@gitroom/frontend/components/layout/new-modal';
+import { useExistingData } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
 
 export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
@@ -55,6 +56,7 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
 }) => {
   const t = useT();
   const modals = useDecisionModal();
+  const existingData = useExistingData();
   const {
     selectedIntegrations,
     current,
@@ -62,6 +64,7 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
     locked,
     setHide,
     addOrRemoveSelectedIntegration,
+    groupScope,
   } = useLaunchStore(
     useShallow((state) => ({
       selectedIntegrations: state.selectedIntegrations,
@@ -70,6 +73,7 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
       setCurrent: state.setCurrent,
       locked: state.locked,
       setHide: state.setHide,
+      groupScope: state.groupScope,
     }))
   );
 
@@ -80,10 +84,19 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
     (sIntegration: Integrations) => async (e: any) => {
       e.stopPropagation();
       e.preventDefault();
+      const removingFromGroup =
+        groupScope === 'group' && (existingData.channels?.length || 0) > 1;
       const open = await modals.open({
-        title: 'Remove Social Account',
-        description:
-          'Are you sure you want to remove this social from scheduling?',
+        title: removingFromGroup
+          ? t('remove_channel_from_post', 'Remove channel')
+          : 'Remove Social Account',
+        description: removingFromGroup
+          ? t(
+              'remove_channel_from_post_description',
+              'Remove {{name}} from this post? It is deleted when you save. The other channels stay together.',
+              { name: sIntegration.name }
+            )
+          : 'Are you sure you want to remove this social from scheduling?',
       });
 
       if (!open) {
@@ -92,7 +105,7 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
 
       addOrRemoveSelectedIntegration(sIntegration, {});
     },
-    []
+    [addOrRemoveSelectedIntegration, existingData.channels, groupScope, modals, t]
   );
 
   return (

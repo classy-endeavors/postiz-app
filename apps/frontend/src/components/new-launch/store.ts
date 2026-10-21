@@ -128,6 +128,8 @@ interface StoreState {
   setPostComment: (postComment: PostComment) => void;
   setActivateExitButton?: (activateExitButton: boolean) => void;
   setDummy: (dummy: boolean) => void;
+  groupScope: 'group' | 'channel';
+  setGroupScope: (scope: 'group' | 'channel') => void;
   setEditor: (editor: 'none' | 'normal' | 'markdown' | 'html') => void;
   setLoaded?: (loaded: boolean) => void;
   setChars: (id: string, chars: number) => void;
@@ -156,6 +158,7 @@ const initialState = {
   global: [] as Values[],
   internal: [] as Internal[],
   chars: {},
+  groupScope: 'group' as 'group' | 'channel',
 };
 
 export const useLaunchStore = create<StoreState>()((set) => ({
@@ -613,6 +616,10 @@ export const useLaunchStore = create<StoreState>()((set) => ({
   setDummy: (dummy: boolean) =>
     set((state) => ({
       dummy,
+    })),
+  setGroupScope: (groupScope: 'group' | 'channel') =>
+    set(() => ({
+      groupScope,
     })),
   setEditor: (editor: 'none' | 'normal' | 'markdown' | 'html') =>
     set((state) => ({

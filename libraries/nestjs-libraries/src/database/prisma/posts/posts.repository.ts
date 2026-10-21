@@ -423,27 +423,106 @@ export class PostsRepository {
     };
   }
 
-  async deletePost(orgId: string, group: string) {
+  async deletePost(orgId: string, group: string, integrationId?: string) {
+    const roots = await this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        group,
+        parentPostId: null,
+        ...(integrationId ? { integrationId } : {}),
+      },
+      select: {
+        id: true,
+      },
+    });
+
     await this._post.model.post.updateMany({
       where: {
         organizationId: orgId,
         group,
+        ...(integrationId ? { integrationId } : {}),
       },
       data: {
         deletedAt: new Date(),
       },
     });
 
-    return this._post.model.post.findFirst({
+    return roots;
+  }
+
+  // Soft-delete every row still on this group and return the root ids whose
+  // publish workflows must be stopped. Rows already moved to a new group are
+  // not included.
+  async softDeleteGroup(orgId: string, group: string) {
+    const roots = await this._post.model.post.findMany({
       where: {
         organizationId: orgId,
         group,
+        deletedAt: null,
         parentPostId: null,
       },
       select: {
         id: true,
       },
     });
+
+    await this._post.model.post.updateMany({
+      where: {
+        organizationId: orgId,
+        group,
+        deletedAt: null,
+      },
+      data: {
+        parentPostId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return roots.map((root) => root.id);
+  }
+
+  // Drop rows for one channel that were not part of this save (removed
+  // comments, or a channel that was split onto a new group). Other channels
+  // that share the group are left alone.
+  async softDeleteIntegrationExcept(
+    orgId: string,
+    group: string,
+    integrationId: string,
+    keepIds: string[]
+  ) {
+    const roots = await this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        group,
+        integrationId,
+        deletedAt: null,
+        parentPostId: null,
+        id: {
+          notIn: keepIds,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await this._post.model.post.updateMany({
+      where: {
+        organizationId: orgId,
+        group,
+        integrationId,
+        deletedAt: null,
+        id: {
+          notIn: keepIds,
+        },
+      },
+      data: {
+        parentPostId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return roots.map((root) => root.id);
   }
 
   getPostsByGroup(orgId: string, group: string) {
@@ -465,6 +544,9 @@ export class PostsRepository {
             tag: true,
           },
         },
+      },
+      orderBy: {
+        createdAt: 'asc',
       },
     });
   }
@@ -583,22 +665,58 @@ export class PostsRepository {
     isDraft: boolean,
     action: 'schedule' | 'update' = 'schedule'
   ) {
-    return this._post.model.post.update({
+    const current = await this._post.model.post.findFirst({
       where: {
-        organizationId: orgId,
         id,
+        organizationId: orgId,
       },
-      data: {
-        publishDate: dayjs.utc(date).toDate(),
-        // schedule: set state to QUEUE (or DRAFT if it was a draft)
-        // update: don't change the state
-        ...(action === 'schedule'
-          ? {
-              state: isDraft ? 'DRAFT' : 'QUEUE',
-              releaseId: null,
-              releaseURL: null,
-            }
-          : {}),
+      select: {
+        group: true,
+      },
+    });
+
+    const publishDate = dayjs.utc(date).toDate();
+    const rows = current?.group
+      ? await this._post.model.post.findMany({
+          where: {
+            organizationId: orgId,
+            group: current.group,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            state: true,
+          },
+        })
+      : [];
+
+    const targets = rows.length ? rows : [{ id, state: isDraft ? 'DRAFT' : 'QUEUE' }];
+
+    for (const row of targets) {
+      await this._post.model.post.update({
+        where: {
+          id: row.id,
+          organizationId: orgId,
+        },
+        data: {
+          publishDate,
+          // schedule: set state to QUEUE (or leave a draft as a draft)
+          // update: don't change the state
+          ...(action === 'schedule'
+            ? {
+                state: row.state === 'DRAFT' ? 'DRAFT' : 'QUEUE',
+                releaseId: null,
+                releaseURL: null,
+              }
+            : {}),
+        },
+      });
+    }
+
+    return this._post.model.post.findFirst({
+      where: {
+        id,
+        organizationId: orgId,
       },
     });
   }
@@ -636,11 +754,16 @@ export class PostsRepository {
     // Keep the existing group instead of rotating it, so open clients
     // (calendar) holding the group stay valid. Used by out-of-band updates
     // (agent / MCP / public API); the dashboard keeps the rotate-and-sweep.
-    keepGroup = false
+    keepGroup = false,
+    // Group id already chosen for every channel in this save. The caller
+    // sweeps old rows after all channels are written, so a per-channel sweep
+    // cannot delete a sibling that has not been saved yet.
+    assignedGroup?: string
   ) {
     const posts: Post[] = [];
     const uuid = uuidv4();
-    const group = keepGroup && body.group ? body.group : uuid;
+    const group =
+      assignedGroup || (keepGroup && body.group ? body.group : uuid);
 
     for (const value of body.value) {
       const updateData = (type: 'create' | 'update') => ({
@@ -760,35 +883,23 @@ export class PostsRepository {
         )?.id!
       : undefined;
 
-    if (body.group && !keepGroup) {
-      await this._post.model.post.updateMany({
-        where: {
-          group: body.group,
-          deletedAt: null,
-        },
-        data: {
-          parentPostId: null,
-          deletedAt: new Date(),
-        },
-      });
+    // Assigned groups are swept once by the caller, after every channel in the
+    // save has been written. Sweeping here would delete siblings that share
+    // the group and have not been updated yet.
+    if (!assignedGroup && body.group && !keepGroup) {
+      await this.softDeleteGroup(orgId, body.group);
     }
 
     // keepGroup: the updated rows still carry the old group, so sweep only the
-    // rows dropped from it (removed comments) by id instead of by group.
-    if (body.group && keepGroup) {
-      await this._post.model.post.updateMany({
-        where: {
-          group: body.group,
-          deletedAt: null,
-          id: {
-            notIn: posts.map((p) => p.id),
-          },
-        },
-        data: {
-          parentPostId: null,
-          deletedAt: new Date(),
-        },
-      });
+    // rows dropped from this channel (removed comments). Other channels that
+    // share the group stay.
+    if (!assignedGroup && body.group && keepGroup) {
+      await this.softDeleteIntegrationExcept(
+        orgId,
+        body.group,
+        body.integration.id,
+        posts.map((p) => p.id)
+      );
     }
 
     return { previousPost, posts };

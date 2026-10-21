@@ -101,6 +101,46 @@ export const hours = Array.from(
   (_, i) => i
 );
 
+const representativeState = (post: {
+  state: State;
+  groupPosts?: { state: State }[];
+}): State => {
+  const items = post.groupPosts?.length ? post.groupPosts : [post];
+  if (items.some((item) => item.state === 'ERROR')) return 'ERROR';
+  if (items.every((item) => item.state === 'DRAFT')) return 'DRAFT';
+  if (items.every((item) => item.state === 'PUBLISHED')) return 'PUBLISHED';
+  return post.state;
+};
+
+const slotKey = (group: string, publishDate: string | Date) =>
+  `${group}:${dayjs.utc(publishDate).toISOString()}`;
+
+// One card per channel group at a given time. A recurring series keeps a card
+// per occurrence because those copies do not share a publish time.
+const collapseChannelGroups = <
+  T extends { id: string; group: string; publishDate: string | Date }
+>(
+  items: T[]
+) => {
+  const seen = new Set<string>();
+  const collapsed: (T & { groupPosts?: T[] })[] = [];
+  for (const item of items) {
+    const key = slotKey(item.group, item.publishDate);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const groupPosts = items.filter(
+      (other) => slotKey(other.group, other.publishDate) === key
+    );
+    collapsed.push({
+      ...item,
+      ...(groupPosts.length > 1 ? { groupPosts } : {}),
+    });
+  }
+  return collapsed;
+};
+
 // Shared hook for post actions (edit, delete, statistics)
 const usePostActions = (onMutate?: () => void) => {
   const t = useT();
@@ -122,6 +162,16 @@ const usePostActions = (onMutate?: () => void) => {
       };
 
       const data = await (await fetch(`/posts/group/${post.group}`)).json();
+      const openedId = loadPost?.integration?.id;
+      if (openedId && Array.isArray(data?.channels) && data.channels.length > 1) {
+        data.channels = [...data.channels].sort(
+          (a: { integration: string }, b: { integration: string }) => {
+            if (a.integration === openedId) return -1;
+            if (b.integration === openedId) return 1;
+            return 0;
+          }
+        );
+      }
       if (!data?.posts?.length) {
         toaster.show(t('post_not_found', 'Post not found'), 'warning');
         mutate();
@@ -217,12 +267,19 @@ const usePostActions = (onMutate?: () => void) => {
 
   const deletePost = useCallback(
     (post: any) => async () => {
+      const channelCount = post.groupPosts?.length || 1;
       if (
         !(await deleteDialog(
-          t(
-            'are_you_sure_you_want_to_delete_post_no_refund',
-            'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
-          )
+          channelCount > 1
+            ? t(
+                'are_you_sure_you_want_to_delete_post_all_channels',
+                'Are you sure you want to delete this post on all {{count}} channels? Coins spent to schedule it are not refunded.',
+                { count: channelCount }
+              )
+            : t(
+                'are_you_sure_you_want_to_delete_post_no_refund',
+                'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
+              )
         ))
       ) {
         return;
@@ -581,13 +638,13 @@ export const ListView = () => {
               {newDayjs(dateKey).format(isUSCitizen() ? 'dddd, MMMM D, YYYY' : 'dddd, D MMMM YYYY')}
             </div>
             <div className="flex flex-col gap-[10px] mb-[20px] px-[10px]">
-              {datePosts.map((post) => (
+              {collapseChannelGroups(datePosts).map((post) => (
                 <CalendarItem
-                  key={post.id}
+                  key={slotKey(post.group, post.publishDate)}
                   display="day"
                   isBeforeNow={false}
                   date={newDayjs(post.publishDate)}
-                  state={post.state}
+                  state={representativeState(post)}
                   statistics={openStatistics(post.id)}
                   missingRelease={openMissingRelease(post.id)}
                   editPost={editPost(post, false)}
@@ -952,7 +1009,7 @@ export const CalendarColumn: FC<{
   // Use shared post actions hook
   const { editPost, deletePost, copyDebugJson, openStatistics, openMissingRelease } = usePostActions();
   const postList = useMemo(() => {
-    return posts.filter((post) => {
+    const filtered = posts.filter((post) => {
       const pList = dayjs.utc(post.publishDate).local();
       const check =
         display === 'day'
@@ -964,6 +1021,7 @@ export const CalendarColumn: FC<{
           : pList.format('DD/MM/YYYY') === getDate.format('DD/MM/YYYY');
       return check;
     });
+    return collapseChannelGroups(filtered);
   }, [posts, display, getDate]);
   const [showAll, setShowAll] = useState(false);
   const showAllFunc = useCallback(() => {
@@ -1028,7 +1086,19 @@ export const CalendarColumn: FC<{
                       'post_already_published_republish_warning',
                       'This post was already published. Republishing will publish it again to'
                     )}{' '}
-                    {post.integration?.name}{' '}
+                    {uniq(
+                      posts
+                        .filter(
+                          (entry) =>
+                            entry.group === post.group &&
+                            dayjs.utc(entry.publishDate).toISOString() ===
+                              dayjs
+                                .utc(item.publishDate || post.publishDate)
+                                .toISOString()
+                        )
+                        .map((entry) => entry.integration?.name)
+                        .filter(Boolean)
+                    ).join(', ') || post.integration?.name}{' '}
                     {t('republish_at', 'at')} {getDate.format('DD/MM/YYYY HH:mm')}.
                     {(!!item.interval || !!post.intervalInDays) && (
                       <div className="mt-[10px]">
@@ -1079,7 +1149,7 @@ export const CalendarColumn: FC<{
       }
 
       if (!item.interval) {
-        changeDate(item.id, getDate);
+        changeDate(item.id, getDate, item.publishDate);
       }
       const { status } = await fetch(`/posts/${item.id}/date`, {
         method: 'PUT',
@@ -1217,11 +1287,11 @@ export const CalendarColumn: FC<{
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[4px] pe-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
           {postList.map((post) => (
             <CalendarItem
-              key={post.id}
+              key={slotKey(post.group, post.publishDate)}
               display="month"
               isBeforeNow={isBeforeNow}
               date={getDate}
-              state={post.state}
+              state={representativeState(post)}
               statistics={openStatistics(post.id)}
               missingRelease={openMissingRelease(post.id)}
               editPost={editPost(post, false)}
@@ -1301,7 +1371,7 @@ export const CalendarColumn: FC<{
           )}
           {list.map((post) => (
             <div
-              key={post.id}
+              key={slotKey(post.group, post.publishDate)}
               className={clsx(
                 isDay
                   ? 'text-textColor relative w-full shrink-0'
@@ -1319,7 +1389,7 @@ export const CalendarColumn: FC<{
                   display={display as 'day' | 'week'}
                   isBeforeNow={isBeforeNow}
                   date={getDate}
-                  state={post.state}
+                  state={representativeState(post)}
                   statistics={openStatistics(post.id)}
                   missingRelease={openMissingRelease(post.id)}
                   editPost={editPost(post, false)}
@@ -1451,6 +1521,11 @@ const CalendarItem: FC<{
     tags: {
       tag: Tags;
     }[];
+    groupPosts?: Array<
+      Post & {
+        integration: Integration;
+      }
+    >;
   };
 }> = memo((props) => {
   const t = useT();
@@ -1489,6 +1564,7 @@ const CalendarItem: FC<{
         id: post.id,
         interval: !!post.intervalInDays,
         date,
+        publishDate: post.publishDate,
       },
       collect: (monitor) => ({
         opacity: monitor.isDragging() ? 0 : 1,
@@ -1503,6 +1579,7 @@ const CalendarItem: FC<{
       : post.releaseId === 'missing'
       ? missingRelease
       : statistics;
+  const channels = post.groupPosts?.length ? post.groupPosts : [post];
 
   if (display === 'month') {
     const statusLabel = getStatusLabel(t, state);
@@ -1531,11 +1608,16 @@ const CalendarItem: FC<{
           </span>
           <span className="min-w-0 flex flex-col gap-[1px]">
             <span className="flex items-center gap-[4px] min-w-0">
-              <img
-                className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
-                src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
-                alt={post.integration?.providerIdentifier}
-              />
+              <span className="flex items-center gap-[2px] shrink-0">
+                {channels.slice(0, 3).map((channel) => (
+                  <img
+                    key={channel.id}
+                    className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
+                    src={`/icons/platforms/${channel.integration?.providerIdentifier}.png`}
+                    alt={channel.integration?.providerIdentifier}
+                  />
+                ))}
+              </span>
               <span className="text-[11px] font-[700] leading-[1.3] truncate text-newTextColor">
                 {stripHtmlValidation('none', post.content, false, true, false) ||
                   t('no_content', 'no content')}
@@ -1718,19 +1800,24 @@ const CalendarItem: FC<{
           isBeforeNow && '!grayscale'
         )}
       >
-        <div className={clsx('relative min-w-[20px]')}>
-          <ImageWithFallback
-            className="w-[20px] h-[20px] rounded-[8px]"
-            src={post.integration.picture! || '/no-picture.jpg'}
-            fallbackSrc="/no-picture.jpg"
-            alt={post.integration.name}
-            width={20}
-            height={20}
-          />
-          <img
-            className="w-[12px] h-[12px] rounded-[8px] absolute z-10 top-[10px] end-0 border border-fifth"
-            src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
-          />
+        <div className="flex items-center gap-[6px] shrink-0">
+          {channels.map((channel) => (
+            <div key={channel.id} className="relative min-w-[20px]">
+              <ImageWithFallback
+                className="w-[20px] h-[20px] rounded-[8px]"
+                src={channel.integration.picture! || '/no-picture.jpg'}
+                fallbackSrc="/no-picture.jpg"
+                alt={channel.integration.name}
+                width={20}
+                height={20}
+              />
+              <img
+                className="w-[12px] h-[12px] rounded-[8px] absolute z-10 top-[10px] end-0 border border-fifth"
+                src={`/icons/platforms/${channel.integration?.providerIdentifier}.png`}
+                alt={channel.integration?.providerIdentifier}
+              />
+            </div>
+          ))}
         </div>
         <div className="w-full flex-1 flex flex-col min-h-[40px]">
           <div className="text-start">

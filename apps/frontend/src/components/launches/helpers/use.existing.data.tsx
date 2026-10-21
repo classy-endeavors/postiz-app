@@ -1,10 +1,19 @@
 import { createContext, FC, ReactNode, useContext } from 'react';
 import { Post } from '@prisma/client';
+
+export type ExistingChannel = {
+  integration: string;
+  integrationPicture?: string;
+  settings: any;
+  posts: Post[];
+};
+
 const ExistingDataContext = createContext({
   integration: '',
   group: undefined as undefined | string,
   posts: [] as Post[],
   settings: {} as any,
+  channels: [] as ExistingChannel[],
 });
 export const ExistingDataContextProvider: FC<{
   children: ReactNode;

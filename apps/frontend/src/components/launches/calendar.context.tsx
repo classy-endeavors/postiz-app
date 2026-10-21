@@ -63,7 +63,7 @@ export const CalendarContext = createContext({
   }) => {
     /** empty **/
   },
-  changeDate: (id: string, date: dayjs.Dayjs) => {
+  changeDate: (id: string, date: dayjs.Dayjs, publishDate?: string | Date) => {
     /** empty **/
   },
   detailDay: null as string | null,
@@ -312,18 +312,34 @@ export const CalendarWeekProvider: FC<{
   const listTotalPages = Math.ceil(listTotal / 100);
 
   const changeDate = useCallback(
-    (id: string, date: dayjs.Dayjs) => {
-      setInternalData((d) =>
-        d.map((post: Post) => {
-          if (post.id === id) {
-            return {
-              ...post,
-              publishDate: date.utc().format('YYYY-MM-DDTHH:mm:ss'),
-            };
+    (id: string, date: dayjs.Dayjs, publishDate?: string | Date) => {
+      setInternalData((d) => {
+        const source = d.find(
+          (post: Post) =>
+            post.id === id &&
+            (!publishDate ||
+              dayjs.utc(post.publishDate).toISOString() ===
+                dayjs.utc(publishDate).toISOString())
+        );
+        const sourceTime = dayjs
+          .utc(publishDate || source?.publishDate)
+          .toISOString();
+        return d.map((post: Post) => {
+          const samePost = post.id === id;
+          const sameGroupSlot =
+            !!source?.group &&
+            post.group === source.group &&
+            post.id !== id &&
+            dayjs.utc(post.publishDate).toISOString() === sourceTime;
+          if (!samePost && !sameGroupSlot) {
+            return post;
           }
-          return post;
-        })
-      );
+          return {
+            ...post,
+            publishDate: date.utc().format('YYYY-MM-DDTHH:mm:ss'),
+          };
+        });
+      });
     },
     [posts, internalData]
   );

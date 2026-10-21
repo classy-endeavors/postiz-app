@@ -97,22 +97,36 @@ export const AddEditModalInner: FC<AddEditModalProps> = (props) => {
       }
     }
 
-    if (existingData.integration) {
-      const integration = integrations.find(
-        (i) => i.id === existingData.integration
-      );
-      if (!integration) {
-        toaster.show(
-          t(
-            'we_are_experiencing_some_difficulty_try_to_refresh_the_page',
-            'We are experiencing some difficulty, try to refresh the page'
-          ),
-          'warning'
+    const channels = existingData.channels?.length
+      ? existingData.channels
+      : existingData.integration
+      ? [
+          {
+            integration: existingData.integration,
+            settings: existingData.settings,
+            posts: existingData.posts,
+          },
+        ]
+      : [];
+
+    if (channels.length) {
+      for (const channel of channels) {
+        const integration = integrations.find(
+          (i) => i.id === channel.integration
         );
-        modal.closeAll();
-        return;
+        if (!integration) {
+          toaster.show(
+            t(
+              'we_are_experiencing_some_difficulty_try_to_refresh_the_page',
+              'We are experiencing some difficulty, try to refresh the page'
+            ),
+            'warning'
+          );
+          modal.closeAll();
+          return;
+        }
+        addOrRemoveSelectedIntegration(integration, channel.settings);
       }
-      addOrRemoveSelectedIntegration(integration, existingData.settings);
     }
 
     if (props?.selectedChannels?.length) {
@@ -159,7 +173,79 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
   );
 
   useEffect(() => {
-    if (existingData.integration) {
+    const toValues = (posts: any[]) =>
+      posts.map((post) => ({
+        delay: post.delay,
+        content:
+          post.content.indexOf('<p>') > -1
+            ? post.content
+            : post.content
+                .split('\n')
+                .map((line: string) => `<p>${line}</p>`)
+                .join(''),
+        id: post.id,
+        media: post.image as any[],
+      }));
+
+    const contentKey = (posts: any[]) =>
+      JSON.stringify(
+        toValues(posts || []).map(({ content, delay, media }) => ({
+          content,
+          delay: delay || 0,
+          media,
+        }))
+      );
+
+    const channels = existingData.channels?.length
+      ? existingData.channels
+      : existingData.integration
+      ? [
+          {
+            integration: existingData.integration,
+            settings: existingData.settings,
+            posts: existingData.posts,
+          },
+        ]
+      : [];
+
+    if (channels.length > 1) {
+      const first = channels[0];
+      if (first.posts?.[0]?.intervalInDays) {
+        setRepeater(first.posts[0].intervalInDays);
+      }
+      setTags(
+        // @ts-ignore
+        first.posts?.[0]?.tags?.map((p: any) => ({
+          label: p.tag.name,
+          value: p.tag.name,
+        })) || []
+      );
+      const sameCaption = channels.every(
+        (channel) => contentKey(channel.posts) === contentKey(first.posts)
+      );
+      if (sameCaption) {
+        addGlobalValue(
+          0,
+          toValues(first.posts).map((value) => ({
+            ...value,
+            id: makeId(10),
+          }))
+        );
+        setCurrent('global');
+      } else {
+        for (const channel of channels) {
+          addInternalValue(0, channel.integration, toValues(channel.posts));
+        }
+        addGlobalValue(
+          0,
+          toValues(first.posts).map((value) => ({
+            ...value,
+            id: makeId(10),
+          }))
+        );
+        setCurrent(first.integration);
+      }
+    } else if (existingData.integration) {
       if (existingData?.posts?.[0]?.intervalInDays) {
         setRepeater(existingData.posts[0].intervalInDays);
       }
@@ -173,19 +259,7 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
       addInternalValue(
         0,
         existingData.integration,
-        existingData.posts.map((post) => ({
-          delay: post.delay,
-          content:
-            post.content.indexOf('<p>') > -1
-              ? post.content
-              : post.content
-                  .split('\n')
-                  .map((line: string) => `<p>${line}</p>`)
-                  .join(''),
-          id: post.id,
-          // @ts-ignore
-          media: post.image as any[],
-        }))
+        toValues(existingData.posts)
       );
       setCurrent(existingData.integration);
     } else {
@@ -196,41 +270,44 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
       setCurrent(props.focusedChannel);
     }
 
-    addGlobalValue(
-      0,
-      props.onlyValues?.length
-        ? props.onlyValues.map((p) => ({
-            content:
-              p.content.indexOf('<p>') > -1
-                ? p.content
-                : p.content
-                    .split('\n')
-                    .map((line: string) => `<p>${line}</p>`)
-                    .join(''),
-            id: makeId(10),
-            media: p.image || [],
-          }))
-        : props.set?.posts?.length
-        ? props.set.posts[0].value.map((p: any) => ({
-            id: makeId(10),
-            content:
-              p.content.indexOf('<p>') > -1
-                ? p.content
-                : p.content
-                    .split('\n')
-                    .map((line: string) => `<p>${line}</p>`)
-                    .join(''),
-            // @ts-ignore
-            media: p.media,
-          }))
-        : [
-            {
-              content: '',
+    const editingGroup = (existingData.channels?.length || 0) > 1;
+    if (!editingGroup) {
+      addGlobalValue(
+        0,
+        props.onlyValues?.length
+          ? props.onlyValues.map((p) => ({
+              content:
+                p.content.indexOf('<p>') > -1
+                  ? p.content
+                  : p.content
+                      .split('\n')
+                      .map((line: string) => `<p>${line}</p>`)
+                      .join(''),
               id: makeId(10),
-              media: [],
-            },
-          ]
-    );
+              media: p.image || [],
+            }))
+          : props.set?.posts?.length
+          ? props.set.posts[0].value.map((p: any) => ({
+              id: makeId(10),
+              content:
+                p.content.indexOf('<p>') > -1
+                  ? p.content
+                  : p.content
+                      .split('\n')
+                      .map((line: string) => `<p>${line}</p>`)
+                      .join(''),
+              // @ts-ignore
+              media: p.media,
+            }))
+          : [
+              {
+                content: '',
+                id: makeId(10),
+                media: [],
+              },
+            ]
+      );
+    }
 
     return () => {
       reset();
