@@ -1,10 +1,10 @@
 import { FC, useCallback, useMemo, useState } from 'react';
-import { Integration } from '@prisma/client';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import clsx from 'clsx';
+import { Integrations } from '@gitroom/frontend/components/launches/calendar.context';
 
 interface AnalyticsDataItem {
   label: string;
@@ -192,8 +192,13 @@ const EmptyState: FC<{ onRefresh: () => void; refreshNeeded: boolean }> = ({
   );
 };
 
+type AnalyticsIntegration = Integrations & {
+  internalId?: string;
+  refreshNeeded?: boolean;
+};
+
 export const RenderAnalytics: FC<{
-  integration: Integration;
+  integration: AnalyticsIntegration;
   date: number;
 }> = (props) => {
   const { integration, date } = props;
@@ -220,26 +225,21 @@ export const RenderAnalytics: FC<{
   });
 
   const refreshChannel = useCallback(
-    (
-        integrationData: Integration & {
-          identifier: string;
-        }
-      ) =>
-      async () => {
-        const { url } = await (
-          await fetch(
-            `/integrations/social/${
-              integrationData.identifier
-            }?refresh=${integrationData.internalId}&redirectUrl=${encodeURIComponent(
-              '/analytics'
-            )}`,
-            {
-              method: 'GET',
-            }
-          )
-        ).json();
-        window.location.href = url;
-      },
+    (integrationData: AnalyticsIntegration) => async () => {
+      const { url } = await (
+        await fetch(
+          `/integrations/social/${
+            integrationData.identifier
+          }?refresh=${integrationData.internalId}&redirectUrl=${encodeURIComponent(
+            '/analytics'
+          )}`,
+          {
+            method: 'GET',
+          }
+        )
+      ).json();
+      window.location.href = url;
+    },
     []
   );
 
@@ -313,7 +313,7 @@ export const RenderAnalytics: FC<{
     return (
       <div className="grid grid-cols-1">
         <EmptyState
-          onRefresh={refreshChannel(integration as any)}
+          onRefresh={refreshChannel(integration)}
           refreshNeeded={!!integration?.refreshNeeded}
         />
       </div>

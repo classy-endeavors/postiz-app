@@ -289,6 +289,7 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
           props.onlyValues.map((p) => ({
             content: wrapContent(p.content),
             id: makeId(10),
+            delay: 0,
             media: p.image || [],
           }))
         );
@@ -311,6 +312,7 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
           {
             content: '',
             id: makeId(10),
+            delay: 0,
             media: [],
           },
         ]);
