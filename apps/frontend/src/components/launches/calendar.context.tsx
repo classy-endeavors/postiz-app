@@ -192,11 +192,16 @@ export const CalendarWeekProvider: FC<{
   const loadData = useCallback(async () => {
     // The month grid also shows the leading/trailing days of the neighbour months
     const rangeUnit = filters.display === 'month' ? 'isoWeek' : 'day';
+    // toISOString keeps milliseconds. format() drops them, so a post at the
+    // last ms of the local day (e.g. 23:59:59.999) falls outside the range.
     const modifiedParams = new URLSearchParams({
       display: filters.display,
       customer: filters?.customer?.toString() || '',
-      startDate: newDayjs(filters.startDate).startOf(rangeUnit).utc().format(),
-      endDate: newDayjs(filters.endDate).endOf(rangeUnit).utc().format(),
+      startDate: newDayjs(filters.startDate)
+        .startOf(rangeUnit)
+        .utc()
+        .toISOString(),
+      endDate: newDayjs(filters.endDate).endOf(rangeUnit).utc().toISOString(),
     }).toString();
 
     const data = await (await fetch(`/posts?${modifiedParams}`)).json();
@@ -353,11 +358,15 @@ export const CalendarWeekProvider: FC<{
   // Combined reload function that handles both calendar and list views
   const swr = useSWRConfig();
   const reloadCalendarView = useCallback(() => {
+    // Invalidate every calendar/list cache. Creating from List leaves the
+    // week/day SWR keys stale for up to refreshInterval otherwise.
+    swr.mutate(
+      (key) =>
+        typeof key === 'string' &&
+        (key.startsWith('/posts-') || key.startsWith('/posts-list-'))
+    );
     mutateCalendar();
     mutateList();
-    swr.mutate(
-      (key) => typeof key === 'string' && key.startsWith('/posts-day-')
-    );
   }, [mutateCalendar, mutateList, swr]);
 
   // Determine loading state based on current view

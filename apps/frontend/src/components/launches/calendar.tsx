@@ -346,19 +346,20 @@ export const DayView = () => {
   const currentLanguage = i18next.resolvedLanguage || 'en';
   dayjs.locale(currentLanguage);
 
-  const currentDay = dayjs.utc(startDate);
-
   const options = useMemo(() => {
-    const createdPosts = posts.map((post) => ({
-      integration: [integrations.find((i) => i.id === post.integration.id)!],
-      image: post?.integration?.picture || '',
-      identifier: post?.integration?.providerIdentifier || '',
-      id: post?.integration?.id || '',
-      name: post?.integration?.name || '',
-      time: dayjs
-        .utc(post.publishDate)
-        .diff(dayjs.utc(post.publishDate).startOf('day'), 'minute'),
-    }));
+    // Slot times are minutes from local midnight, same unit as channel
+    // preferred times, so posts and slots land on the same rows.
+    const createdPosts = posts.map((post) => {
+      const local = dayjs.utc(post.publishDate).local();
+      return {
+        integration: [integrations.find((i) => i.id === post.integration.id)!],
+        image: post?.integration?.picture || '',
+        identifier: post?.integration?.providerIdentifier || '',
+        id: post?.integration?.id || '',
+        name: post?.integration?.name || '',
+        time: local.diff(local.startOf('day'), 'minute'),
+      };
+    });
     return sortBy(
       Object.values(
         groupBy(
@@ -382,6 +383,11 @@ export const DayView = () => {
     );
   }, [integrations, posts]);
 
+  const dayLocal = useMemo(
+    () => dayjs.utc(startDate).local().startOf('day'),
+    [startDate]
+  );
+
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
       <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
@@ -393,11 +399,8 @@ export const DayView = () => {
             {/* shrink-0 so a short day column cannot squash rows and let cards cover the next times.
                 Times stay outside the post column so full-width cards cannot cover them. */}
             <div className="w-[92px] shrink-0 pt-[10px] text-end text-[14px] tabular-nums text-newTextColor whitespace-nowrap">
-              {newDayjs()
-                .utc()
-                .startOf('day')
+              {dayLocal
                 .add(option[0].time, 'minute')
-                .local()
                 .format(isUSCitizen() ? 'hh:mm A' : 'LT')}
             </div>
             <div className="flex-1 min-w-0 rounded-[10px]">
@@ -408,10 +411,7 @@ export const DayView = () => {
                 }}
               >
                 <CalendarColumn
-                  getDate={currentDay
-                    .startOf('day')
-                    .add(option[0].time, 'minute')
-                    .local()}
+                  getDate={dayLocal.add(option[0].time, 'minute')}
                 />
               </CalendarContext.Provider>
             </div>
@@ -1016,8 +1016,9 @@ export const CalendarColumn: FC<{
           ? pList.format('YYYY-MM-DD HH:mm') ===
             getDate.format('YYYY-MM-DD HH:mm')
           : display === 'week'
-          ? pList.isSameOrAfter(getDate.startOf('hour')) &&
-            pList.isBefore(getDate.endOf('hour'))
+          ? // isSameOrBefore: a post at :59.999 must still sit in that hour
+            pList.isSameOrAfter(getDate.startOf('hour')) &&
+            pList.isSameOrBefore(getDate.endOf('hour'))
           : pList.format('DD/MM/YYYY') === getDate.format('DD/MM/YYYY');
       return check;
     });
