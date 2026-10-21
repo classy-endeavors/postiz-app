@@ -701,21 +701,32 @@ export const MediaBox: FC<{
                       )}
                 </div>
                 <div className="whitespace-pre-line text-newTextColor/[0.6] text-center">
-                  {t(
-                    'select_or_upload_media_max_1gb',
-                    'Select or upload {{allowed}} (maximum 1 GB per upload).',
-                    { allowed: allowedTypesLabel }
-                  )}{' '}
-                  {'\n'}
-                  {t(
-                    'you_can_drag_drop_media',
-                    'You can also drag & drop files here.'
-                  )}
+                  {debouncedSearch
+                    ? t(
+                        'try_different_media_search',
+                        'Try a different file name, or clear the search to browse your library.'
+                      )
+                    : (
+                        <>
+                          {t(
+                            'select_or_upload_media_max_1gb',
+                            'Select or upload {{allowed}} (maximum 1 GB per upload).',
+                            { allowed: allowedTypesLabel }
+                          )}{' '}
+                          {'\n'}
+                          {t(
+                            'you_can_drag_drop_media',
+                            'You can also drag & drop files here.'
+                          )}
+                        </>
+                      )}
                 </div>
-                <div className="forceChange flex gap-[8px]">
-                  {btn}
-                  <ThirdPartyMediaLibrary onImported={() => mutate()} />
-                </div>
+                {!debouncedSearch && (
+                  <div className="forceChange flex gap-[8px]">
+                    {btn}
+                    <ThirdPartyMediaLibrary onImported={() => mutate()} />
+                  </div>
+                )}
               </>
             )}
             {isLoading && (

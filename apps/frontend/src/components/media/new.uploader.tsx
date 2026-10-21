@@ -47,7 +47,7 @@ export function describeAllowedMediaTypes(allowedFileTypes: string) {
   const hasVideo = parts.some((part) => part.includes('video'));
 
   if (hasImages && hasVideo) {
-    return 'images (PNG, JPG, GIF, WebP) and MP4 video';
+    return 'images and videos (PNG, JPG, GIF, WebP, MP4)';
   }
   if (hasImages) {
     return 'images (PNG, JPG, GIF, WebP)';
