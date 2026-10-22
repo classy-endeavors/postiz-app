@@ -45,7 +45,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PlusIcon,
-  DeleteCircleIcon,
   CloseCircleIcon,
   DragHandleIcon,
   MediaSettingsIcon,
@@ -780,10 +779,10 @@ export const MediaBox: FC<{
                       <button
                         type="button"
                         aria-label={t('delete_media', 'Delete media')}
-                        className="cursor-pointer hidden group-hover:flex z-[100] absolute top-[6px] end-[6px] items-center justify-center w-[28px] h-[28px] rounded-full bg-black/60 hover:bg-black/80 shadow-md"
+                        className="cursor-pointer flex z-[100] absolute -top-[4px] -end-[4px] items-center justify-center rounded-full bg-white shadow-sm hover:scale-110 transition-transform"
                         onClick={deleteImage(media)}
                       >
-                        <DeleteCircleIcon size={22} />
+                        <CloseCircleIcon size={20} />
                       </button>
                     )}
                     <div className="w-full aspect-square rounded-[6px] overflow-hidden relative bg-newSep">

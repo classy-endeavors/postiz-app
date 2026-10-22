@@ -308,7 +308,8 @@ export const PostContentClient: FC<{ postId: string; html: string }> = ({
     <div className="relative">
       <div
         ref={ref}
-        className="text-[14px] whitespace-pre-wrap leading-[22px] preview-comment-cursor"
+        dir="auto"
+        className="text-[14px] whitespace-pre-wrap break-all leading-[22px] preview-comment-cursor min-w-0 overflow-hidden"
         onMouseUp={onMouseUp}
         onMouseMove={onMouseMove}
         onMouseLeave={() => setHint(null)}

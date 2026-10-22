@@ -25,7 +25,8 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
     private _integrationService: IntegrationService,
     private _mediaService: MediaService
   ) {}
-  name = 'integrationSchedulePostTool';
+  // Object key the model calls — must match prompts / tool id (schedulePostTool).
+  name = 'schedulePostTool';
 
   /**
    * Resolve a media id or URL into a persisted attachment.
@@ -250,7 +251,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                   output: {
                     errors: `${validation.name}: ${
                       validation.settingsError || 'Please fix your settings'
-                    }, please fix it, and try integrationSchedulePostTool again.`,
+                    }, please fix it, and try schedulePostTool again.`,
                   },
                 };
               }
@@ -258,7 +259,7 @@ If validation fails, the result contains output.errors describing what to fix; t
               if (validation.errors !== true) {
                 return {
                   output: {
-                    errors: `${validation.name}: ${validation.errors}, please fix it, and try integrationSchedulePostTool again.`,
+                    errors: `${validation.name}: ${validation.errors}, please fix it, and try schedulePostTool again.`,
                   },
                 };
               }
@@ -266,7 +267,7 @@ If validation fails, the result contains output.errors describing what to fix; t
               if (validation.tooLong) {
                 return {
                   output: {
-                    errors: `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit, please fix it, and try integrationSchedulePostTool again.`,
+                    errors: `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit, please fix it, and try schedulePostTool again.`,
                   },
                 };
               }

@@ -79,6 +79,79 @@ type ChannelIssue = {
   focus: ChannelFocusTarget;
 };
 
+type ValidPostResult = {
+  id: string;
+  identifier: string;
+  name: string;
+  emptyContent?: boolean;
+  tooLong?: boolean;
+  maximumCharacters?: number;
+  valid?: boolean;
+  settingsErrors?: string[];
+  settingsError?: string;
+  errors?: true | string;
+};
+
+const aggregateChannelIssues = (
+  checkAllValid: ValidPostResult[],
+  type: string,
+  t: ReturnType<typeof useT>
+): ChannelIssue[] => {
+  const issues: ChannelIssue[] = [];
+  for (const item of checkAllValid) {
+    const messages: string[] = [];
+    let focusWhere: ChannelFocusTarget = 'preview';
+
+    if (item.emptyContent) {
+      messages.push(
+        t(
+          'post_needs_content_or_image',
+          'Your post should have at least one character or one image.'
+        )
+      );
+    }
+
+    if (type !== 'draft') {
+      if (item.tooLong) {
+        messages.push(
+          t(
+            'post_exceeds_character_limit',
+            'Caption exceeds the {{max}} character limit',
+            { max: item.maximumCharacters }
+          )
+        );
+      }
+
+      if (item.valid === false) {
+        const settingsMessages: string[] =
+          Array.isArray(item.settingsErrors) && item.settingsErrors.length
+            ? item.settingsErrors
+            : [
+                item.settingsError ||
+                  t('please_fix_your_settings', 'Please fix your settings'),
+              ];
+        messages.push(...settingsMessages);
+        focusWhere = 'form';
+      }
+
+      if (item.errors !== true) {
+        messages.push(String(item.errors));
+      }
+    }
+
+    if (messages.length) {
+      issues.push({
+        id: item.id,
+        identifier: item.identifier,
+        name: item.name,
+        messages: [...new Set(messages)],
+        focus: focusWhere,
+      });
+    }
+  }
+  return issues;
+};
+
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
   const fetch = useFetch();
@@ -158,6 +231,128 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       setHide(false);
     }
   }, [hide]);
+
+  // Live per-channel validation before Add to Calendar (ZQA-016): keep the
+  // checklist and tab badges in sync while editing, without focusing or toasting.
+  const liveValidateGen = useRef(0);
+  const runLiveValidation = useCallback(async () => {
+    if (dummy || !ref.current?.getAllValues || !selectedIntegrations.length) {
+      setChannelIssues([]);
+      return;
+    }
+    const gen = ++liveValidateGen.current;
+    try {
+      const allValues = (await ref.current.getAllValues()) as ComposerChannelDraft[];
+      if (gen !== liveValidateGen.current) {
+        return;
+      }
+      const channels = existingData.channels || [];
+      const usedIds = new Set<string>();
+      const group = existingData.group || makeId(10);
+      const posts = allValues.map((post) => {
+        const channel = channels.find((item) => item.integration === post.id);
+        return {
+          integration: { id: post.id },
+          group,
+          settings: { ...(post.settings || {}) },
+          value: post.values.map((value, index) => {
+            const owned = channel?.posts?.[index]?.id as string | undefined;
+            let id: string | undefined = owned || value.id;
+            if (id && usedIds.has(id)) {
+              id = undefined;
+            }
+            if (id) {
+              usedIds.add(id);
+            }
+            return {
+              ...(id ? { id } : {}),
+              content: value.content,
+              delay: value.delay || 0,
+              image:
+                (value.media || []).map(
+                  ({
+                    id: mediaId,
+                    path,
+                    alt,
+                    thumbnail,
+                    thumbnailTimestamp,
+                  }) => ({
+                    id: mediaId,
+                    path,
+                    alt,
+                    thumbnail,
+                    thumbnailTimestamp,
+                  })
+                ) || [],
+            };
+          }),
+        };
+      });
+
+      // Match Add to Calendar rules (media/settings), not draft skips.
+      const checkAllValid = await (
+        await fetch('/posts/valid', {
+          method: 'POST',
+          body: JSON.stringify({ type: 'schedule', posts }),
+        })
+      ).json();
+      if (gen !== liveValidateGen.current) {
+        return;
+      }
+      if (!Array.isArray(checkAllValid)) {
+        return;
+      }
+      setChannelIssues(aggregateChannelIssues(checkAllValid, 'schedule', t));
+    } catch {
+      // Ignore transient failures while typing; submit still validates.
+    }
+  }, [
+    dummy,
+    existingData.channels,
+    existingData.group,
+    fetch,
+    selectedIntegrations.length,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (dummy) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void runLiveValidation();
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [
+    dummy,
+    runLiveValidation,
+    selectedIntegrations,
+    globalValues,
+    internalValues,
+    current,
+  ]);
+
+  // Settings (e.g. YouTube title) live in RHF and do not update the store —
+  // poll lightly so title/media rules still surface before submit.
+  useEffect(() => {
+    if (dummy) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void runLiveValidation();
+    }, 1600);
+    return () => clearInterval(interval);
+  }, [dummy, runLiveValidation]);
+
+  const channelIssueMessages = useMemo(() => {
+    return channelIssues.reduce(
+      (all, issue) => {
+        all[issue.id] = issue.messages;
+        return all;
+      },
+      {} as Record<string, string[]>
+    );
+  }, [channelIssues]);
 
   const currentIntegrationText = useMemo(() => {
     if (current === 'global') {
@@ -451,64 +646,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           handle?.[where]?.();
         };
 
-        const issues: ChannelIssue[] = [];
-        for (const item of checkAllValid) {
-          const messages: string[] = [];
-          let focusWhere: ChannelFocusTarget = 'preview';
-
-          if (item.emptyContent) {
-            messages.push(
-              t(
-                'post_needs_content_or_image',
-                'Your post should have at least one character or one image.'
-              )
-            );
-          }
-
-          if (type !== 'draft') {
-            // Surface character-limit failures before media/settings so a
-            // stricter channel (e.g. TikTok 2000) is never hidden behind
-            // "needs media" from another selected channel.
-            if (item.tooLong) {
-              messages.push(
-                t(
-                  'post_exceeds_character_limit',
-                  'Caption exceeds the {{max}} character limit',
-                  { max: item.maximumCharacters }
-                )
-              );
-            }
-
-            if (item.valid === false) {
-              const settingsMessages: string[] =
-                Array.isArray(item.settingsErrors) && item.settingsErrors.length
-                  ? item.settingsErrors
-                  : [
-                      item.settingsError ||
-                        t(
-                          'please_fix_your_settings',
-                          'Please fix your settings'
-                        ),
-                    ];
-              messages.push(...settingsMessages);
-              focusWhere = 'form';
-            }
-
-            if (item.errors !== true) {
-              messages.push(String(item.errors));
-            }
-          }
-
-          if (messages.length) {
-            issues.push({
-              id: item.id,
-              identifier: item.identifier,
-              name: item.name,
-              messages: [...new Set(messages)],
-              focus: focusWhere,
-            });
-          }
-        }
+        const issues = aggregateChannelIssues(checkAllValid, type, t);
 
         if (issues.length) {
           setChannelIssues(issues);
@@ -818,6 +956,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                         (editingMany && groupScope === 'group')) && (
                         <SelectCurrent
                           errorIds={channelIssues.map((issue) => issue.id)}
+                          channelIssueMessages={channelIssueMessages}
                         />
                       )}
                     </div>
@@ -1102,7 +1241,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                     disabled={
                       selectedIntegrations.length === 0 || loading || locked
                     }
-                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 flex absolute bottom-[100%] -left-[12px] p-[12px] w-[206px] bg-newBgColorInner"
+                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 flex absolute bottom-[100%] -left-[12px] -translate-y-[10px] menu-shadow p-[12px] w-[206px] bg-newBgColorInner"
                   >
                     <div className="text-white rounded-[8px] bg-[#E23E14] h-[44px] w-full flex justify-center items-center post-now">
                       {t('post_now', 'Post Now')}

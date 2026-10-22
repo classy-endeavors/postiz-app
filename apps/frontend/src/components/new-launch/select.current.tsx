@@ -51,9 +51,10 @@ export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
   return hasHorizontalScroll;
 }
 
-export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
-  errorIds = [],
-}) => {
+export const SelectCurrent: FC<{
+  errorIds?: string[];
+  channelIssueMessages?: Record<string, string[]>;
+}> = ({ errorIds = [], channelIssueMessages = {} }) => {
   const t = useT();
   const modals = useDecisionModal();
   const existingData = useExistingData();
@@ -153,6 +154,8 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
               <button
                 type="button"
                 aria-label={t('remove_channel', 'Remove channel')}
+                data-tooltip-id="tooltip"
+                data-tooltip-content={t('remove_channel', 'Remove channel')}
                 onClick={removeSocial(integration)}
                 className="absolute z-[3] -top-[7px] -start-[7px] flex h-[18px] w-[18px] items-center justify-center rounded-full border border-white/20 bg-[#EF4444] text-white shadow-sm hover:bg-[#DC2626]"
               >
@@ -175,10 +178,14 @@ export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
               {errorIds.includes(integration.id) ? (
                 <div
                   data-tooltip-id="tooltip"
-                  data-tooltip-content={t(
-                    'channel_has_issues',
-                    'This channel has issues to fix'
-                  )}
+                  data-tooltip-content={
+                    (channelIssueMessages[integration.id] || []).length
+                      ? channelIssueMessages[integration.id].join(' • ')
+                      : t(
+                          'channel_has_issues',
+                          'This channel has issues to fix'
+                        )
+                  }
                   className="absolute z-[3] -top-[7px] -end-[7px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#EF4444] text-white text-[10px] font-[700] leading-none shadow-sm"
                 >
                   !

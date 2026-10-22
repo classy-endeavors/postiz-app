@@ -244,7 +244,7 @@ const Threads: FC = () => {
       <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px] mobile:flex mobile:items-center mobile:gap-[10px]">
         <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px] mobile:mb-0 mobile:shrink-0">
           <Link
-            href="/agents/new"
+            href="/agents"
             onClick={startNewChat}
             className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none mobile:min-h-[38px] mobile:max-h-[38px] mobile:ps-[10px] mobile:pe-[14px] mobile:py-0"
           >

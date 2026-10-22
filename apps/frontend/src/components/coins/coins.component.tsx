@@ -28,14 +28,15 @@ const defaults: Record<string, string> = {
   image: 'AI image generation',
 };
 
-// Older AI-message rows stored agent channel/media blocks in description
+// Older AI-message rows stored agent channel/media blocks in description.
+// Truncated rows often lack a closing marker — strip from the opener to EOS.
 const readableCoinDetail = (description: string | null | undefined) => {
   if (!description) {
     return description;
   }
   return description
-    .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
-    .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+    .replace(/\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g, '')
+    .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
@@ -198,9 +199,14 @@ const CoinsHistory: FC = () => {
           )}
           {data?.transactions.map((transaction) => {
             const pending = transaction.type === 'coin_request';
+            // Never fall back to the raw DB string after cleaning — that put
+            // truncated [--integrations--] JSON back in Details (ZQA-041).
+            const cleaned = readableCoinDetail(transaction.description);
             const detail =
-              readableCoinDetail(transaction.description) ||
-              transaction.description;
+              cleaned ||
+              (prompts.includes(transaction.type)
+                ? defaults[transaction.type]
+                : transaction.description);
             const showQuotedPrompt =
               prompts.includes(transaction.type) &&
               !!detail &&
