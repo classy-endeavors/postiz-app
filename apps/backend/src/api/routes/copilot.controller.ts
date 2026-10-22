@@ -214,34 +214,51 @@ export class CopilotController {
         }
         try {
           const memory = await mastra.getAgent('postiz').getMemory();
-          // Memory may lag the stream by a beat — retry before treating as silence
-          // so a successful reply is not refunded by accident.
+          // Memory can lag the stream. Retry before treating the turn as silence.
+          // Only refund when we have seen the user turn and the assistant text
+          // after it is empty or a text-capability refusal. Empty recall / missing
+          // thread must not refund — that incorrectly zeroed successful captions.
           let replyAfterUser = '';
-          for (let attempt = 0; attempt < 5; attempt++) {
+          let sawUserTurn = false;
+          for (let attempt = 0; attempt < 8; attempt++) {
             if (attempt > 0) {
-              await new Promise((resolve) => setTimeout(resolve, 400));
+              await new Promise((resolve) => setTimeout(resolve, 500));
             }
-            const recalled = await memory.recall({
-              resourceId: organization.id,
-              threadId,
-            });
-            const messages = recalled?.messages || [];
-            let lastUserIndex = -1;
-            for (let i = messages.length - 1; i >= 0; i--) {
-              if (messages[i]?.role === 'user') {
-                lastUserIndex = i;
+            try {
+              const recalled = await memory.recall({
+                resourceId: organization.id,
+                threadId,
+              });
+              const messages = recalled?.messages || [];
+              let lastUserIndex = -1;
+              for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i]?.role === 'user') {
+                  lastUserIndex = i;
+                  break;
+                }
+              }
+              if (lastUserIndex < 0) {
+                continue;
+              }
+              sawUserTurn = true;
+              replyAfterUser = messages
+                .slice(lastUserIndex + 1)
+                .filter((message: any) => message?.role === 'assistant')
+                .map((message: any) => assistantTextFromMessage(message))
+                .join(' ')
+                .trim();
+              if (replyAfterUser) {
                 break;
               }
+            } catch (err) {
+              if (/no thread found/i.test(String(err))) {
+                continue;
+              }
+              throw err;
             }
-            replyAfterUser = messages
-              .slice(lastUserIndex + 1)
-              .filter((message: any) => message?.role === 'assistant')
-              .map((message: any) => assistantTextFromMessage(message))
-              .join(' ')
-              .trim();
-            if (replyAfterUser || lastUserIndex < 0) {
-              break;
-            }
+          }
+          if (!sawUserTurn) {
+            return false;
           }
           return shouldRefundAgentMessage(replyAfterUser);
         } catch (err) {
