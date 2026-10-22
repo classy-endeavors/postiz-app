@@ -12,14 +12,14 @@ export const InstagramPreview: FC<{
   const mediaDir = useMediaDirectory();
 
   const renderContent = topValue.map((p) => ({
-    text:
-      `<strong class="text-[15px] font-[600]">${integration?.name} </strong>` +
-      formatPreviewHtml(
-        p.content,
-        integration?.identifier || '',
-        props.maximumCharacters || 10000,
-        '#ae8afc'
-      ),
+    // Keep the LTR account name out of the caption `dir=auto` node so Arabic
+    // / Hebrew still detect as RTL (ZQA-018).
+    text: formatPreviewHtml(
+      p.content,
+      integration?.identifier || '',
+      props.maximumCharacters || 10000,
+      '#ae8afc'
+    ),
     images: p.image,
   }));
   return (
@@ -56,13 +56,17 @@ export const InstagramPreview: FC<{
           className="!bg-cover w-full aspect-[calc(16/9)] rounded-[8px] overflow-hidden"
         />
       )}
-      <div
-        dir="auto"
-        className="text-[14px] font-[400] whitespace-pre-wrap break-all"
-        dangerouslySetInnerHTML={{
-          __html: renderContent?.[0]?.text,
-        }}
-      />
+      <div className="text-[14px] font-[400] whitespace-pre-wrap break-all min-w-0 overflow-hidden">
+        <strong className="text-[15px] font-[600]">
+          {integration?.name}{' '}
+        </strong>
+        <span
+          dir="auto"
+          dangerouslySetInnerHTML={{
+            __html: renderContent?.[0]?.text,
+          }}
+        />
+      </div>
       <div className="py-[8px] text-textColor flex text-[14px] font-[700] gap-[10.5px]">
         <div className="flex gap-[4px] items-center">
           <svg
@@ -156,13 +160,17 @@ export const InstagramPreview: FC<{
                 </div>
                 <div className="flex flex-col gap-[6px] flex-1">
                   <div className="flex gap-[4px] py-[8px]">
-                    <div
-                      dir="auto"
-                      className="whitespace-pre-wrap break-all text-[14px] font-[400] flex-1 min-w-0"
-                      dangerouslySetInnerHTML={{
-                        __html: value.text,
-                      }}
-                    />
+                    <div className="whitespace-pre-wrap break-all text-[14px] font-[400] flex-1 min-w-0 overflow-hidden">
+                      <strong className="text-[15px] font-[600]">
+                        {integration?.name}{' '}
+                      </strong>
+                      <span
+                        dir="auto"
+                        dangerouslySetInnerHTML={{
+                          __html: value.text,
+                        }}
+                      />
+                    </div>
                     <div>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
