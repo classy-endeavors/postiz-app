@@ -68,6 +68,7 @@ export const AgentChat: FC = () => {
 
   return (
     <CopilotKit
+      key={params.id}
       threadId={params.id}
       credentials="include"
       runtimeUrl={backendUrl + '/copilot/agent'}

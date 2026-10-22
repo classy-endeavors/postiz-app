@@ -7,5 +7,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  return redirect('/agents/new');
+  // Pre-mint a thread id so the chat never runs on the literal /agents/new
+  // URL (CopilotKit would auto-mint an id that never reaches the address bar).
+  return redirect(`/agents/${crypto.randomUUID()}`);
 }
