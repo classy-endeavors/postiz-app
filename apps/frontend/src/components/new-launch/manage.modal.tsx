@@ -95,8 +95,7 @@ type ValidPostResult = {
 const aggregateChannelIssues = (
   checkAllValid: ValidPostResult[],
   type: string,
-  // Same shape as useT() — keep loose so callers do not fight the i18n typings.
-  t: (key: string, fallback: string, params?: any) => string
+  t: ReturnType<typeof useT>
 ): ChannelIssue[] => {
   const issues: ChannelIssue[] = [];
   for (const item of checkAllValid) {
