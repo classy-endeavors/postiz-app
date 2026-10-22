@@ -1,4 +1,4 @@
-import { FC, useCallback, useMemo, useState } from 'react';
+import { FC, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
@@ -202,27 +202,27 @@ export const RenderAnalytics: FC<{
   date: number;
 }> = (props) => {
   const { integration, date } = props;
-  const [loading, setLoading] = useState(true);
   const fetch = useFetch();
 
   const load = useCallback(async () => {
-    setLoading(true);
-    const load = (
+    return (
       await fetch(`/analytics/${integration.id}?date=${date}`)
     ).json();
-    setLoading(false);
-    return load;
   }, [integration, date]);
 
-  const { data } = useSWR(`/analytics-${integration?.id}-${date}`, load, {
-    refreshInterval: 0,
-    refreshWhenHidden: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    revalidateIfStale: false,
-    refreshWhenOffline: false,
-    revalidateOnMount: true,
-  });
+  const { data, isLoading } = useSWR(
+    `/analytics-${integration?.id}-${date}`,
+    load,
+    {
+      refreshInterval: 0,
+      refreshWhenHidden: false,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+      refreshWhenOffline: false,
+      revalidateOnMount: true,
+    }
+  );
 
   const refreshChannel = useCallback(
     (integrationData: AnalyticsIntegration) => async () => {
@@ -272,7 +272,7 @@ export const RenderAnalytics: FC<{
     );
   }, [integration.identifier, series, stats]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-[16px] animate-pulse">
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">

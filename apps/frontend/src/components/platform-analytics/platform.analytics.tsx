@@ -54,11 +54,10 @@ export const PlatformAnalytics = () => {
     revalidateOnMount: true,
     refreshWhenHidden: false,
     refreshWhenOffline: false,
-    fallbackData: [],
   });
   const sortedIntegrations = useMemo(() => {
     return orderBy(
-      data,
+      data || [],
       ['type', 'disabled', 'identifier'],
       ['desc', 'asc', 'asc']
     );

@@ -992,7 +992,9 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     void date;
 
     try {
-      const userStatsResponse = await fetch(
+      // Overlap channel profile with video pagination so cold loads are not
+      // user/info + N list pages + N query batches (ZQA-012).
+      const userStatsPromise = fetch(
         'https://open.tiktokapis.com/v2/user/info/?fields=follower_count,following_count,likes_count,video_count',
         {
           method: 'GET',
@@ -1000,45 +1002,7 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
             Authorization: `Bearer ${accessToken}`,
           },
         }
-      );
-
-      const userStatsData = await userStatsResponse.json();
-      const userStats = userStatsData?.data?.user;
-
-      const result: AnalyticsData[] = [];
-      const accountLikes = Number(userStats?.likes_count || 0);
-      const videoCount = Number(userStats?.video_count || 0);
-
-      result.push({
-        label: 'Followers',
-        percentageChange: 0,
-        data: [
-          {
-            total: String(Number(userStats?.follower_count || 0)),
-            date: today,
-          },
-        ],
-      });
-      result.push({
-        label: 'Following',
-        percentageChange: 0,
-        data: [
-          {
-            total: String(Number(userStats?.following_count || 0)),
-            date: today,
-          },
-        ],
-      });
-      result.push({
-        label: 'Likes',
-        percentageChange: 0,
-        data: [{ total: String(accountLikes), date: today }],
-      });
-      result.push({
-        label: 'Videos',
-        percentageChange: 0,
-        data: [{ total: String(videoCount), date: today }],
-      });
+      ).then((response) => response.json());
 
       type TikTokVideoRef = {
         id: string;
@@ -1048,14 +1012,8 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
         view_count?: number;
       };
 
-      type TikTokVideoStats = {
-        id: string;
-        like_count?: number;
-        comment_count?: number;
-        share_count?: number;
-        view_count?: number;
-      };
-
+      // video/list already returns like/comment/share/view counts — do not
+      // re-fetch the same IDs via video/query (that doubled TikTok round-trips).
       const listedVideos: TikTokVideoRef[] = [];
       let cursor: number | undefined;
       let hasMore = true;
@@ -1097,61 +1055,53 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
         }
       }
 
-      const allIds = listedVideos.map((video) => String(video.id));
-      const statsById = new Map<string, TikTokVideoStats>();
+      const userStatsData = await userStatsPromise;
+      const userStats = userStatsData?.data?.user;
+      const accountLikes = Number(userStats?.likes_count || 0);
+      const videoCount = Number(userStats?.video_count || 0);
 
-      for (const video of listedVideos) {
-        statsById.set(String(video.id), {
-          id: String(video.id),
-          like_count: video.like_count,
-          comment_count: video.comment_count,
-          share_count: video.share_count,
-          view_count: video.view_count,
-        });
-      }
-
-      for (let i = 0; i < allIds.length; i += 20) {
-        const batch = allIds.slice(i, i + 20);
-        const videoQueryResponse = await fetch(
-          'https://open.tiktokapis.com/v2/video/query/?fields=id,like_count,comment_count,share_count,view_count',
+      const result: AnalyticsData[] = [];
+      result.push({
+        label: 'Followers',
+        percentageChange: 0,
+        data: [
           {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              filters: { video_ids: batch },
-            }),
-          }
-        );
-        const videoQueryData = await videoQueryResponse.json();
-        const details: TikTokVideoStats[] =
-          videoQueryData?.data?.videos || [];
-        for (const detail of details) {
-          if (!detail?.id) {
-            continue;
-          }
-          statsById.set(String(detail.id), {
-            id: String(detail.id),
-            like_count: detail.like_count,
-            comment_count: detail.comment_count,
-            share_count: detail.share_count,
-            view_count: detail.view_count,
-          });
-        }
-      }
+            total: String(Number(userStats?.follower_count || 0)),
+            date: today,
+          },
+        ],
+      });
+      result.push({
+        label: 'Following',
+        percentageChange: 0,
+        data: [
+          {
+            total: String(Number(userStats?.following_count || 0)),
+            date: today,
+          },
+        ],
+      });
+      result.push({
+        label: 'Likes',
+        percentageChange: 0,
+        data: [{ total: String(accountLikes), date: today }],
+      });
+      result.push({
+        label: 'Videos',
+        percentageChange: 0,
+        data: [{ total: String(videoCount), date: today }],
+      });
 
       let lifetimeViews = 0;
       let totalComments = 0;
       let totalShares = 0;
-      for (const video of statsById.values()) {
+      for (const video of listedVideos) {
         lifetimeViews += Number(video.view_count || 0);
         totalComments += Number(video.comment_count || 0);
         totalShares += Number(video.share_count || 0);
       }
 
-      const videosCounted = statsById.size || videoCount;
+      const videosCounted = listedVideos.length || videoCount;
       const percentage = (value: number) =>
         String(lifetimeViews ? +((value / lifetimeViews) * 100).toFixed(2) : 0);
 
