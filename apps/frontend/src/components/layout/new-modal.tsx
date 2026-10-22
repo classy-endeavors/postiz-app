@@ -126,6 +126,8 @@ export const Component: FC<{
       : modal.children;
   }, [modal, closeModalFunction]);
 
+  // Create Post opens with closeOnEscape: false so Esc can dismiss nested
+  // pickers (date, etc.) without the "close this modal?" confirm (ZQA-022).
   useHotkeys(
     'Escape',
     () => {
@@ -133,7 +135,8 @@ export const Component: FC<{
         closeModalFunction();
       }
     },
-    [isLast, closeModalFunction]
+    { enabled: isLast && modal.closeOnEscape !== false },
+    [isLast, closeModalFunction, modal.closeOnEscape]
   );
 
   if (modal.removeLayout) {

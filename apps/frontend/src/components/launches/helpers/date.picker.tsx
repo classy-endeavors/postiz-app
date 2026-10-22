@@ -99,6 +99,8 @@ const TimePartSelect: FC<{
     }
 
     if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
       setOpen(false);
       return;
     }
