@@ -15,6 +15,7 @@ import {
   useDecisionModal,
   useModals,
 } from '@gitroom/frontend/components/layout/new-modal';
+import { useExistingData } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
 
 export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
@@ -50,8 +51,12 @@ export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
   return hasHorizontalScroll;
 }
 
-export const SelectCurrent: FC = () => {
+export const SelectCurrent: FC<{ errorIds?: string[] }> = ({
+  errorIds = [],
+}) => {
+  const t = useT();
   const modals = useDecisionModal();
+  const existingData = useExistingData();
   const {
     selectedIntegrations,
     current,
@@ -59,6 +64,7 @@ export const SelectCurrent: FC = () => {
     locked,
     setHide,
     addOrRemoveSelectedIntegration,
+    groupScope,
   } = useLaunchStore(
     useShallow((state) => ({
       selectedIntegrations: state.selectedIntegrations,
@@ -67,6 +73,7 @@ export const SelectCurrent: FC = () => {
       setCurrent: state.setCurrent,
       locked: state.locked,
       setHide: state.setHide,
+      groupScope: state.groupScope,
     }))
   );
 
@@ -77,10 +84,19 @@ export const SelectCurrent: FC = () => {
     (sIntegration: Integrations) => async (e: any) => {
       e.stopPropagation();
       e.preventDefault();
+      const removingFromGroup =
+        groupScope === 'group' && (existingData.channels?.length || 0) > 1;
       const open = await modals.open({
-        title: 'Remove Social Account',
-        description:
-          'Are you sure you want to remove this social from scheduling?',
+        title: removingFromGroup
+          ? t('remove_channel_from_post', 'Remove channel')
+          : 'Remove Social Account',
+        description: removingFromGroup
+          ? t(
+              'remove_channel_from_post_description',
+              'Remove {{name}} from this post? It is deleted when you save. The other channels stay together.',
+              { name: sIntegration.name }
+            )
+          : 'Are you sure you want to remove this social from scheduling?',
       });
 
       if (!open) {
@@ -89,7 +105,7 @@ export const SelectCurrent: FC = () => {
 
       addOrRemoveSelectedIntegration(sIntegration, {});
     },
-    []
+    [addOrRemoveSelectedIntegration, existingData.channels, groupScope, modals, t]
   );
 
   return (
@@ -98,7 +114,9 @@ export const SelectCurrent: FC = () => {
         <div
           ref={contentRef}
           className={clsx(
-            'flex gap-[6px] w-full overflow-x-auto scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary',
+            // pt/ps keep remove + error badges inside the scroll box so
+            // overflow-x-auto does not clip them at the top/start edge.
+            'flex gap-[10px] w-full overflow-x-auto overflow-y-visible pt-[8px] ps-[8px] pe-[4px] pb-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary',
             locked && 'opacity-50 pointer-events-none'
           )}
         >
@@ -108,7 +126,7 @@ export const SelectCurrent: FC = () => {
               setCurrent('global');
             }}
             className={clsx(
-              'cursor-pointer flex gap-[8px] rounded-[8px] w-[40px] h-[40px] justify-center items-center bg-newBgLineColor',
+              'cursor-pointer flex gap-[8px] rounded-[8px] w-[40px] h-[40px] shrink-0 justify-center items-center bg-newBgLineColor',
               current !== 'global'
                 ? 'text-[#A3A3A3]'
                 : 'border border-[#FF8A65] text-[#FF8A65]'
@@ -126,19 +144,48 @@ export const SelectCurrent: FC = () => {
               }}
               key={integration.id}
               className={clsx(
-                'border cursor-pointer relative flex gap-[8px] w-[40px] h-[40px] rounded-[8px] items-center bg-newBgLineColor justify-center',
+                'border cursor-pointer relative flex gap-[8px] w-[40px] h-[40px] shrink-0 rounded-[8px] items-center bg-newBgLineColor justify-center',
                 current === integration.id
                   ? 'border-[#FF8A65] text-[#FF8A65]'
                   : 'border-transparent'
               )}
             >
-              <div
+              <button
+                type="button"
+                aria-label={t('remove_channel', 'Remove channel')}
                 onClick={removeSocial(integration)}
-                className="absolute justify-center items-center flex w-[8px] h-[8px] -top-[1px] -start-[3px] bg-red-500 rounded-full text-white text-[8px]"
+                className="absolute z-[3] -top-[7px] -start-[7px] flex h-[18px] w-[18px] items-center justify-center rounded-full border border-white/20 bg-[#EF4444] text-white shadow-sm hover:bg-[#DC2626]"
               >
-                X
-              </div>
-              <IsGlobal id={integration.id} />
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2 2L8 8M8 2L2 8"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+              {errorIds.includes(integration.id) ? (
+                <div
+                  data-tooltip-id="tooltip"
+                  data-tooltip-content={t(
+                    'channel_has_issues',
+                    'This channel has issues to fix'
+                  )}
+                  className="absolute z-[3] -top-[7px] -end-[7px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#EF4444] text-white text-[10px] font-[700] leading-none shadow-sm"
+                >
+                  !
+                </div>
+              ) : (
+                <IsGlobal id={integration.id} />
+              )}
               <div
                 {...{
                   'data-tooltip-id': 'tooltip',
@@ -179,7 +226,7 @@ export const SelectCurrent: FC = () => {
           ))}
         </div>
       </div>
-      <div className={clsx(hasScroll ? 'h-[55px]' : 'h-[40px]')} />
+      <div className={clsx(hasScroll ? 'h-[63px]' : 'h-[50px]')} />
     </>
   );
 };

@@ -50,7 +50,7 @@ export class InstagramStandaloneProvider
     settings: any
   ): Promise<string | true> {
     if (!firstPost?.length) {
-      return 'Should have at least one media';
+      return 'Instagram needs at least one image or video';
     }
     if (this.assetBoolean(settings?.is_trial_reel)) {
       if ((firstPost?.length ?? 0) > 1) {
@@ -231,6 +231,15 @@ export class InstagramStandaloneProvider
     integration: Integration
   ) {
     return instagramProvider.finalizePost(accessToken, pendingData, integration);
+  }
+
+  replyToComment(token: string, commentId: string, message: string) {
+    return instagramProvider.replyToComment(
+      token,
+      commentId,
+      message,
+      'graph.instagram.com'
+    );
   }
 
   async comment(

@@ -9,14 +9,11 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { Readable } from 'stream';
 import 'multer';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
-import mime from 'mime-types';
-// @ts-ignore
-import { getExtension } from 'mime';
 import { IUploadProvider, UploadedStream } from './upload.interface';
-import axios from 'axios';
 import { isSafePublicHttpsUrl } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.url.validator';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { parseDataUrl } from '@gitroom/nestjs-libraries/upload/data.url';
+import { buildS3ClientConfig } from './s3.client.config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fileTypeFromBuffer } = require('file-type');
 
@@ -47,22 +44,25 @@ class CloudflareStorage implements IUploadProvider {
     private _uploadUrl: string,
     endpoint?: string
   ) {
-    this._client = new S3Client({
-      endpoint: endpoint || `https://${accountID}.r2.cloudflarestorage.com`,
-      region,
-      credentials: {
-        accessKeyId: accessKey,
-        secretAccessKey: secretKey,
-      },
-      requestChecksumCalculation: 'WHEN_REQUIRED',
-    });
+    this._client = new S3Client(
+      buildS3ClientConfig({
+        accountId: accountID,
+        accessKey,
+        secretKey,
+        region,
+        bucketName: _bucketName,
+        bucketUrl: _uploadUrl,
+        endpoint,
+        forcePathStyle: process.env.CLOUDFLARE_S3_FORCE_PATH_STYLE === 'true',
+      })
+    );
 
     this._client.middlewareStack.add(
       (next) =>
         async (args): Promise<any> => {
           const request = args.request as RequestInit;
 
-          // Remove checksum headers
+          // Remove checksum headers (R2 / some S3 configs reject them)
           const headers = request.headers as Record<string, string>;
           delete headers['x-amz-checksum-crc32'];
           delete headers['x-amz-checksum-crc32c'];
@@ -134,10 +134,9 @@ class CloudflareStorage implements IUploadProvider {
       const extension = detected.ext;
       const safeContentType = detected.mime;
 
-      // Create the PutObjectCommand to upload the file to Cloudflare R2
+      // Private bucket: no public-read ACL
       const command = new PutObjectCommand({
         Bucket: this._bucketName,
-        ACL: 'public-read',
         Key: `${id}.${extension}`,
         Body: file.buffer,
         ContentType: safeContentType,
@@ -181,7 +180,6 @@ class CloudflareStorage implements IUploadProvider {
         client: this._client,
         params: {
           Bucket: this._bucketName,
-          ACL: 'public-read',
           Key: key,
           Body: stream,
           ContentType: mimetype,
@@ -246,7 +244,7 @@ class CloudflareStorage implements IUploadProvider {
 
   // Accepts either the public URL or the bare key
   async removeFile(filePath: string): Promise<void> {
-    const fileName = filePath.split('/').pop();
+    const fileName = filePath.split('?')[0].split('/').pop();
     if (!fileName) {
       return;
     }

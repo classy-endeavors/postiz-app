@@ -1,11 +1,10 @@
 import { FC, useCallback, useMemo, useState } from 'react';
-import { Integration } from '@prisma/client';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ChartSocial } from '@gitroom/frontend/components/analytics/chart-social';
-import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import clsx from 'clsx';
+import { Integrations } from '@gitroom/frontend/components/launches/calendar.context';
 
 interface AnalyticsDataItem {
   label: string;
@@ -193,8 +192,13 @@ const EmptyState: FC<{ onRefresh: () => void; refreshNeeded: boolean }> = ({
   );
 };
 
+type AnalyticsIntegration = Integrations & {
+  internalId?: string;
+  refreshNeeded?: boolean;
+};
+
 export const RenderAnalytics: FC<{
-  integration: Integration;
+  integration: AnalyticsIntegration;
   date: number;
 }> = (props) => {
   const { integration, date } = props;
@@ -221,26 +225,21 @@ export const RenderAnalytics: FC<{
   });
 
   const refreshChannel = useCallback(
-    (
-        integrationData: Integration & {
-          identifier: string;
-        }
-      ) =>
-      async () => {
-        const { url } = await (
-          await fetch(
-            `/integrations/social/${
-              integrationData.identifier
-            }?refresh=${integrationData.internalId}&redirectUrl=${encodeURIComponent(
-              '/analytics'
-            )}`,
-            {
-              method: 'GET',
-            }
-          )
-        ).json();
-        window.location.href = url;
-      },
+    (integrationData: AnalyticsIntegration) => async () => {
+      const { url } = await (
+        await fetch(
+          `/integrations/social/${
+            integrationData.identifier
+          }?refresh=${integrationData.internalId}&redirectUrl=${encodeURIComponent(
+            '/analytics'
+          )}`,
+          {
+            method: 'GET',
+          }
+        )
+      ).json();
+      window.location.href = url;
+    },
     []
   );
 
@@ -256,11 +255,56 @@ export const RenderAnalytics: FC<{
       ((data || []) as AnalyticsDataItem[]).filter((p) => p.data?.length > 1),
     [data]
   );
+  // YouTube only: lifetime channel tiles + period day-series can disagree
+  // (e.g. 7-day charts at 0 while Lifetime Views is non-zero).
+  const showYoutubePeriodNotice = useMemo(() => {
+    if (integration.identifier !== 'youtube') {
+      return false;
+    }
+    const hasLifetimeTotals = stats.some((item) =>
+      /lifetime/i.test(item.label)
+    );
+    if (!series.length) {
+      return hasLifetimeTotals;
+    }
+    return series.every((item) =>
+      item.data.every((point) => Number(point.total || 0) === 0)
+    );
+  }, [integration.identifier, series, stats]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-[48px]">
-        <LoadingComponent />
+      <div className="flex flex-col gap-[16px] animate-pulse">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner px-[16px] py-[14px] flex flex-col gap-[10px]"
+            >
+              <div className="h-[11px] w-[72px] rounded-[4px] bg-newSep" />
+              <div className="h-[28px] w-[88px] rounded-[6px] bg-newSep" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="rounded-[14px] border-[1.5px] border-newSep bg-newBgColorInner overflow-hidden"
+            >
+              <div className="flex items-center gap-[10px] px-[16px] pt-[14px] pb-[8px]">
+                <div className="w-[8px] h-[8px] rounded-full bg-newSep" />
+                <div className="h-[11px] w-[90px] rounded-[4px] bg-newSep" />
+              </div>
+              <div className="px-[12px] py-[8px]">
+                <div className="h-[120px] rounded-[8px] bg-newSep" />
+              </div>
+              <div className="px-[16px] pb-[14px]">
+                <div className="h-[30px] w-[100px] rounded-[6px] bg-newSep" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -269,7 +313,7 @@ export const RenderAnalytics: FC<{
     return (
       <div className="grid grid-cols-1">
         <EmptyState
-          onRefresh={refreshChannel(integration as any)}
+          onRefresh={refreshChannel(integration)}
           refreshNeeded={!!integration?.refreshNeeded}
         />
       </div>
@@ -278,6 +322,22 @@ export const RenderAnalytics: FC<{
 
   return (
     <div className="flex flex-col gap-[16px]">
+      {showYoutubePeriodNotice && (
+        <div className="rounded-[12px] border border-newSep bg-newTextColor/[0.03] px-[16px] py-[12px] text-[13px] text-newTextColor/80">
+          {t(
+            'analytics_period_empty_or_delayed',
+            'No activity in this date range (or platform analytics are still catching up — YouTube can lag 48–72 hours). Channel totals above are lifetime, not limited to this period.'
+          )}
+        </div>
+      )}
+      {integration.identifier === 'tiktok' && (
+        <div className="rounded-[12px] border border-newSep bg-newTextColor/[0.03] px-[16px] py-[12px] text-[13px] text-newTextColor/80">
+          {t(
+            'tiktok_analytics_lifetime_hint',
+            'These numbers are lifetime totals for your TikTok account. Day-by-day or date-range breakdowns (like in TikTok Studio) aren’t available here yet.'
+          )}
+        </div>
+      )}
       {!!stats.length && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
           {stats.map((item) => (

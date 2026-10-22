@@ -44,6 +44,7 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { groupBy, random, sortBy, uniq } from 'lodash';
 import SafeImage from '@gitroom/react/helpers/safe.image';
+import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import { extend } from 'dayjs';
 import { isUSCitizen } from './helpers/isuscitizen.utils';
 import { useInterval } from '@mantine/hooks';
@@ -57,6 +58,7 @@ import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import { humanizePostError } from '@gitroom/helpers/utils/humanize.post.error';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import {
   DirectPublishDetails,
@@ -99,6 +101,46 @@ export const hours = Array.from(
   (_, i) => i
 );
 
+const representativeState = (post: {
+  state: State;
+  groupPosts?: { state: State }[];
+}): State => {
+  const items = post.groupPosts?.length ? post.groupPosts : [post];
+  if (items.some((item) => item.state === 'ERROR')) return 'ERROR';
+  if (items.every((item) => item.state === 'DRAFT')) return 'DRAFT';
+  if (items.every((item) => item.state === 'PUBLISHED')) return 'PUBLISHED';
+  return post.state;
+};
+
+const slotKey = (group: string, publishDate: string | Date) =>
+  `${group}:${dayjs.utc(publishDate).toISOString()}`;
+
+// One card per channel group at a given time. A recurring series keeps a card
+// per occurrence because those copies do not share a publish time.
+const collapseChannelGroups = <
+  T extends { id: string; group: string; publishDate: string | Date }
+>(
+  items: T[]
+) => {
+  const seen = new Set<string>();
+  const collapsed: (T & { groupPosts?: T[] })[] = [];
+  for (const item of items) {
+    const key = slotKey(item.group, item.publishDate);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const groupPosts = items.filter(
+      (other) => slotKey(other.group, other.publishDate) === key
+    );
+    collapsed.push({
+      ...item,
+      ...(groupPosts.length > 1 ? { groupPosts } : {}),
+    });
+  }
+  return collapsed;
+};
+
 // Shared hook for post actions (edit, delete, statistics)
 const usePostActions = (onMutate?: () => void) => {
   const t = useT();
@@ -120,6 +162,16 @@ const usePostActions = (onMutate?: () => void) => {
       };
 
       const data = await (await fetch(`/posts/group/${post.group}`)).json();
+      const openedId = loadPost?.integration?.id;
+      if (openedId && Array.isArray(data?.channels) && data.channels.length > 1) {
+        data.channels = [...data.channels].sort(
+          (a: { integration: string }, b: { integration: string }) => {
+            if (a.integration === openedId) return -1;
+            if (b.integration === openedId) return 1;
+            return 0;
+          }
+        );
+      }
       if (!data?.posts?.length) {
         toaster.show(t('post_not_found', 'Post not found'), 'warning');
         mutate();
@@ -144,9 +196,65 @@ const usePostActions = (onMutate?: () => void) => {
       const publishDate = dayjs
         .utc(date || data.posts[0].publishDate)
         .local();
-      const ExistingData = !isDuplicate
-        ? ExistingDataContextProvider
-        : Fragment;
+      // Duplicate is a new create: keep channels + per-channel settings, but
+      // drop group/ids so save does not overwrite the original.
+      const duplicateChannels = (
+        data.channels?.length
+          ? data.channels
+          : [
+              {
+                integration: data.integration,
+                settings: data.settings,
+                posts: data.posts,
+              },
+            ]
+      ) as Array<{
+        integration: string;
+        settings: any;
+        posts: any[];
+      }>;
+      const firstDuplicatePosts = duplicateChannels[0]?.posts || [];
+      const duplicateSet = isDuplicate
+        ? {
+            ...(firstDuplicatePosts[0]?.intervalInDays
+              ? { inter: firstDuplicatePosts[0].intervalInDays }
+              : {}),
+            tags:
+              firstDuplicatePosts[0]?.tags?.map((p: any) => ({
+                label: p.tag.name,
+                value: p.tag.name,
+              })) || [],
+            posts: duplicateChannels.map((channel) => ({
+              integration: { id: channel.integration },
+              settings: channel.settings || {},
+              value: (channel.posts || []).map((p: any) => ({
+                content: p.content,
+                delay: p.delay || 0,
+                media: p.image || [],
+              })),
+            })),
+          }
+        : undefined;
+      const modalBody = (
+        <AddEditModal
+          {...(duplicateSet ? { set: duplicateSet } : {})}
+          allIntegrations={integrations.map((p) => ({ ...p }))}
+          reopenModal={editPost(post)}
+          mutate={mutate}
+          integrations={
+            isDuplicate
+              ? integrations
+              : integrations
+                  .slice(0)
+                  .filter((f) => f.id === data.integration)
+                  .map((p) => ({
+                    ...p,
+                    picture: data.integrationPicture,
+                  }))
+          }
+          date={publishDate}
+        />
+      );
       modal.openModal({
         id: 'add-edit-modal',
         closeOnClickOutside: false,
@@ -158,37 +266,12 @@ const usePostActions = (onMutate?: () => void) => {
         classNames: {
           modal: 'w-[100%] max-w-[1400px] text-textColor',
         },
-        children: (
-          <ExistingData value={data}>
-            <AddEditModal
-              {...(isDuplicate
-                ? {
-                    onlyValues: data.posts.map(
-                      ({ image, settings, content }: any) => ({
-                        image,
-                        settings,
-                        content,
-                      })
-                    ),
-                  }
-                : {})}
-              allIntegrations={integrations.map((p) => ({ ...p }))}
-              reopenModal={editPost(post)}
-              mutate={mutate}
-              integrations={
-                isDuplicate
-                  ? integrations
-                  : integrations
-                      .slice(0)
-                      .filter((f) => f.id === data.integration)
-                      .map((p) => ({
-                        ...p,
-                        picture: data.integrationPicture,
-                      }))
-              }
-              date={publishDate}
-            />
-          </ExistingData>
+        children: isDuplicate ? (
+          modalBody
+        ) : (
+          <ExistingDataContextProvider value={data}>
+            {modalBody}
+          </ExistingDataContextProvider>
         ),
         size: '80%',
         title: ``,
@@ -215,12 +298,19 @@ const usePostActions = (onMutate?: () => void) => {
 
   const deletePost = useCallback(
     (post: any) => async () => {
+      const channelCount = post.groupPosts?.length || 1;
       if (
         !(await deleteDialog(
-          t(
-            'are_you_sure_you_want_to_delete_post',
-            'Are you sure you want to delete post?'
-          )
+          channelCount > 1
+            ? t(
+                'are_you_sure_you_want_to_delete_post_all_channels',
+                'Are you sure you want to delete this post on all {{count}} channels? Coins spent to schedule it are not refunded.',
+                { count: channelCount }
+              )
+            : t(
+                'are_you_sure_you_want_to_delete_post_no_refund',
+                'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
+              )
         ))
       ) {
         return;
@@ -287,19 +377,20 @@ export const DayView = () => {
   const currentLanguage = i18next.resolvedLanguage || 'en';
   dayjs.locale(currentLanguage);
 
-  const currentDay = dayjs.utc(startDate);
-
   const options = useMemo(() => {
-    const createdPosts = posts.map((post) => ({
-      integration: [integrations.find((i) => i.id === post.integration.id)!],
-      image: post?.integration?.picture || '',
-      identifier: post?.integration?.providerIdentifier || '',
-      id: post?.integration?.id || '',
-      name: post?.integration?.name || '',
-      time: dayjs
-        .utc(post.publishDate)
-        .diff(dayjs.utc(post.publishDate).startOf('day'), 'minute'),
-    }));
+    // Slot times are minutes from local midnight, same unit as channel
+    // preferred times, so posts and slots land on the same rows.
+    const createdPosts = posts.map((post) => {
+      const local = dayjs.utc(post.publishDate).local();
+      return {
+        integration: [integrations.find((i) => i.id === post.integration.id)!],
+        image: post?.integration?.picture || '',
+        identifier: post?.integration?.providerIdentifier || '',
+        id: post?.integration?.id || '',
+        name: post?.integration?.name || '',
+        time: local.diff(local.startOf('day'), 'minute'),
+      };
+    });
     return sortBy(
       Object.values(
         groupBy(
@@ -323,23 +414,27 @@ export const DayView = () => {
     );
   }, [integrations, posts]);
 
+  const dayLocal = useMemo(
+    () => dayjs.utc(startDate).local().startOf('day'),
+    [startDate]
+  );
+
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
       <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {options.map((option) => (
-          <Fragment key={option[0].time}>
-            <div className="text-center text-[14px] min-h-[21px]">
-              {newDayjs()
-                .utc()
-                .startOf('day')
+          <div
+            key={option[0].time}
+            className="flex shrink-0 items-start gap-[12px] mb-[20px] min-h-[60px]"
+          >
+            {/* shrink-0 so a short day column cannot squash rows and let cards cover the next times.
+                Times stay outside the post column so full-width cards cannot cover them. */}
+            <div className="w-[92px] shrink-0 pt-[10px] text-end text-[14px] tabular-nums text-newTextColor whitespace-nowrap">
+              {dayLocal
                 .add(option[0].time, 'minute')
-                .local()
                 .format(isUSCitizen() ? 'hh:mm A' : 'LT')}
             </div>
-            <div
-              key={option[0].time}
-              className="min-h-[60px] rounded-[10px] flex justify-center items-center gap-[10px] mb-[20px]"
-            >
+            <div className="flex-1 min-w-0 rounded-[10px]">
               <CalendarContext.Provider
                 value={{
                   ...calendar,
@@ -347,14 +442,11 @@ export const DayView = () => {
                 }}
               >
                 <CalendarColumn
-                  getDate={currentDay
-                    .startOf('day')
-                    .add(option[0].time, 'minute')
-                    .local()}
+                  getDate={dayLocal.add(option[0].time, 'minute')}
                 />
               </CalendarContext.Provider>
             </div>
-          </Fragment>
+          </div>
         ))}
       </div>
     </div>
@@ -577,13 +669,13 @@ export const ListView = () => {
               {newDayjs(dateKey).format(isUSCitizen() ? 'dddd, MMMM D, YYYY' : 'dddd, D MMMM YYYY')}
             </div>
             <div className="flex flex-col gap-[10px] mb-[20px] px-[10px]">
-              {datePosts.map((post) => (
+              {collapseChannelGroups(datePosts).map((post) => (
                 <CalendarItem
-                  key={post.id}
+                  key={slotKey(post.group, post.publishDate)}
                   display="day"
                   isBeforeNow={false}
                   date={newDayjs(post.publishDate)}
-                  state={post.state}
+                  state={representativeState(post)}
                   statistics={openStatistics(post.id)}
                   missingRelease={openMissingRelease(post.id)}
                   editPost={editPost(post, false)}
@@ -856,10 +948,13 @@ const DayDetail = () => {
                       <div className="flex items-center justify-between gap-[10px]">
                         <span className="flex items-center gap-[8px] min-w-0">
                           <span className="relative shrink-0">
-                            <img
+                            <ImageWithFallback
                               className="w-[22px] h-[22px] rounded-[6px]"
                               src={post.integration.picture || '/no-picture.jpg'}
+                              fallbackSrc="/no-picture.jpg"
                               alt={post.integration.name}
+                              width={22}
+                              height={22}
                             />
                             <img
                               className="w-[12px] h-[12px] rounded-[3px] absolute -bottom-[3px] -end-[3px]"
@@ -882,11 +977,13 @@ const DayDetail = () => {
                       </div>
                       {post.state === 'ERROR' && (
                         <p className="mt-[6px] text-[12px] text-statusFailed leading-[1.4] break-words">
-                          {post.error ||
+                          {humanizePostError(
+                            post.error,
                             t(
                               'post_publish_error',
                               'An error occurred while publishing this post'
-                            )}
+                            )
+                          )}
                         </p>
                       )}
                       {!!post.releaseURL && (
@@ -943,18 +1040,20 @@ export const CalendarColumn: FC<{
   // Use shared post actions hook
   const { editPost, deletePost, copyDebugJson, openStatistics, openMissingRelease } = usePostActions();
   const postList = useMemo(() => {
-    return posts.filter((post) => {
+    const filtered = posts.filter((post) => {
       const pList = dayjs.utc(post.publishDate).local();
       const check =
         display === 'day'
           ? pList.format('YYYY-MM-DD HH:mm') ===
             getDate.format('YYYY-MM-DD HH:mm')
           : display === 'week'
-          ? pList.isSameOrAfter(getDate.startOf('hour')) &&
-            pList.isBefore(getDate.endOf('hour'))
+          ? // isSameOrBefore: a post at :59.999 must still sit in that hour
+            pList.isSameOrAfter(getDate.startOf('hour')) &&
+            pList.isSameOrBefore(getDate.endOf('hour'))
           : pList.format('DD/MM/YYYY') === getDate.format('DD/MM/YYYY');
       return check;
     });
+    return collapseChannelGroups(filtered);
   }, [posts, display, getDate]);
   const [showAll, setShowAll] = useState(false);
   const showAllFunc = useCallback(() => {
@@ -1019,7 +1118,19 @@ export const CalendarColumn: FC<{
                       'post_already_published_republish_warning',
                       'This post was already published. Republishing will publish it again to'
                     )}{' '}
-                    {post.integration?.name}{' '}
+                    {uniq(
+                      posts
+                        .filter(
+                          (entry) =>
+                            entry.group === post.group &&
+                            dayjs.utc(entry.publishDate).toISOString() ===
+                              dayjs
+                                .utc(item.publishDate || post.publishDate)
+                                .toISOString()
+                        )
+                        .map((entry) => entry.integration?.name)
+                        .filter(Boolean)
+                    ).join(', ') || post.integration?.name}{' '}
                     {t('republish_at', 'at')} {getDate.format('DD/MM/YYYY HH:mm')}.
                     {(!!item.interval || !!post.intervalInDays) && (
                       <div className="mt-[10px]">
@@ -1070,7 +1181,7 @@ export const CalendarColumn: FC<{
       }
 
       if (!item.interval) {
-        changeDate(item.id, getDate);
+        changeDate(item.id, getDate, item.publishDate);
       }
       const { status } = await fetch(`/posts/${item.id}/date`, {
         method: 'PUT',
@@ -1208,11 +1319,11 @@ export const CalendarColumn: FC<{
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-[4px] pe-[2px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
           {postList.map((post) => (
             <CalendarItem
-              key={post.id}
+              key={slotKey(post.group, post.publishDate)}
               display="month"
               isBeforeNow={isBeforeNow}
               date={getDate}
-              state={post.state}
+              state={representativeState(post)}
               statistics={openStatistics(post.id)}
               missingRelease={openMissingRelease(post.id)}
               editPost={editPost(post, false)}
@@ -1247,29 +1358,42 @@ export const CalendarColumn: FC<{
     );
   }
 
+  const isDay = display === 'day';
+
   return (
     <div
       className={clsx(
-        'flex flex-col w-full min-h-full relative',
+        'flex flex-col w-full relative',
+        !isDay && 'min-h-full',
+        isDay && 'shrink-0',
         isBeforeNow && 'repeated-strip',
         loading && 'animate-pulse',
         isBeforeNow
           ? 'cursor-not-allowed'
-          : 'border border-newTextColor/5 rounded-[8px]'
+          : 'border border-newTextColor/5 rounded-[8px]',
+        isDay && isBeforeNow && postList.length === 0 && 'min-h-[72px]'
       )}
       ref={drop as any}
     >
       <div
         className={clsx(
-          'relative flex flex-col flex-1 text-white rounded-[8px] min-h-[70px]',
+          'relative flex flex-col text-white rounded-[8px]',
+          isDay ? 'w-full' : 'flex-1 min-h-[70px]',
+          isDay && isBeforeNow && postList.length === 0 && 'min-h-[72px] flex-1',
           canDrop && 'border border-[#FF5227]'
         )}
       >
         <div
           className={clsx(
             'flex-col text-[12px] pointer w-full flex scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary',
-            isBeforeNow ? 'flex-1' : 'cursor-pointer',
-            isBeforeNow && postList.length === 0 && 'col-calendar'
+            isDay && 'gap-[8px]',
+            isBeforeNow && !isDay && 'flex-1',
+            !isBeforeNow && 'cursor-pointer',
+            isBeforeNow && postList.length === 0 && 'col-calendar',
+            isDay &&
+              isBeforeNow &&
+              postList.length === 0 &&
+              'relative min-h-[72px] flex-1'
           )}
         >
           {loading && (
@@ -1279,17 +1403,25 @@ export const CalendarColumn: FC<{
           )}
           {list.map((post) => (
             <div
-              key={post.id}
+              key={slotKey(post.group, post.publishDate)}
               className={clsx(
-                'text-textColor p-[2.5px] relative flex flex-col justify-center items-center'
+                isDay
+                  ? 'text-textColor relative w-full shrink-0'
+                  : 'text-textColor p-[2.5px] relative flex flex-col justify-center items-center'
               )}
             >
-              <div className="relative w-full flex flex-col items-center p-[2.5px]">
+              <div
+                className={clsx(
+                  isDay
+                    ? 'relative w-full'
+                    : 'relative w-full flex flex-col items-center p-[2.5px]'
+                )}
+              >
                 <CalendarItem
                   display={display as 'day' | 'week'}
                   isBeforeNow={isBeforeNow}
                   date={getDate}
-                  state={post.state}
+                  state={representativeState(post)}
                   statistics={openStatistics(post.id)}
                   missingRelease={openMissingRelease(post.id)}
                   editPost={editPost(post, false)}
@@ -1344,19 +1476,13 @@ export const CalendarColumn: FC<{
                 </div>
               )}
               {display === 'day' && (
-                <div
-                  className={`w-full h-full rounded-[10px] py-[10px] flex-wrap hover:border hover:border-seventh flex justify-center items-center gap-[20px] opacity-30 grayscale hover:grayscale-0 hover:opacity-100`}
-                >
+                <div className="w-full min-h-[56px] rounded-[10px] py-[14px] px-[10px] flex flex-wrap justify-center items-center gap-x-[28px] gap-y-[16px] hover:border hover:border-seventh opacity-30 grayscale hover:grayscale-0 hover:opacity-100">
                   {integrations.map((selectedIntegrations) => (
                     <div
-                      className="relative"
-                      key={selectedIntegrations.identifier}
+                      className="relative shrink-0"
+                      key={selectedIntegrations.id}
                     >
-                      <div
-                        className={clsx(
-                          'relative w-[34px] h-[34px] rounded-[8px] flex justify-center items-center filter transition-all duration-500'
-                        )}
-                      >
+                      <div className="relative w-[34px] h-[34px] rounded-[8px] flex justify-center items-center">
                         <SafeImage
                           src={
                             selectedIntegrations.picture || '/no-picture.jpg'
@@ -1427,6 +1553,11 @@ const CalendarItem: FC<{
     tags: {
       tag: Tags;
     }[];
+    groupPosts?: Array<
+      Post & {
+        integration: Integration;
+      }
+    >;
   };
 }> = memo((props) => {
   const t = useT();
@@ -1465,6 +1596,7 @@ const CalendarItem: FC<{
         id: post.id,
         interval: !!post.intervalInDays,
         date,
+        publishDate: post.publishDate,
       },
       collect: (monitor) => ({
         opacity: monitor.isDragging() ? 0 : 1,
@@ -1479,6 +1611,7 @@ const CalendarItem: FC<{
       : post.releaseId === 'missing'
       ? missingRelease
       : statistics;
+  const channels = post.groupPosts?.length ? post.groupPosts : [post];
 
   if (display === 'month') {
     const statusLabel = getStatusLabel(t, state);
@@ -1493,8 +1626,7 @@ const CalendarItem: FC<{
           onClick={editPost}
           {...(state === 'ERROR' && {
             'data-tooltip-id': 'tooltip',
-            'data-tooltip-content':
-              post.error || 'An error occurred while publishing this post',
+            'data-tooltip-content': humanizePostError(post.error),
           })}
           className={clsx(
             'w-full grid grid-cols-[auto_minmax(0,1fr)] gap-x-[6px] items-start ps-[7px] pe-[6px] py-[5px] rounded-[8px] border cursor-pointer text-start transition-transform hover:-translate-y-[1px] hover:border-newOutline',
@@ -1508,11 +1640,16 @@ const CalendarItem: FC<{
           </span>
           <span className="min-w-0 flex flex-col gap-[1px]">
             <span className="flex items-center gap-[4px] min-w-0">
-              <img
-                className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
-                src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
-                alt={post.integration?.providerIdentifier}
-              />
+              <span className="flex items-center gap-[2px] shrink-0">
+                {channels.slice(0, 3).map((channel) => (
+                  <img
+                    key={channel.id}
+                    className="w-[12px] h-[12px] shrink-0 rounded-[3px]"
+                    src={`/icons/platforms/${channel.integration?.providerIdentifier}.png`}
+                    alt={channel.integration?.providerIdentifier}
+                  />
+                ))}
+              </span>
               <span className="text-[11px] font-[700] leading-[1.3] truncate text-newTextColor">
                 {stripHtmlValidation('none', post.content, false, true, false) ||
                   t('no_content', 'no content')}
@@ -1594,8 +1731,8 @@ const CalendarItem: FC<{
       // @ts-ignore
       ref={dragRef}
       className={clsx(
-        'w-full flex h-full flex-1 flex-col group',
-        'relative',
+        'w-full flex flex-col group relative',
+        display === 'day' ? 'h-auto shrink-0' : 'h-full flex-1',
         state === 'ERROR' && 'rounded-[10px] ring-2 ring-red-500'
       )}
       style={{
@@ -1606,7 +1743,7 @@ const CalendarItem: FC<{
         <div
           className="absolute -top-[6px] -left-[6px] z-20 w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center text-white text-[11px] font-bold cursor-pointer"
           data-tooltip-id="tooltip"
-          data-tooltip-content={post.error || 'An error occurred while publishing this post'}
+          data-tooltip-content={humanizePostError(post.error)}
         >
           !
         </div>
@@ -1690,20 +1827,29 @@ const CalendarItem: FC<{
       <div
         onClick={editPost}
         className={clsx(
-          'gap-[5px] w-full flex h-full flex-1 rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor',
-          'relative',
+          'gap-[5px] w-full flex rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor relative',
+          display !== 'day' && 'h-full flex-1',
           isBeforeNow && '!grayscale'
         )}
       >
-        <div className={clsx('relative min-w-[20px]')}>
-          <img
-            className="w-[20px] h-[20px] rounded-[8px]"
-            src={post.integration.picture! || '/no-picture.jpg'}
-          />
-          <img
-            className="w-[12px] h-[12px] rounded-[8px] absolute z-10 top-[10px] end-0 border border-fifth"
-            src={`/icons/platforms/${post.integration?.providerIdentifier}.png`}
-          />
+        <div className="flex items-center gap-[6px] shrink-0">
+          {channels.map((channel) => (
+            <div key={channel.id} className="relative min-w-[20px]">
+              <ImageWithFallback
+                className="w-[20px] h-[20px] rounded-[8px]"
+                src={channel.integration.picture! || '/no-picture.jpg'}
+                fallbackSrc="/no-picture.jpg"
+                alt={channel.integration.name}
+                width={20}
+                height={20}
+              />
+              <img
+                className="w-[12px] h-[12px] rounded-[8px] absolute z-10 top-[10px] end-0 border border-fifth"
+                src={`/icons/platforms/${channel.integration?.providerIdentifier}.png`}
+                alt={channel.integration?.providerIdentifier}
+              />
+            </div>
+          ))}
         </div>
         <div className="w-full flex-1 flex flex-col min-h-[40px]">
           <div className="text-start">

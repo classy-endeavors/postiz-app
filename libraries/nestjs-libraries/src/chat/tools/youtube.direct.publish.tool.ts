@@ -259,7 +259,7 @@ export class YoutubeDirectPublishTool implements AgentToolInterface {
       id: 'youtubeDirectPublishTool',
       description: `Publish a video to a YouTube channel directly from a public video URL, without storing the video in AI Zyntra (YouTube only).
 Use integrationList to find the YouTube channel id. The video URL must be publicly downloadable over https and support HTTP range requests (S3, R2, GCS, Dropbox direct links and most CDNs do).
-Set publishAt to schedule the video on YouTube itself: it is uploaded as private and YouTube publishes it at that time (it shows as scheduled in YouTube Studio).
+Set publishAt to schedule the video on YouTube itself: it is uploaded as private and YouTube publishes it at that time (it shows as scheduled in YouTube Studio and on the AI Zyntra calendar). To move it later, use youtubeDirectRescheduleTool with the videoId: YouTube and the calendar move together.
 Small videos usually finish within the call. If the status is "uploading", call youtubeDirectPublishStatusTool with the jobId every 30 seconds until it is "published", "scheduled" or "failed".`,
       mcp: {
         annotations: {

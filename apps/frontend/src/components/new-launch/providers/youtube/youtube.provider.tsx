@@ -12,6 +12,7 @@ import { YoutubeTags } from '@gitroom/frontend/components/new-launch/providers/y
 import { MediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Select } from '@gitroom/react/form/select';
 import { YoutubePreview } from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.preview';
+import { useWatch } from 'react-hook-form';
 const type = [
   {
     label: 'Public',
@@ -39,9 +40,20 @@ const madeForKids = [
 ];
 const YoutubeSettings: FC = () => {
   const { register, control } = useSettings();
+  const title = useWatch({ control, name: 'title' }) || '';
+  const titleLength = String(title).length;
   return (
     <div className="flex flex-col">
-      <Input label="Title" {...register('title')} maxLength={100} />
+      <Input
+        label="Title"
+        name="title"
+        maxLength={100}
+        suffix={
+          <span className="text-[12px] text-newTextColor/50 tabular-nums">
+            {titleLength}/100
+          </span>
+        }
+      />
       <Select
         label="Type"
         {...register('type', {

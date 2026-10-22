@@ -29,6 +29,7 @@ import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorato
     'content_posting_method=DIRECT_POST publishes the post to the account. content_posting_method=UPLOAD does NOT publish: it only sends the media to the user inbox of the TikTok app, where the user must manually complete and publish it within 24 hours or it is discarded. Use DIRECT_POST unless the user explicitly asks to review or edit the post inside the TikTok app first.',
     'With content_posting_method=UPLOAD, TikTok ignores every setting except the title / post content. Never tell the user that video_made_with_ai, privacy_level, duet, stitch, comment, autoAddMusic, brand_content_toggle or brand_organic_toggle will be applied in UPLOAD mode - they are silently discarded. If the user asks for any of those settings, tell them it requires DIRECT_POST.',
     'video_made_with_ai, duet and stitch apply to video posts only. TikTok has no equivalent field for photo posts, so those settings are discarded when the attachment is a picture.',
+    'If the TikTok app is unaudited (sandbox), privacy_level must be SELF_ONLY. Public / friends / followers will be rejected by TikTok until the app passes audit.',
   ].join(' ')
 )
 export class TiktokProvider extends SocialAbstract implements SocialProvider {
@@ -36,6 +37,16 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   name = 'Tiktok';
   isBetweenSteps = false;
   convertToJPEG = true;
+  get toolTip() {
+    return process.env.TIKTOK_SANDBOX
+      ? 'TikTok sandbox: app is unaudited. Posts must use Self only / Only me visibility until TikTok approves the app.'
+      : undefined;
+  }
+  get notice() {
+    return process.env.TIKTOK_SANDBOX
+      ? "TikTok is in sandbox until this app passes TikTok's audit. Connected accounts can only publish Self only / Only me posts, and the TikTok account itself must be Private."
+      : undefined;
+  }
   scopes = [
     'video.list',
     'user.info.basic',
@@ -562,8 +573,9 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
             ? { title: firstPost.message }
             : {}),
           ...(isPhoto ? { description: firstPost.message } : {}),
-          privacy_level:
-            firstPost.settings.privacy_level || 'PUBLIC_TO_EVERYONE',
+          privacy_level: process.env.TIKTOK_SANDBOX
+            ? 'SELF_ONLY'
+            : firstPost.settings.privacy_level || 'PUBLIC_TO_EVERYONE',
           ...(isPhoto
             ? {}
             : { disable_duet: !this.assetBoolean(firstPost.settings.duet) }),
@@ -975,9 +987,11 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     date: number
   ): Promise<AnalyticsData[]> {
     const today = dayjs().format('YYYY-MM-DD');
+    // Display API has no Studio-style period analytics. `date` is unused —
+    // we only return lifetime channel + video counters.
+    void date;
 
     try {
-      // Get user stats (follower_count, following_count, likes_count, video_count)
       const userStatsResponse = await fetch(
         'https://open.tiktokapis.com/v2/user/info/?fields=follower_count,following_count,likes_count,video_count',
         {
@@ -992,61 +1006,112 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       const userStats = userStatsData?.data?.user;
 
       const result: AnalyticsData[] = [];
+      const accountLikes = Number(userStats?.likes_count || 0);
+      const videoCount = Number(userStats?.video_count || 0);
 
-      if (userStats) {
-        if (userStats.follower_count !== undefined) {
-          result.push({
-            label: 'Followers',
-            percentageChange: 0,
-            data: [{ total: String(userStats.follower_count), date: today }],
-          });
+      result.push({
+        label: 'Followers',
+        percentageChange: 0,
+        data: [
+          {
+            total: String(Number(userStats?.follower_count || 0)),
+            date: today,
+          },
+        ],
+      });
+      result.push({
+        label: 'Following',
+        percentageChange: 0,
+        data: [
+          {
+            total: String(Number(userStats?.following_count || 0)),
+            date: today,
+          },
+        ],
+      });
+      result.push({
+        label: 'Likes',
+        percentageChange: 0,
+        data: [{ total: String(accountLikes), date: today }],
+      });
+      result.push({
+        label: 'Videos',
+        percentageChange: 0,
+        data: [{ total: String(videoCount), date: today }],
+      });
+
+      type TikTokVideoRef = {
+        id: string;
+        like_count?: number;
+        comment_count?: number;
+        share_count?: number;
+        view_count?: number;
+      };
+
+      type TikTokVideoStats = {
+        id: string;
+        like_count?: number;
+        comment_count?: number;
+        share_count?: number;
+        view_count?: number;
+      };
+
+      const listedVideos: TikTokVideoRef[] = [];
+      let cursor: number | undefined;
+      let hasMore = true;
+      let pages = 0;
+
+      while (hasMore && pages < 10) {
+        pages += 1;
+        const body: { max_count: number; cursor?: number } = {
+          max_count: 20,
+        };
+        if (cursor !== undefined) {
+          body.cursor = cursor;
         }
 
-        if (userStats.following_count !== undefined) {
-          result.push({
-            label: 'Following',
-            percentageChange: 0,
-            data: [{ total: String(userStats.following_count), date: today }],
-          });
+        const videoListResponse = await fetch(
+          'https://open.tiktokapis.com/v2/video/list/?fields=id,like_count,comment_count,share_count,view_count',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        const videoListData = await videoListResponse.json();
+        const videos: TikTokVideoRef[] = videoListData?.data?.videos || [];
+        for (const video of videos) {
+          if (video?.id) {
+            listedVideos.push(video);
+          }
         }
 
-        if (userStats.likes_count !== undefined) {
-          result.push({
-            label: 'Total Likes',
-            percentageChange: 0,
-            data: [{ total: String(userStats.likes_count), date: today }],
-          });
-        }
-
-        if (userStats.video_count !== undefined) {
-          result.push({
-            label: 'Videos',
-            percentageChange: 0,
-            data: [{ total: String(userStats.video_count), date: today }],
-          });
+        hasMore = !!videoListData?.data?.has_more;
+        cursor = videoListData?.data?.cursor;
+        if (!hasMore || cursor === undefined) {
+          hasMore = false;
         }
       }
 
-      // Get recent videos and aggregate their stats
-      const videoListResponse = await fetch(
-        'https://open.tiktokapis.com/v2/video/list/?fields=id',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ max_count: 20 }),
-        }
-      );
+      const allIds = listedVideos.map((video) => String(video.id));
+      const statsById = new Map<string, TikTokVideoStats>();
 
-      const videoListData = await videoListResponse.json();
-      const videos = videoListData?.data?.videos;
+      for (const video of listedVideos) {
+        statsById.set(String(video.id), {
+          id: String(video.id),
+          like_count: video.like_count,
+          comment_count: video.comment_count,
+          share_count: video.share_count,
+          view_count: video.view_count,
+        });
+      }
 
-      if (videos && videos.length > 0) {
-        const videoIds = videos.map((v: { id: string }) => v.id);
-
-        // Query video details to get engagement metrics
+      for (let i = 0; i < allIds.length; i += 20) {
+        const batch = allIds.slice(i, i + 20);
         const videoQueryResponse = await fetch(
           'https://open.tiktokapis.com/v2/video/query/?fields=id,like_count,comment_count,share_count,view_count',
           {
@@ -1056,87 +1121,86 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
               Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
-              filters: { video_ids: videoIds },
+              filters: { video_ids: batch },
             }),
           }
         );
-
         const videoQueryData = await videoQueryResponse.json();
-        const videoDetails = videoQueryData?.data?.videos;
-
-        if (videoDetails && videoDetails.length > 0) {
-          let totalViews = 0;
-          let totalLikes = 0;
-          let totalComments = 0;
-          let totalShares = 0;
-
-          for (const video of videoDetails) {
-            totalViews += video.view_count || 0;
-            totalLikes += video.like_count || 0;
-            totalComments += video.comment_count || 0;
-            totalShares += video.share_count || 0;
+        const details: TikTokVideoStats[] =
+          videoQueryData?.data?.videos || [];
+        for (const detail of details) {
+          if (!detail?.id) {
+            continue;
           }
-
-          const percentage = (value: number) =>
-            String(totalViews ? +((value / totalViews) * 100).toFixed(2) : 0);
-
-          result.push({
-            label: 'Recent Views',
-            percentageChange: 0,
-            data: [{ total: String(totalViews), date: today }],
-          });
-
-          result.push({
-            label: 'Avg Views per Video',
-            percentageChange: 0,
-            data: [
-              {
-                total: String(Math.round(totalViews / videoDetails.length)),
-                date: today,
-              },
-            ],
-          });
-
-          result.push({
-            label: 'Like Ratio',
-            average: true,
-            format: 'percentage',
-            percentageChange: 0,
-            data: [{ total: percentage(totalLikes), date: today }],
-          });
-
-          result.push({
-            label: 'Engagement Rate',
-            average: true,
-            format: 'percentage',
-            percentageChange: 0,
-            data: [
-              {
-                total: percentage(totalLikes + totalComments + totalShares),
-                date: today,
-              },
-            ],
-          });
-
-          result.push({
-            label: 'Recent Likes',
-            percentageChange: 0,
-            data: [{ total: String(totalLikes), date: today }],
-          });
-
-          result.push({
-            label: 'Recent Comments',
-            percentageChange: 0,
-            data: [{ total: String(totalComments), date: today }],
-          });
-
-          result.push({
-            label: 'Recent Shares',
-            percentageChange: 0,
-            data: [{ total: String(totalShares), date: today }],
+          statsById.set(String(detail.id), {
+            id: String(detail.id),
+            like_count: detail.like_count,
+            comment_count: detail.comment_count,
+            share_count: detail.share_count,
+            view_count: detail.view_count,
           });
         }
       }
+
+      let lifetimeViews = 0;
+      let totalComments = 0;
+      let totalShares = 0;
+      for (const video of statsById.values()) {
+        lifetimeViews += Number(video.view_count || 0);
+        totalComments += Number(video.comment_count || 0);
+        totalShares += Number(video.share_count || 0);
+      }
+
+      const videosCounted = statsById.size || videoCount;
+      const percentage = (value: number) =>
+        String(lifetimeViews ? +((value / lifetimeViews) * 100).toFixed(2) : 0);
+
+      result.push({
+        label: 'Lifetime Video Views',
+        percentageChange: 0,
+        data: [{ total: String(lifetimeViews), date: today }],
+      });
+      result.push({
+        label: 'Comments',
+        percentageChange: 0,
+        data: [{ total: String(totalComments), date: today }],
+      });
+      result.push({
+        label: 'Shares',
+        percentageChange: 0,
+        data: [{ total: String(totalShares), date: today }],
+      });
+      result.push({
+        label: 'Avg Views per Video',
+        percentageChange: 0,
+        data: [
+          {
+            total: String(
+              videosCounted ? Math.round(lifetimeViews / videosCounted) : 0
+            ),
+            date: today,
+          },
+        ],
+      });
+      result.push({
+        label: 'Like Ratio',
+        average: true,
+        format: 'percentage',
+        percentageChange: 0,
+        data: [{ total: percentage(accountLikes), date: today }],
+      });
+      result.push({
+        label: 'Engagement Rate',
+        average: true,
+        format: 'percentage',
+        percentageChange: 0,
+        data: [
+          {
+            total: percentage(accountLikes + totalComments + totalShares),
+            date: today,
+          },
+        ],
+      });
 
       return result;
     } catch (err) {

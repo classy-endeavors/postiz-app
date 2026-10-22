@@ -20,7 +20,7 @@ import clsx from 'clsx';
 import { TeamsComponent } from '@gitroom/frontend/components/settings/teams.component';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LogoutComponent } from '@gitroom/frontend/components/layout/logout.component';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { PublicComponent } from '@gitroom/frontend/components/public-api/public.component';
 import Link from 'next/link';
@@ -53,6 +53,8 @@ export const SettingsPopup: FC<{
   const close = useCallback(() => {
     return modal.closeAll();
   }, []);
+  const router = useRouter();
+  const pathname = usePathname();
   const url = useSearchParams();
   const showLogout = !url.get('onboarding') || user?.tier?.current === 'FREE';
   const loadProfile = useCallback(async () => {
@@ -78,11 +80,28 @@ export const SettingsPopup: FC<{
     close();
   }, []);
 
-  const [tab, setTab] = useState(url.get('tab') || 'global_settings');
+  // Older bookmarks used ?tab=api for the MCP page
+  const tabFromUrl = (value: string | null) =>
+    !value ? 'global_settings' : value === 'api' ? 'mcp' : value;
+
+  const [tab, setTab] = useState(() => tabFromUrl(url.get('tab')));
+  const selectTab = useCallback(
+    (next: string) => {
+      setTab(next);
+      const params = new URLSearchParams(url.toString());
+      params.set('tab', next);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, url]
+  );
+
   useEffect(() => {
     const queryTab = url.get('tab');
     if (queryTab) {
-      setTab(queryTab);
+      setTab(tabFromUrl(queryTab));
     }
   }, [url]);
 
@@ -100,7 +119,7 @@ export const SettingsPopup: FC<{
       arr.push({ tab: 'webhooks', label: t('webhooks_1', 'Webhooks') });
     }
     if (user?.tier?.autoPost) {
-      arr.push({ tab: 'autopost', label: t('auto_post', 'Auto Post') });
+      arr.push({ tab: 'autopost', label: t('autopost', 'Autopost') });
     }
     if (user?.tier.current !== 'FREE') {
       arr.push({ tab: 'sets', label: t('sets', 'Sets') });
@@ -109,7 +128,7 @@ export const SettingsPopup: FC<{
       arr.push({ tab: 'signatures', label: t('signatures', 'Signatures') });
     }
     if (user?.tier?.public_api && isGeneral && showLogout) {
-      arr.push({ tab: 'api', label: t('mcp', 'MCP') });
+      arr.push({ tab: 'mcp', label: t('mcp', 'MCP') });
     }
     arr.push({ tab: 'approved_apps', label: t('approved_apps', 'Approved Apps') });
 
@@ -117,10 +136,15 @@ export const SettingsPopup: FC<{
   }, [user, isGeneral, showLogout, t]);
 
   useEffect(() => {
-    if (!list.some((p) => p.tab === tab)) {
-      setTab('global_settings');
+    // Wait for the user so tier-gated tabs (MCP, Autopost, …) are in `list`
+    // before treating an unknown tab as invalid and rewriting the URL.
+    if (!user) {
+      return;
     }
-  }, [list, tab]);
+    if (!list.some((p) => p.tab === tab)) {
+      selectTab('global_settings');
+    }
+  }, [list, selectTab, tab, user]);
 
   useEffect(() => {
     loadProfile();
@@ -137,7 +161,7 @@ export const SettingsPopup: FC<{
                 'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px] mobile:shrink-0 mobile:whitespace-nowrap mobile:rounded-[8px] mobile:px-[12px] mobile:py-[8px] mobile:text-[14px]',
                 tabKey === tab && 'bg-boxHover mobile:text-btnPrimary mobile:font-[600]'
               )}
-              onClick={() => setTab(tabKey)}
+              onClick={() => selectTab(tabKey)}
             >
               <div
                 className={clsx(
@@ -225,7 +249,7 @@ export const SettingsPopup: FC<{
                 </div>
               )}
 
-              {tab === 'api' &&
+              {tab === 'mcp' &&
                 !!user?.tier?.public_api &&
                 isGeneral &&
                 showLogout && (

@@ -1,0 +1,216 @@
+import Link from 'next/link';
+import { ReactNode } from 'react';
+
+export function Sticker({
+  children,
+  variant = 'butter',
+}: {
+  children: ReactNode;
+  variant?: 'butter' | 'lime' | 'peach';
+}) {
+  const cls =
+    variant === 'lime' ? ' lime' : variant === 'peach' ? ' peach' : '';
+  return <div className={`mkt-stick${cls}`}>{children}</div>;
+}
+
+export function CtaBand({
+  title = 'Ready to plan your next post?',
+  subtitle = 'Connect your channels and start scheduling in minutes.',
+}: {
+  title?: string;
+  subtitle?: string;
+}) {
+  return (
+    <section className="mkt-section">
+      <div className="mkt-wrap">
+        <div className="mkt-cta-band">
+          <h2 className="mkt-h2">{title}</h2>
+          <p>{subtitle}</p>
+          <div className="mkt-hero-actions">
+            <Link href="/auth" className="mkt-btn mkt-btn-ink">
+              Get Started
+            </Link>
+            <Link href="/auth/login" className="mkt-btn mkt-btn-ghost">
+              Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function PageHero({
+  sticker,
+  title,
+  subtitle,
+  stickerVariant = 'butter',
+}: {
+  sticker: string;
+  title: string;
+  subtitle: string;
+  stickerVariant?: 'butter' | 'lime' | 'peach';
+}) {
+  return (
+    <div className="mkt-page-hero mkt-center">
+      <div className="mkt-wrap mkt-center">
+        <Sticker variant={stickerVariant}>{sticker}</Sticker>
+        <h1>{title}</h1>
+        <p className="mkt-sub">{subtitle}</p>
+        <div className="mkt-hero-actions">
+          <Link href="/auth" className="mkt-btn mkt-btn-org">
+            Get Started
+          </Link>
+          <Link href="/auth/login" className="mkt-btn mkt-btn-ghost">
+            Login
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Legal/doc pages: hero without CTAs, title may include accent markup */
+export function LegalPageHero({
+  sticker,
+  title,
+  subtitle,
+  stickerVariant = 'butter',
+}: {
+  sticker: string;
+  title: ReactNode;
+  subtitle: string;
+  stickerVariant?: 'butter' | 'lime' | 'peach';
+}) {
+  return (
+    <header className="mkt-page-hero mkt-center" style={{ paddingBottom: 40 }}>
+      <div className="mkt-wrap mkt-center">
+        <Sticker variant={stickerVariant}>{sticker}</Sticker>
+        <h1>{title}</h1>
+        <p className="mkt-sub" style={{ marginBottom: 0 }}>
+          {subtitle}
+        </p>
+      </div>
+    </header>
+  );
+}
+
+export const PLATFORMS = [
+  {
+    name: 'YouTube',
+    icon: '/icons/platforms/youtube.svg',
+    blurb: 'Upload videos and Shorts with titles, tags, and notify options.',
+  },
+  {
+    name: 'TikTok',
+    icon: '/icons/platforms/tiktok.png',
+    blurb: 'Publish TikToks with privacy and platform-specific settings.',
+  },
+  {
+    name: 'Instagram',
+    icon: '/icons/platforms/instagram.png',
+    blurb: 'Post to Instagram with standalone account connection.',
+  },
+  {
+    name: 'LinkedIn',
+    icon: '/icons/platforms/linkedin.png',
+    blurb: 'Share updates from your personal LinkedIn profile.',
+  },
+  {
+    name: 'LinkedIn Page',
+    icon: '/icons/platforms/linkedin-page.png',
+    blurb: 'Publish to company pages and track page engagement.',
+  },
+  {
+    name: 'Facebook Page',
+    icon: '/icons/platforms/facebook.png',
+    blurb: 'Post to Facebook Pages from the same calendar.',
+  },
+] as const;
+
+export function PlatformRow() {
+  return (
+    <div className="mkt-platforms">
+      {PLATFORMS.map((p) => (
+        <div key={p.name} className="mkt-platform">
+          <img src={p.icon} alt="" width={22} height={22} />
+          {p.name}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export { FaqList } from './faq-accordion';
+
+export const HOME_FAQ = [
+  {
+    q: 'Which platforms can I connect?',
+    a: 'YouTube, TikTok, Instagram, LinkedIn, LinkedIn Page, and Facebook Page.',
+  },
+  {
+    q: 'How do Zyntra Coins work?',
+    a: 'You get 100 free coins every month. Spend them on agent messages, AI images, and scheduled posts — unused coins carry over.',
+  },
+  {
+    q: 'Does Zyntra include AI writing?',
+    a: 'Yes. Paid plans unlock the AI agent and post generator. Usage still spends coins where listed on Pricing.',
+  },
+  {
+    q: 'Can my team collaborate?',
+    a: 'Team members and roles are available on TEAM, PRO, and ULTIMATE plans.',
+  },
+];
+
+export function FeatureCards({
+  items,
+}: {
+  items: { title: string; body: string; href?: string; icon?: string }[];
+}) {
+  return (
+    <div className="mkt-grid-3">
+      {items.map((item) => {
+        const initial = item.title.trim().charAt(0).toUpperCase() || 'Z';
+        const inner = (
+          <>
+            <div className="mkt-bcard-head">
+              <div className="mkt-bic" aria-hidden="true">
+                {item.icon ? (
+                  <img src={item.icon} alt="" width={22} height={22} />
+                ) : (
+                  initial
+                )}
+              </div>
+              <h3>{item.title}</h3>
+            </div>
+            <p>{item.body}</p>
+            {item.href ? (
+              <span className="mkt-bcard-link">Learn more →</span>
+            ) : null}
+          </>
+        );
+
+        if (item.href) {
+          return (
+            <Link key={item.title} href={item.href} className="mkt-bcard">
+              {inner}
+            </Link>
+          );
+        }
+
+        return (
+          <div key={item.title} className="mkt-bcard">
+            {inner}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** @deprecated Use FeatureCards component instead */
+export function featureCards(
+  items: { title: string; body: string; href?: string; icon?: string }[]
+) {
+  return <FeatureCards items={items} />;
+}

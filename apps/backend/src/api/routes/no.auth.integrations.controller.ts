@@ -208,6 +208,28 @@ export class NoAuthIntegrationsController {
       throw new HttpException('', 412);
     }
 
+    // Fresh "Add Channel" of an account that is already connected: stop before
+    // silently refreshing tokens / creating a duplicate. Intentional
+    // reconnects pass `refresh` (the existing integration id) from Redis.
+    if (!refresh) {
+      const alreadyConnected =
+        await this._integrationService.findAlreadyConnectedChannel(
+          org.id,
+          integration,
+          String(id),
+          username
+        );
+      if (alreadyConnected) {
+        const label =
+          alreadyConnected.profile || alreadyConnected.name || 'this account';
+        // NotEnoughScopes → 409 { msg } via NotEnoughScopesFilter (same path
+        // the frontend already uses for connect errors).
+        throw new NotEnoughScopes(
+          `This account is already connected as "${label}". Open that channel and choose Reconnect if you need to refresh it.`
+        );
+      }
+    }
+
     if (refresh && String(id) !== String(refresh)) {
       // A reconnect that returns a different id is either the wrong account or
       // a channel migrating to another provider (MIGRATE_PROVIDERS) - the two
@@ -335,6 +357,8 @@ export class NoAuthIntegrationsController {
     return {
       ...safeIntegration,
       onboarding: onboarding === 'true',
+      // True when this flow was started from Reconnect (refresh id in Redis)
+      isReconnect: !!refresh,
       pages,
       ...(returnURL ? { returnURL } : {}),
       ...(extensionToken ? { extensionToken } : {}),

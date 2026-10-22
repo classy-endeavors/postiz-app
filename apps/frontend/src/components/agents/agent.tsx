@@ -3,6 +3,7 @@
 import React, {
   createContext,
   FC,
+  MouseEvent,
   useCallback,
   useMemo,
   useState,
@@ -21,7 +22,7 @@ import { useWaitForClass } from '@gitroom/helpers/utils/use.wait.for.class';
 import { MultiMediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Integration } from '@prisma/client';
 import Link from 'next/link';
-import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
 export const MediaPortal: FC<{
@@ -217,7 +218,6 @@ export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
 const Threads: FC = () => {
   const fetch = useFetch();
   const router = useRouter();
-  const pathname = usePathname();
   const t = useT();
   const threads = useCallback(async () => {
     return (await fetch('/copilot/list')).json();
@@ -225,6 +225,14 @@ const Threads: FC = () => {
   const { id } = useParams<{ id: string }>();
 
   const { data } = useSWR('threads', threads);
+
+  const startNewChat = useCallback(
+    (e: MouseEvent) => {
+      e.preventDefault();
+      router.push(`/agents/${crypto.randomUUID()}`);
+    },
+    [router]
+  );
 
   return (
     <div
@@ -236,7 +244,8 @@ const Threads: FC = () => {
       <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor mobile:relative mobile:h-auto mobile:p-[12px] mobile:flex mobile:items-center mobile:gap-[10px]">
         <div className="mb-[15px] justify-center flex group-[.sidebar]:pb-[15px] mobile:mb-0 mobile:shrink-0">
           <Link
-            href={`/agents`}
+            href="/agents/new"
+            onClick={startNewChat}
             className="text-white whitespace-nowrap flex-1 pt-[12px] pb-[14px] ps-[16px] pe-[20px] group-[.sidebar]:p-0 min-h-[44px] max-h-[44px] rounded-md bg-btnPrimary flex justify-center items-center gap-[5px] outline-none mobile:min-h-[38px] mobile:max-h-[38px] mobile:ps-[10px] mobile:pe-[14px] mobile:py-0"
           >
             <svg

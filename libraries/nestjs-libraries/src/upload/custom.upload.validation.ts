@@ -27,6 +27,69 @@ export function getMaxSize(mimeType: string): number {
   }
 }
 
+// Google Drive /file/d/<id>/view (and open?id=) URLs serve an HTML viewer.
+// Agents and users paste those share links; rewrite to the public download
+// endpoint so upload-from-URL gets the real file bytes.
+export function googleDriveFileId(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    if (host !== 'drive.google.com' && host !== 'docs.google.com') {
+      return null;
+    }
+    const fromPath = parsed.pathname.match(/\/(?:file\/d|uc\/d)\/([^/]+)/);
+    if (fromPath?.[1]) {
+      return fromPath[1];
+    }
+    return parsed.searchParams.get('id');
+  } catch {
+    return null;
+  }
+}
+
+export function resolveRemoteUploadUrl(url: string): string {
+  const id = googleDriveFileId(url);
+  if (!id) {
+    return url;
+  }
+  // confirm=t skips the large-file virus-scan interstitial for public files
+  return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(
+    id
+  )}&confirm=t`;
+}
+
+export function googleDriveConfirmDownload(
+  resolvedUrl: string,
+  html: string,
+  response: globalThis.Response
+): { url: string; headers?: Record<string, string> } | null {
+  const id = googleDriveFileId(resolvedUrl);
+  if (!id) {
+    return null;
+  }
+
+  const confirm =
+    html.match(/confirm=([0-9A-Za-z_-]+)/)?.[1] ||
+    html.match(/name="confirm"\s+value="([^"]+)"/)?.[1] ||
+    't';
+
+  const cookies =
+    typeof response.headers.getSetCookie === 'function'
+      ? response.headers.getSetCookie()
+      : [];
+  const cookieHeader = cookies
+    .map((entry) => entry.split(';')[0])
+    .filter(Boolean)
+    .join('; ');
+
+  return {
+    url: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(
+      id
+    )}&confirm=${encodeURIComponent(confirm)}`,
+    ...(cookieHeader ? { headers: { cookie: cookieHeader } } : {}),
+  };
+}
+
 // Passes bytes through and fails once they exceed maxSize, so a body with a
 // missing or lying Content-Length cannot be streamed into storage unbounded
 export function maxSizeStream(maxSize: number) {

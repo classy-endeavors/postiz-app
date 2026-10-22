@@ -24,6 +24,7 @@ import { createReadStream, statSync } from 'fs';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { setHeartbeatDetails } from '@gitroom/nestjs-libraries/temporal/temporal.heartbeat';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { fetchRemoteMediaByteSize } from '@gitroom/nestjs-libraries/upload/remote.media.size';
 
 const clientAndYoutube = () => {
   const client = new google.auth.OAuth2({
@@ -79,10 +80,10 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   ): Promise<string | true> {
     const [firstItems] = items ?? [];
     if (items?.[0]?.length !== 1) {
-      return 'You need one media';
+      return 'YouTube needs exactly one video';
     }
     if ((firstItems?.[0]?.path?.indexOf?.('mp4') ?? -1) === -1) {
-      return 'Item must be a video';
+      return 'YouTube media must be a video';
     }
     return true;
   }
@@ -425,7 +426,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   private static readonly YOUTUBE_UPLOAD_BATCH_MS = 4 * 60 * 1000;
 
   // Resolves the total byte size of the media without loading it into memory:
-  // a HEAD request for remote URLs, statSync for local files.
+  // Range GET for remote URLs (HEAD fails on GetObject-presigned S3 URLs),
+  // statSync for local files.
   private async youtubeMediaSize(path: string): Promise<number> {
     if (path.indexOf('http') === 0) {
       // the media path is user-influenced, keep the SSRF-safe dispatcher that
@@ -433,13 +435,10 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       // so content-length matches the bytes a later GET actually streams
       // (fetch transparently decompresses encoded bodies).
       setHeartbeatDetails(`youtube: media size ${stripQuery(path)}`);
-      const head = await fetch(path, {
-        method: 'HEAD',
-        headers: { 'accept-encoding': 'identity' },
+      const length = await fetchRemoteMediaByteSize(path, {
         dispatcher: getSsrfSafeDispatcher(),
-      } as any);
-      const length = head.headers.get('content-length');
-      if (!length) {
+      });
+      if (!Number.isFinite(length) || !length || length <= 0) {
         throw new BadBody(
           this.identifier,
           '{}',
@@ -447,7 +446,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           'Could not determine the video size for the YouTube upload'
         );
       }
-      return Number(length);
+      return length;
     }
 
     return statSync(path).size;
@@ -879,6 +878,107 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
   }
 
+  // Moves a video YouTube has not published yet. publishAt only sticks while
+  // the video is still private, so a video that already went public is refused.
+  async rescheduleDirectPublish(
+    accessToken: string,
+    videoId: string,
+    publishAt: string
+  ) {
+    const current = await this.fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=status&id=${encodeURIComponent(
+        videoId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const listed = await current.json();
+    const status = listed?.items?.[0]?.status;
+    if (!status) {
+      throw new BadBody(
+        this.identifier,
+        '{}',
+        '{}',
+        'This video was not found on the channel'
+      );
+    }
+    if (status.privacyStatus !== 'private' || !status.publishAt) {
+      throw new BadBody(
+        this.identifier,
+        '{}',
+        '{}',
+        'Only a video that YouTube has not published yet can be rescheduled'
+      );
+    }
+
+    await this.fetch(
+      'https://www.googleapis.com/youtube/v3/videos?part=status',
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          id: videoId,
+          status: {
+            privacyStatus: 'private',
+            publishAt,
+            selfDeclaredMadeForKids: !!status.selfDeclaredMadeForKids,
+          },
+        }),
+      }
+    );
+  }
+
+  async listRecentComments(accessToken: string, videoId: string) {
+    const response = await this.fetch(
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&order=time&textFormat=plainText&maxResults=20&videoId=${encodeURIComponent(
+        videoId
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const body = await response.json();
+    return ((body?.items || []) as any[]).map((item) => {
+      const snippet = item?.snippet?.topLevelComment?.snippet || {};
+      return {
+        id: String(item?.snippet?.topLevelComment?.id || ''),
+        text: String(snippet.textOriginal || snippet.textDisplay || ''),
+        authorChannelId: String(snippet.authorChannelId?.value || ''),
+      };
+    }).filter((comment) => comment.id && comment.text);
+  }
+
+  async replyToComment(
+    accessToken: string,
+    commentId: string,
+    message: string
+  ) {
+    await this.fetch(
+      'https://www.googleapis.com/youtube/v3/comments?part=snippet',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          snippet: {
+            parentId: commentId,
+            textOriginal: message,
+          },
+        }),
+      }
+    );
+  }
+
   async setThumbnail(accessToken: string, videoId: string, url: string) {
     const { client, youtube } = clientAndYoutube();
     client.setCredentials({ access_token: accessToken });
@@ -963,6 +1063,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       });
       const stats = channels.items?.[0]?.statistics;
       if (stats) {
+        // Channel statistics are lifetime totals — not scoped to the selected
+        // analytics date range (unlike the YouTube Analytics day series below).
         const views = Number(stats.viewCount || 0);
         const videos = Number(stats.videoCount || 0);
         if (!stats.hiddenSubscriberCount) {
@@ -973,17 +1075,17 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           });
         }
         result.push({
-          label: 'Total Views',
+          label: 'Lifetime Views',
           percentageChange: 0,
           data: [{ total: String(views), date: today }],
         });
         result.push({
-          label: 'Videos',
+          label: 'Lifetime Videos',
           percentageChange: 0,
           data: [{ total: String(videos), date: today }],
         });
         result.push({
-          label: 'Avg Views per Video',
+          label: 'Avg Views per Video (lifetime)',
           percentageChange: 0,
           data: [
             { total: String(videos ? Math.round(views / videos) : 0), date: today },

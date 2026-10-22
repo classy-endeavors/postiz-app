@@ -54,6 +54,8 @@ import { CoinsRepository } from '@gitroom/nestjs-libraries/database/prisma/coins
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
 import { UpgradesRepository } from '@gitroom/nestjs-libraries/database/prisma/upgrades/upgrades.repository';
 import { UpgradesService } from '@gitroom/nestjs-libraries/database/prisma/upgrades/upgrades.service';
+import { CommentRepliesRepository } from '@gitroom/nestjs-libraries/database/prisma/comment-replies/comment.replies.repository';
+import { CommentRepliesService } from '@gitroom/nestjs-libraries/database/prisma/comment-replies/comment.replies.service';
 
 @Global()
 @Module({
@@ -117,6 +119,8 @@ import { UpgradesService } from '@gitroom/nestjs-libraries/database/prisma/upgra
     CoinsService,
     UpgradesRepository,
     UpgradesService,
+    CommentRepliesRepository,
+    CommentRepliesService,
   ],
   get exports() {
     return this.providers;

@@ -16,7 +16,6 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import useCookie from 'react-use-cookie';
 import { useMediaQuery } from '@mantine/hooks';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
-import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
 const allowedIntegrations = [
   'tiktok',
@@ -67,8 +66,13 @@ export const PlatformAnalytics = () => {
   const currentIntegration = useMemo(() => {
     return sortedIntegrations[current];
   }, [current, sortedIntegrations]);
+  const isTikTok = currentIntegration?.identifier === 'tiktok';
   const options = useMemo(() => {
     if (!currentIntegration) {
+      return [];
+    }
+    // Display API has no period analytics — hide the date filter for TikTok.
+    if (currentIntegration.identifier === 'tiktok') {
       return [];
     }
     const arr = [];
@@ -83,7 +87,8 @@ export const PlatformAnalytics = () => {
       });
     }
     if (
-      ['youtube', 'linkedin-page'].indexOf(currentIntegration.identifier) !== -1
+      ['youtube', 'linkedin-page'].indexOf(currentIntegration.identifier) !==
+      -1
     ) {
       arr.push({
         key: 90,
@@ -96,17 +101,47 @@ export const PlatformAnalytics = () => {
     if (!currentIntegration) {
       return 7;
     }
+    if (isTikTok) {
+      return 90;
+    }
     if (options.find((p) => p.key === key)) {
       return key;
     }
     return options[0]?.key;
-  }, [key, currentIntegration]);
+  }, [key, currentIntegration, isTikTok, options]);
 
   if (isLoading) {
     return (
-      <div className="bg-newBgColorInner p-[20px] flex flex-1 flex-col gap-[15px] transition-all items-center justify-center">
-        <LoadingComponent />
-      </div>
+      <>
+        <div className="bg-newBgColorInner p-[20px] flex flex-col gap-[15px] w-[260px] mobile:w-full mobile:p-[12px] animate-pulse">
+          <div className="h-[20px] w-[100px] rounded-[4px] bg-newSep" />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="flex gap-[12px] items-center">
+              <div className="w-[36px] h-[36px] rounded-[8px] bg-newSep" />
+              <div className="h-[14px] flex-1 rounded-[4px] bg-newSep" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[14px] animate-pulse">
+          <div className="h-[40px] w-[200px] rounded-[8px] bg-newSep" />
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-[12px]">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-[14px] border-[1.5px] border-newSep h-[78px] bg-newSep/40"
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-[14px] border-[1.5px] border-newSep h-[220px] bg-newSep/40"
+              />
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -237,25 +272,27 @@ export const PlatformAnalytics = () => {
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
-        {!!options.length && (
+        {!!currentIntegration && (isTikTok || !!options.length) && (
           <div className="flex-1 flex flex-col gap-[14px]">
-            <div className="max-w-[200px]">
-              <Select
-                label=""
-                name="date"
-                disableForm={true}
-                hideErrors={true}
-                onChange={(e) => setKey(+e.target.value)}
-              >
-                {options.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.value}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {!!options.length && (
+              <div className="max-w-[200px]">
+                <Select
+                  label=""
+                  name="date"
+                  disableForm={true}
+                  hideErrors={true}
+                  onChange={(e) => setKey(+e.target.value)}
+                >
+                  {options.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.value}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
             <div className="flex-1">
-              {!!keys && !!currentIntegration && !refresh && (
+              {!!keys && !refresh && (
                 <RenderAnalytics integration={currentIntegration} date={keys} />
               )}
             </div>

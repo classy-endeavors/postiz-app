@@ -1,4 +1,5 @@
 import { timer } from '@gitroom/helpers/utils/timer';
+import { extractProviderErrorMessage } from '@gitroom/helpers/utils/humanize.post.error';
 import { Integration } from '@prisma/client';
 import {
   AuthTokenDetails,
@@ -14,6 +15,17 @@ import {
 import sharp from 'sharp';
 import { createReadStream, statSync } from 'fs';
 import { Readable } from 'stream';
+import { fetchRemoteMediaByteSize } from '@gitroom/nestjs-libraries/upload/remote.media.size';
+
+// Known provider copy wins. Otherwise read the platform JSON so the
+// notification and the saved post error are not just "Unknown Error".
+const providerFailureMessage = (json: string, mapped?: string) => {
+  const known = (mapped || '').trim();
+  if (known && known.toLowerCase() !== 'unknown error') {
+    return known;
+  }
+  return extractProviderErrorMessage(json) || 'Unknown Error';
+};
 
 export const stripQuery = (url: string) => {
   try {
@@ -259,7 +271,8 @@ export abstract class SocialAbstract {
   }
 
   // Resolves the total byte size of the media without loading it into memory:
-  // a HEAD request for remote URLs, statSync for local files.
+  // Range GET for remote URLs (HEAD fails on GetObject-presigned S3 URLs),
+  // statSync for local files.
   protected async mediaSize(path: string, identifier = ''): Promise<number> {
     path = this.resolveOwnedMediaPath(path);
     if (path.indexOf('http') === 0) {
@@ -268,15 +281,11 @@ export abstract class SocialAbstract {
       // so content-length matches the bytes a later GET actually streams
       // (fetch transparently decompresses encoded bodies).
       setHeartbeatDetails(`media size ${stripQuery(path)}`);
-      const head = await fetch(path, {
-        method: 'HEAD',
-        headers: { 'accept-encoding': 'identity' },
+      const length = await fetchRemoteMediaByteSize(path, {
         dispatcher: getSsrfSafeDispatcher(),
-      } as any);
-      const length = Number(head.headers.get('content-length'));
-      // A failed HEAD can still carry a content-length (of the error body),
-      // and a zero/NaN size would poison chunk-count math downstream.
-      if (!head.ok || !Number.isFinite(length) || length <= 0) {
+      });
+      // A zero/NaN size would poison chunk-count math downstream.
+      if (!Number.isFinite(length) || !length || length <= 0) {
         throw new BadBody(
           identifier,
           '{}',
@@ -419,7 +428,7 @@ export abstract class SocialAbstract {
         identifier,
         json,
         '{}',
-        handleError?.value || 'Unknown Error'
+        providerFailureMessage(json, handleError?.value)
       );
     }
   }
@@ -471,7 +480,7 @@ export abstract class SocialAbstract {
         '',
         safeStringify(globalErr),
         {} as any,
-        value.value || ''
+        providerFailureMessage(safeStringify(globalErr), value.value)
       );
     }
 
@@ -572,7 +581,7 @@ export abstract class SocialAbstract {
       identifier,
       json,
       options.body!,
-      handleError?.value || 'Unknown Error'
+      providerFailureMessage(json, handleError?.value)
     );
   }
 

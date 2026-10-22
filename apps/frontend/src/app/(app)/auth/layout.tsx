@@ -17,7 +17,7 @@ export default async function AuthLayout({
   const features = [
     t(
       'auth_feature_calendar',
-      'One calendar for TikTok, YouTube and Instagram'
+      'One calendar for YouTube, TikTok, Instagram, LinkedIn and Facebook'
     ),
     t('auth_feature_ai', 'AI that drafts posts in your voice'),
     t('auth_feature_analytics', 'Analytics for every connected channel'),

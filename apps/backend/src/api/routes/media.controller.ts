@@ -178,6 +178,16 @@ export class MediaController {
     res.status(200).json({ ...upload, saved: saveFile });
   }
 
+  @Get('/exists')
+  async mediaExists(
+    @GetOrgFromRequest() org: Organization,
+    @Query('name') name: string
+  ) {
+    return {
+      exists: await this._mediaService.hasOriginalName(org.id, name || ''),
+    };
+  }
+
   @Get('/:id/status')
   getMediaStatus(
     @GetOrgFromRequest() org: Organization,
@@ -190,9 +200,11 @@ export class MediaController {
   getMedia(
     @GetOrgFromRequest() org: Organization,
     @Query('page') page: number,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @Query('type') type?: 'image' | 'video',
+    @Query('sort') sort?: 'newest' | 'oldest' | 'name'
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(org.id, page, search, type, sort);
   }
 
   @Get('/video-options')

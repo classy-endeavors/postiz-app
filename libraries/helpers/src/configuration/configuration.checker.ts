@@ -31,6 +31,55 @@ export class ConfigurationChecker {
     this.checkIsValidUrl('NEXT_PUBLIC_BACKEND_URL');
     this.checkIsValidUrl('BACKEND_INTERNAL_URL');
     this.checkNonEmpty('STORAGE_PROVIDER', 'Needed to setup storage.');
+    this.checkStorageProvider();
+  }
+
+  checkStorageProvider() {
+    const provider = this.get('STORAGE_PROVIDER');
+    if (!provider) {
+      return;
+    }
+
+    if (provider === 'local') {
+      return;
+    }
+
+    if (provider !== 'cloudflare') {
+      this.issues.push(
+        `STORAGE_PROVIDER="${provider}" is invalid. Use "local" or "cloudflare".`
+      );
+      return;
+    }
+
+    // Cloud mode must not silently fall back to local disk
+    this.checkNonEmpty(
+      'CLOUDFLARE_BUCKETNAME',
+      'Required when STORAGE_PROVIDER=cloudflare.'
+    );
+    this.checkNonEmpty(
+      'CLOUDFLARE_REGION',
+      'Required when STORAGE_PROVIDER=cloudflare.'
+    );
+    this.checkNonEmpty(
+      'CLOUDFLARE_BUCKET_URL',
+      'Required when STORAGE_PROVIDER=cloudflare.'
+    );
+
+    const endpoint = this.get('CLOUDFLARE_ENDPOINT');
+    const accountId = this.get('CLOUDFLARE_ACCOUNT_ID');
+    if (!endpoint?.trim() && !accountId?.trim()) {
+      this.issues.push(
+        'CLOUDFLARE_ENDPOINT or CLOUDFLARE_ACCOUNT_ID is required when STORAGE_PROVIDER=cloudflare.'
+      );
+    }
+
+    const accessKey = this.get('CLOUDFLARE_ACCESS_KEY') || '';
+    const secretKey = this.get('CLOUDFLARE_SECRET_ACCESS_KEY') || '';
+    if ((accessKey && !secretKey) || (!accessKey && secretKey)) {
+      this.issues.push(
+        'CLOUDFLARE_ACCESS_KEY and CLOUDFLARE_SECRET_ACCESS_KEY must both be set, or both empty for instance-role credentials.'
+      );
+    }
   }
 
   checkNonEmpty(key: string, description?: string): boolean {

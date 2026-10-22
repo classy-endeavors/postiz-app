@@ -2,10 +2,11 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   useCopilotChatInternal,
   useCopilotContext,
-  useCopilotReadable,
 } from '@copilotkit/react-core';
 import AutoResizingTextarea from '@gitroom/frontend/components/agents/agent.textarea';
 import { useChatContext, InputProps } from '@copilotkit/react-ui';
+import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { COIN_COSTS } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.constants';
 const MAX_NEWLINES = 6;
 
 export const Input = ({
@@ -19,6 +20,7 @@ export const Input = ({
 }: InputProps & { onChange: (value: string) => void }) => {
   const context = useChatContext();
   const copilotContext = useCopilotContext();
+  const t = useT();
   const showPoweredBy = !copilotContext.copilotApiConfig?.publicApiKey;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +101,21 @@ export const Input = ({
           )}
 
           <div style={{ flexGrow: 1 }} />
+          {!isInProgress && (
+            <div
+              className="text-[11px] font-[600] text-textColor/70 pe-[6px] whitespace-nowrap"
+              title={t(
+                'agent_message_costs_hint',
+                'Each message costs {{count}} coin',
+                { count: COIN_COSTS.message }
+              )}
+            >
+              {COIN_COSTS.message}{' '}
+              {COIN_COSTS.message === 1
+                ? t('coin_unit', 'coin')
+                : t('coins_unit', 'coins')}
+            </div>
+          )}
           <button
             disabled={sendDisabled}
             onClick={isInProgress && !hideStopButton ? onStop : send}

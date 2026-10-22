@@ -55,7 +55,7 @@ export class InstagramProvider
     settings: any
   ): Promise<string | true> {
     if (!firstPost?.length) {
-      return 'Should have at least one media';
+      return 'Instagram needs at least one image or video';
     }
     if (firstPost.length > 10) {
       return 'Instagram carousel only supports up to 10 media attachments';
@@ -725,25 +725,28 @@ export class InstagramProvider
           (firstPost?.media?.length || 0) > 1 && !isStory
             ? `&is_carousel_item=true`
             : ``;
+        // Presigned S3 URLs contain &query params; they must be encoded or Meta
+        // truncates video_url/image_url and the container ends in status ERROR.
+        const mediaUrl = encodeURIComponent(m.path);
         const mediaType = hasExtension(m.path, 'mp4')
           ? firstPost?.media?.length === 1
             ? isStory
-              ? `video_url=${m.path}&media_type=STORIES`
+              ? `video_url=${mediaUrl}&media_type=STORIES`
               : m?.thumbnail
-              ? `video_url=${m.path}&media_type=REELS&cover_url=${encodeURIComponent(
+              ? `video_url=${mediaUrl}&media_type=REELS&cover_url=${encodeURIComponent(
                   m.thumbnail
                 )}`
-              : `video_url=${m.path}&media_type=REELS&thumb_offset=${
+              : `video_url=${mediaUrl}&media_type=REELS&thumb_offset=${
                   m?.thumbnailTimestamp || 0
                 }`
             : isStory
-            ? `video_url=${m.path}&media_type=STORIES`
-            : `video_url=${m.path}&media_type=VIDEO&thumb_offset=${
+            ? `video_url=${mediaUrl}&media_type=STORIES`
+            : `video_url=${mediaUrl}&media_type=VIDEO&thumb_offset=${
                 m?.thumbnailTimestamp || 0
               }`
           : isStory
-          ? `image_url=${m.path}&media_type=STORIES`
-          : `image_url=${m.path}`;
+          ? `image_url=${mediaUrl}&media_type=STORIES`
+          : `image_url=${mediaUrl}`;
 
         const trialParams = isTrialReel
           ? `&trial_params=${encodeURIComponent(
@@ -1065,6 +1068,33 @@ export class InstagramProvider
       pendingData = result.pendingData;
       await timer(30000);
     }
+  }
+
+  async replyToComment(
+    token: string,
+    commentId: string,
+    message: string,
+    host = 'graph.facebook.com'
+  ) {
+    const accessToken = token.split('___')[0];
+    const response = await this.fetch(
+      `https://${host}/${META_GRAPH_API_VERSION}/${commentId}/replies?message=${encodeURIComponent(
+        message
+      )}&access_token=${accessToken}`,
+      {
+        method: 'POST',
+      }
+    );
+    const body = await response.json();
+    if (!body?.id) {
+      throw new BadBody(
+        this.identifier,
+        JSON.stringify(body || {}),
+        '{}',
+        'Instagram did not accept the comment reply'
+      );
+    }
+    return String(body.id);
   }
 
   async comment(

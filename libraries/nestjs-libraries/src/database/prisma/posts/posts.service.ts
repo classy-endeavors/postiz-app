@@ -22,9 +22,11 @@ import { shuffle } from 'lodash';
 import { CreateGeneratedPostsDto } from '@gitroom/nestjs-libraries/dtos/generator/create.generated.posts.dto';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { v4 as uuidv4 } from 'uuid';
 import utc from 'dayjs/plugin/utc';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { CoinsService } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.service';
+import { CommentRepliesService } from '@gitroom/nestjs-libraries/database/prisma/comment-replies/comment.replies.service';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import {
@@ -57,6 +59,11 @@ import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validatio
 import { postContentPlainText } from '@gitroom/helpers/utils/sanitize.post.content';
 import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
 import { countLength } from '@gitroom/helpers/utils/count.length';
+import {
+  resolveMediaObjectKey,
+  sanitizeMediaListForPersistence,
+  stripPresignedQuery,
+} from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -86,7 +93,8 @@ export class PostsService {
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _coinsService: CoinsService
+    private _coinsService: CoinsService,
+    private _commentRepliesService: CommentRepliesService
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -351,24 +359,56 @@ export class PostsService {
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {
     return minifyPosts({
-      posts: await this._postRepository.getPosts(orgId, query),
+      posts: await this.withSignedIntegrationPictures(
+        await this._postRepository.getPosts(orgId, query)
+      ),
     });
   }
 
-  getDayPosts(orgId: string, query: GetPostsDto) {
-    return this._postRepository.getDayPosts(orgId, query);
+  async getDayPosts(orgId: string, query: GetPostsDto) {
+    return this.withSignedIntegrationPictures(
+      await this._postRepository.getDayPosts(orgId, query)
+    );
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
-    return minifyPostsList(
-      await this._postRepository.getPostsList(orgId, query)
+    const list = await this._postRepository.getPostsList(orgId, query);
+    return minifyPostsList({
+      ...list,
+      posts: await this.withSignedIntegrationPictures(list.posts),
+    });
+  }
+
+  private async withSignedIntegrationPictures<
+    T extends { integration?: { picture?: string | null } | null }
+  >(posts: T[]): Promise<T[]> {
+    return Promise.all(
+      posts.map(async (post) => {
+        if (!post.integration?.picture) {
+          return post;
+        }
+        const picture = await this._integrationService.signPictureUrl(
+          post.integration.picture
+        );
+        if (!picture || picture === post.integration.picture) {
+          return post;
+        }
+        return {
+          ...post,
+          integration: {
+            ...post.integration,
+            picture,
+          },
+        };
+      })
     );
   }
 
   async updateMedia(id: string, imagesList: any[], convertToJPEG = false) {
+    let getImageList: any[];
     try {
       let imageUpdateNeeded = false;
-      const getImageList = await Promise.all(
+      getImageList = await Promise.all(
         (
           await Promise.all(
             (imagesList || []).map(async (p: any) => {
@@ -382,32 +422,50 @@ export class PostsService {
               }
 
               // the normalizer may have replaced the file after the post was
-              // composed; a record still processing publishes the original
+              // composed; a record still processing publishes the original.
+              // Compare without presigned query strings so a prior signed path
+              // does not force a spurious rewrite of Post.image.
               const fresh = await this._mediaService.getMediaById(p.id);
-              if (fresh?.status === 'ready' && fresh.path !== p.path) {
+              const storedPath = stripPresignedQuery(p.path);
+              if (
+                fresh?.status === 'ready' &&
+                fresh.path &&
+                stripPresignedQuery(fresh.path) !== storedPath
+              ) {
                 imageUpdateNeeded = true;
                 return { ...p, name: fresh.name, path: fresh.path };
               }
 
-              return p;
+              // Prefer canonical Media.path for anything we may persist.
+              // Always hydrate name from Media so publish-time signing works
+              // when the composer stored only `{ id, path }`.
+              if (fresh?.path && storedPath !== fresh.path) {
+                return { ...p, name: fresh.name || p.name, path: fresh.path };
+              }
+
+              return {
+                ...p,
+                name: p.name || fresh?.name,
+                path: storedPath,
+              };
             })
           )
         )
           .map((m) => {
+            const canonicalPath = stripPresignedQuery(m.path || '');
+            const isHttp = canonicalPath.indexOf('http') === 0;
             return {
               ...m,
-              url:
-                m.path.indexOf('http') === -1
-                  ? process.env.FRONTEND_URL +
-                    '/' +
-                    process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
-                    m.path
-                  : m.path,
               type: 'image',
-              path:
-                m.path.indexOf('http') === -1
-                  ? process.env.UPLOAD_DIRECTORY + m.path
-                  : m.path,
+              url: isHttp
+                ? canonicalPath
+                : process.env.FRONTEND_URL +
+                  '/' +
+                  process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
+                  canonicalPath,
+              path: isHttp
+                ? canonicalPath
+                : process.env.UPLOAD_DIRECTORY + canonicalPath,
             };
           })
           .map(async (m) => {
@@ -417,7 +475,13 @@ export class PostsService {
 
             if (hasExtension(m.path, 'png')) {
               imageUpdateNeeded = true;
-              const response = await axios.get(m.url, {
+              // Private cloud objects need a fresh signed URL for the fetch
+              const objectKey = await this.resolvePublishObjectKey(m);
+              const fetchUrl =
+                this.storage.signDownloadUrl && objectKey
+                  ? await this.storage.signDownloadUrl(objectKey)
+                  : m.url;
+              const response = await axios.get(fetchUrl, {
                 responseType: 'arraybuffer',
               });
 
@@ -441,21 +505,22 @@ export class PostsService {
                 encoding: '',
               });
 
+              const canonicalPath = stripPresignedQuery(path);
               return {
                 ...m,
                 name: originalname,
                 url:
-                  path.indexOf('http') === -1
+                  canonicalPath.indexOf('http') === -1
                     ? process.env.FRONTEND_URL +
                       '/' +
                       process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY +
-                      path
-                    : path,
+                      canonicalPath
+                    : canonicalPath,
                 type: 'image',
                 path:
-                  path.indexOf('http') === -1
-                    ? process.env.UPLOAD_DIRECTORY + path
-                    : path,
+                  canonicalPath.indexOf('http') === -1
+                    ? process.env.UPLOAD_DIRECTORY + canonicalPath
+                    : canonicalPath,
               };
             }
 
@@ -463,17 +528,67 @@ export class PostsService {
           })
       );
 
+      // Persist only canonical (unsigned) references
       if (imageUpdateNeeded) {
         await this._postRepository.updateImages(
           id,
-          JSON.stringify(getImageList)
+          JSON.stringify(sanitizeMediaListForPersistence(getImageList))
         );
       }
-
-      return getImageList;
     } catch (err: any) {
       return imagesList;
     }
+
+    // Fresh short-lived URLs for publishers / callers — never written to DB.
+    // Fail loudly so private-bucket misconfig does not publish unbroken URLs.
+    if (this.storage.signDownloadUrl) {
+      return Promise.all(
+        getImageList.map(async (m: any) => {
+          const objectKey = await this.resolvePublishObjectKey(m);
+          if (!objectKey) {
+            return m;
+          }
+          const signed = await this.storage.signDownloadUrl!(objectKey);
+          return { ...m, name: m.name || objectKey, url: signed, path: signed };
+        })
+      );
+    }
+
+    return getImageList;
+  }
+
+  // Object key for cloud signing: Post.image.name → Media.name → URL path.
+  // Only signs objects under CLOUDFLARE_BUCKET_URL so legacy local
+  // FRONTEND_URL/uploads/... media is left unchanged.
+  private async resolvePublishObjectKey(media: {
+    id?: string;
+    name?: string;
+    path?: string;
+    url?: string;
+  }): Promise<string | null> {
+    const path = stripPresignedQuery(media?.path || media?.url || '');
+    const bucketUrl = (process.env.CLOUDFLARE_BUCKET_URL || '').replace(
+      /\/$/,
+      ''
+    );
+    if (!path || path.indexOf('http') !== 0) {
+      return null;
+    }
+    if (!bucketUrl || !path.startsWith(bucketUrl)) {
+      return null;
+    }
+
+    let mediaName = media?.name || null;
+    if (!mediaName && media?.id) {
+      const fresh = await this._mediaService.getMediaById(media.id);
+      mediaName = fresh?.name || null;
+    }
+
+    return resolveMediaObjectKey({
+      name: mediaName,
+      path,
+      bucketUrl,
+    });
   }
 
   async getPostGroupDebugExport(orgId: string, group: string) {
@@ -526,13 +641,39 @@ export class PostsService {
   async getPostsByGroup(orgId: string, group: string) {
     const convertToJPEG = false;
     const loadAll = await this._postRepository.getPostsByGroup(orgId, group);
-    const posts = this.arrangePostsByGroup(loadAll, undefined);
-    if (!posts.length) {
+    const byIntegration = new Map<string, typeof loadAll>();
+    for (const row of loadAll) {
+      const list = byIntegration.get(row.integrationId) || [];
+      list.push(row);
+      byIntegration.set(row.integrationId, list);
+    }
+
+    const channels = await Promise.all(
+      [...byIntegration.values()].map((rows) =>
+        this.presentChannel(rows, convertToJPEG)
+      )
+    );
+    const first = channels[0];
+    if (!first?.posts?.length) {
       throw new NotFoundException('Post not found');
     }
 
     return {
-      group: posts?.[0]?.group,
+      group: first.posts[0]?.group,
+      posts: first.posts,
+      integrationPicture: first.integrationPicture,
+      integration: first.integration,
+      settings: first.settings,
+      channels,
+    };
+  }
+
+  private async presentChannel(rows: any[], convertToJPEG: boolean) {
+    const posts = this.arrangePostsByGroup(rows, undefined);
+    return {
+      integration: posts[0]?.integrationId as string,
+      integrationPicture: posts[0]?.integration?.picture as string | undefined,
+      settings: JSON.parse(posts[0]?.settings || '{}'),
       posts: await Promise.all(
         (posts || []).map(async (post) => ({
           ...post,
@@ -543,9 +684,6 @@ export class PostsService {
           ),
         }))
       ),
-      integrationPicture: posts[0]?.integration?.picture,
-      integration: posts[0].integrationId,
-      settings: JSON.parse(posts[0].settings || '{}'),
     };
   }
 
@@ -715,11 +853,17 @@ export class PostsService {
     } catch (err) {}
   }
 
-  async deletePost(orgId: string, group: string) {
-    const post = await this._postRepository.deletePost(orgId, group);
+  async deletePost(orgId: string, group: string, integrationId?: string) {
+    const posts = await this._postRepository.deletePost(
+      orgId,
+      group,
+      integrationId
+    );
 
-    if (post?.id) {
-      await this.terminateWorkflows(post.id);
+    for (const post of posts) {
+      if (post?.id) {
+        await this.terminateWorkflows(post.id);
+      }
     }
 
     return { error: true };
@@ -863,7 +1007,7 @@ export class PostsService {
 
         // Settings DTO validation — mirrors the client `form.trigger()`.
         let valid = true;
-        let settingsError = '';
+        let settingsErrors: string[] = [];
         if (provider?.dto) {
           const instance = plainToInstance(provider.dto, settings, {
             enableImplicitConversion: false,
@@ -871,9 +1015,10 @@ export class PostsService {
           const validationErrors = await validate(instance as object, {
             skipMissingProperties: false,
           });
-          settingsError = this.firstValidationError(validationErrors);
+          settingsErrors = this.allValidationErrors(validationErrors);
           valid = validationErrors.length === 0;
         }
+        const settingsError = settingsErrors[0] || '';
 
         // Provider-specific media validation (the old client `checkValidity`).
         let errors: string | true = true;
@@ -910,6 +1055,7 @@ export class PostsService {
           name: integration.name,
           valid,
           settingsError,
+          settingsErrors,
           errors,
           emptyContent,
           tooLong,
@@ -919,20 +1065,25 @@ export class PostsService {
     );
   }
 
-  /** Returns the first class-validator message (incl. nested children), or ''. */
-  private firstValidationError(errors: any[]): string {
+  /** Returns every class-validator message (incl. nested children). */
+  private allValidationErrors(errors: any[]): string[] {
+    const messages: string[] = [];
     for (const e of errors || []) {
       if (e?.constraints) {
-        return Object.values(e.constraints as Record<string, string>)[0] || '';
+        messages.push(
+          ...Object.values(e.constraints as Record<string, string>)
+        );
       }
-      const child = e?.children?.length
-        ? this.firstValidationError(e.children)
-        : '';
-      if (child) {
-        return child;
+      if (e?.children?.length) {
+        messages.push(...this.allValidationErrors(e.children));
       }
     }
-    return '';
+    return [...new Set(messages.filter(Boolean))];
+  }
+
+  /** Returns the first class-validator message (incl. nested children), or ''. */
+  private firstValidationError(errors: any[]): string {
+    return this.allValidationErrors(errors)[0] || '';
   }
 
   // A schedule-type save targeting an already-PUBLISHED post republishes it to
@@ -987,11 +1138,50 @@ export class PostsService {
     creationMethod: CreationMethod,
     data: Parameters<PostsRepository['createPublishedRecord']>[3]
   ) {
+    const to = data.publishDate.toISOString();
     return this._postRepository.createPublishedRecord(
       orgId,
       integrationId,
       creationMethod,
-      data
+      {
+        ...data,
+        settings: {
+          ...data.settings,
+          activity: [
+            {
+              action: data.settings.publishAt ? 'scheduled' : 'published',
+              at: new Date().toISOString(),
+              to,
+            },
+          ],
+        },
+      }
+    );
+  }
+
+  findDirectPublishRecord(
+    orgId: string,
+    integrationId: string,
+    releaseId: string
+  ) {
+    return this._postRepository.findDirectPublishRecord(
+      orgId,
+      integrationId,
+      releaseId
+    );
+  }
+
+  rescheduleDirectPublishRecord(
+    orgId: string,
+    id: string,
+    publishDate: Date,
+    entry: Parameters<PostsRepository['rescheduleDirectPublishRecord']>[3]
+  ) {
+    return this._postRepository.rescheduleDirectPublishRecord(
+      orgId,
+      id,
+      publishDate,
+      entry
     );
   }
 
@@ -1022,6 +1212,23 @@ export class PostsService {
         await this._coinsService.checkCoins(orgId, 'post', toCharge.size);
       }
     }
+    // Channels that share a client group are one post. A different group
+    // string per channel (or none) stays its own post.
+    const applyToGroup = body.applyTo === 'group';
+    const groupKeyByIndex = body.posts.map(
+      (post, index) => post.group || `new:${index}`
+    );
+    const persistedByKey = new Map<string, string>();
+    for (const key of groupKeyByIndex) {
+      if (!persistedByKey.has(key)) {
+        persistedByKey.set(key, keepGroup ? key : uuidv4());
+      }
+    }
+    const writtenByKey = new Map<
+      string,
+      { integrationId: string; ids: string[] }[]
+    >();
+
     for (const [index, post] of body.posts.entries()) {
       const existing = existingPosts[index];
       this.guardAgainstDirectPublishEdit(existing);
@@ -1051,6 +1258,8 @@ export class PostsService {
         content: removeLinks ? stripLinks(updateContent[i]) : updateContent[i],
       }));
 
+      const groupKey = groupKeyByIndex[index];
+      const assignedGroup = persistedByKey.get(groupKey) as string;
       const { posts } = await this._postRepository.createOrUpdatePost(
         body.type,
         orgId,
@@ -1059,8 +1268,16 @@ export class PostsService {
         body.tags,
         creationMethod,
         body.inter,
-        keepGroup
+        keepGroup,
+        assignedGroup
       );
+
+      const written = writtenByKey.get(groupKey) || [];
+      written.push({
+        integrationId: post.integration.id,
+        ids: posts.map((item) => item.id),
+      });
+      writtenByKey.set(groupKey, written);
 
       if (!posts?.length) {
         return [] as any[];
@@ -1111,6 +1328,43 @@ export class PostsService {
         postId: posts[0].id,
         integration: post.integration.id,
       });
+    }
+
+    for (const [groupKey, written] of writtenByKey) {
+      if (groupKey.startsWith('new:')) {
+        continue;
+      }
+
+      const persisted = persistedByKey.get(groupKey) as string;
+      const removed: string[] = [];
+      if (keepGroup || !applyToGroup) {
+        for (const item of written) {
+          removed.push(
+            ...(await this._postRepository.softDeleteIntegrationExcept(
+              orgId,
+              groupKey,
+              item.integrationId,
+              item.ids
+            ))
+          );
+        }
+      } else if (groupKey !== persisted) {
+        removed.push(
+          ...(await this._postRepository.softDeleteGroup(orgId, groupKey))
+        );
+      }
+
+      for (const id of removed) {
+        await this.terminateWorkflows(id);
+      }
+    }
+
+    if (body.links) {
+      await this._commentRepliesService.replaceLinks(
+        orgId,
+        postList.map((item) => item.postId),
+        body.links
+      );
     }
 
     return postList;
@@ -1219,7 +1473,7 @@ export class PostsService {
 
       if (validation.tooLong) {
         throw new BadRequestException(
-          `${validation.name}: The maximum characters is ${validation.maximumCharacters}`
+          `${validation.name}: Caption exceeds the ${validation.maximumCharacters} character limit`
         );
       }
     }
@@ -1317,14 +1571,25 @@ export class PostsService {
     republish = false
   ) {
     const getPostById = await this._postRepository.getPostById(id, orgId);
-    this.guardAgainstDirectPublishEdit(getPostById);
+    if (!getPostById) {
+      throw new NotFoundException('Post not found');
+    }
+    const grouped = getPostById?.group
+      ? await this._postRepository.getPostsByGroup(orgId, getPostById.group)
+      : [];
+    const roots = grouped.filter((post) => !post.parentPostId);
+    const targets = roots.length ? roots : getPostById ? [getPostById] : [];
 
-    if (action === 'schedule' && !republish) {
-      this.guardAgainstRepublish(getPostById, 'changeDate');
+    for (const post of targets) {
+      this.guardAgainstDirectPublishEdit(post);
+      if (action === 'schedule' && !republish) {
+        this.guardAgainstRepublish(post, 'changeDate');
+      }
     }
 
     // schedule: Set status to QUEUE and change date (reschedule the post)
-    // update: Just change the date without changing the status
+    // update: Just change the date without changing the status.
+    // Every channel in the group moves together.
     const newDate = await this._postRepository.changeDate(
       orgId,
       id,
@@ -1334,16 +1599,16 @@ export class PostsService {
     );
 
     if (action === 'schedule') {
-      try {
-        await this.startWorkflow(
-          getPostById.integration.providerIdentifier
-            .split('-')[0]
-            .toLowerCase(),
-          getPostById.id,
-          orgId,
-          getPostById.state === 'DRAFT' ? 'DRAFT' : 'QUEUE'
-        );
-      } catch (err) {}
+      for (const post of targets) {
+        try {
+          await this.startWorkflow(
+            post.integration.providerIdentifier.split('-')[0].toLowerCase(),
+            post.id,
+            orgId,
+            post.state === 'DRAFT' ? 'DRAFT' : 'QUEUE'
+          );
+        } catch (err) {}
+      }
     }
 
     return newDate;

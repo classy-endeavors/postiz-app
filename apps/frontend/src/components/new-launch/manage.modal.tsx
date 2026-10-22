@@ -21,6 +21,7 @@ import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { DatePicker } from '@gitroom/frontend/components/launches/helpers/date.picker';
 import { useShallow } from 'zustand/react/shallow';
 import { RepeatComponent } from '@gitroom/frontend/components/launches/repeat.component';
+import { LinkPostsButton } from '@gitroom/frontend/components/replies/link.posts.button';
 import { TagsComponent } from '@gitroom/frontend/components/launches/tags.component';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -43,6 +44,40 @@ import { useHasScroll } from '@gitroom/frontend/components/ui/is.scroll.hook';
 import { useShortlinkPreference } from '@gitroom/frontend/components/settings/shortlink-preference.component';
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
+import { useClickOutside } from '@mantine/hooks';
+import { mutate as globalMutate } from 'swr';
+
+type ComposerMedia = {
+  id: string;
+  path: string;
+  alt?: string;
+  thumbnail?: string;
+  thumbnailTimestamp?: number;
+};
+
+type ComposerPostValue = {
+  id?: string;
+  content: string;
+  delay?: number;
+  media?: ComposerMedia[];
+};
+
+type ComposerChannelDraft = {
+  id: string;
+  identifier?: string;
+  settings?: Record<string, unknown>;
+  values: ComposerPostValue[];
+};
+
+type ChannelFocusTarget = 'form' | 'preview';
+
+type ChannelIssue = {
+  id: string;
+  identifier: string;
+  name: string;
+  messages: string[];
+  focus: ChannelFocusTarget;
+};
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
@@ -50,12 +85,25 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const ref = useRef(null);
   const existingData = useExistingData();
   const [loading, setLoading] = useState(false);
+  const [postNowOpen, setPostNowOpen] = useState(false);
   const toaster = useToaster();
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
+  const [links, setLinks] = useState<string[]>([]);
+  const [channelIssues, setChannelIssues] = useState<ChannelIssue[]>([]);
+  const [channelIssuesExpanded, setChannelIssuesExpanded] = useState(true);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
+  const postNowMenuRef = useClickOutside<HTMLDivElement>(() =>
+    setPostNowOpen(false)
+  );
 
   const { addEditSets, mutate, customClose, dummy } = props;
+  const publishErrors = useMemo(() => {
+    const errors = (existingData?.posts || [])
+      .filter((post: { state?: string; error?: string }) => post.state === 'ERROR' && post.error)
+      .map((post: { error: string }) => post.error);
+    return [...new Set(errors)] as string[];
+  }, [existingData]);
 
   const {
     selectedIntegrations,
@@ -72,6 +120,13 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     current,
     activateExitButton,
     setHide,
+    setCurrent,
+    groupScope,
+    setGroupScope,
+    addOrRemoveSelectedIntegration,
+    addInternalValue,
+    globalValues,
+    internalValues,
   } = useLaunchStore(
     useShallow((state) => ({
       hide: state.hide,
@@ -79,6 +134,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       date: state.date,
       setDate: state.setDate,
       current: state.current,
+      setCurrent: state.setCurrent,
       repeater: state.repeater,
       setRepeater: state.setRepeater,
       tags: state.tags,
@@ -88,6 +144,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       setSelectedIntegrations: state.setSelectedIntegrations,
       locked: state.locked,
       activateExitButton: state.activateExitButton,
+      groupScope: state.groupScope,
+      setGroupScope: state.setGroupScope,
+      addOrRemoveSelectedIntegration: state.addOrRemoveSelectedIntegration,
+      addInternalValue: state.addInternalValue,
+      globalValues: state.global,
+      internalValues: state.internal,
     }))
   );
 
@@ -129,7 +191,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         </div>
       </div>
     );
-  }, [current]);
+  }, [current, integrations, t]);
 
   const changeCustomer = useCallback(
     (customer: string) => {
@@ -143,7 +205,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }))
       );
     },
-    [integrations]
+    [integrations, setSelectedIntegrations]
   );
 
   const askClose = useCallback(async () => {
@@ -166,44 +228,95 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }
       modal.closeAll();
     }
-  }, [activateExitButton, dummy]);
+  }, [activateExitButton, dummy, t, customClose, modal]);
 
   const deletePost = useCallback(async () => {
     setLoading(true);
+    const channelCount = existingData.channels?.length || 1;
+    const deleteAll = groupScope === 'group' && channelCount > 1;
     if (
       !(await deleteDialog(
-        t(
-          'are_you_sure_you_want_to_delete_post',
-          'Are you sure you want to delete this post?'
-        ),
+        deleteAll
+          ? t(
+              'are_you_sure_you_want_to_delete_post_all_channels',
+              'Are you sure you want to delete this post on all {{count}} channels? Coins spent to schedule it are not refunded.',
+              { count: channelCount }
+            )
+          : t(
+              'are_you_sure_you_want_to_delete_post_no_refund',
+              'Are you sure you want to delete this post? Coins spent to schedule it are not refunded.'
+            ),
         t('yes_delete_it', 'Yes, delete it!')
       ))
     ) {
       setLoading(false);
       return;
     }
-    await fetch(`/posts/${existingData.group}`, {
+    const onlyIntegration =
+      groupScope === 'channel'
+        ? selectedIntegrations[0]?.integration.id
+        : '';
+    const integrationQuery = onlyIntegration
+      ? `?integration=${encodeURIComponent(onlyIntegration)}`
+      : '';
+    await fetch(`/posts/${existingData.group}${integrationQuery}`, {
       method: 'DELETE',
     });
+    toaster.show(
+      t('post_deleted_successfully', 'Post deleted successfully'),
+      'success'
+    );
     mutate();
     modal.closeAll();
     return;
-  }, [existingData, mutate, modal]);
+  }, [existingData, groupScope, mutate, modal, selectedIntegrations, t, fetch, toaster]);
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
+      setPostNowOpen(false);
       let republish = false;
-      if (
+
+      if (type === 'schedule' && date.isBefore(dayjs())) {
+        toaster.show(
+          t(
+            'cannot_schedule_in_the_past',
+            'Choose a future date and time to schedule this post.'
+          ),
+          'warning'
+        );
+        return;
+      }
+
+      const postState = existingData?.posts?.[0]?.state;
+      const needsPublishConfirm =
         (type === 'now' || type === 'schedule') &&
-        (existingData?.posts?.[0]?.state === 'PUBLISHED' ||
-          (existingData?.posts?.[0]?.state === 'QUEUE' &&
-            dayjs().isAfter(date.utc())))
-      ) {
+        (postState === 'PUBLISHED' ||
+          postState === 'ERROR' ||
+          (postState === 'QUEUE' && dayjs().isAfter(date.utc())));
+
+      // Confirm before immediate publish (mis-click on the Post now menu item
+      // sits directly above Add to Calendar). Republish flow already confirms.
+      if (type === 'now' && !needsPublishConfirm) {
+        if (
+          !(await deleteDialog(
+            t(
+              'are_you_sure_you_want_to_post_now',
+              'This will publish your post immediately. Continue?'
+            ),
+            t('yes_post_now', 'Yes, post now')
+          ))
+        ) {
+          return;
+        }
+      }
+
+      if (needsPublishConfirm) {
         const channels = selectedIntegrations
           .map((p) => p.integration.name)
           .join(', ');
         const isRecurring =
           !!repeater || !!existingData?.posts?.[0]?.intervalInDays;
+        const isFailed = postState === 'ERROR';
 
         const whatToDo = await new Promise((resolve) => {
           modal.openModal({
@@ -211,10 +324,15 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             children: (
               <div className="flex flex-col">
                 <div className="text-[20px] mb-[20px]">
-                  {t(
-                    'post_already_published_republish_warning',
-                    'This post was already published. Republishing will publish it again to'
-                  )}{' '}
+                  {isFailed
+                    ? t(
+                        'post_failed_retry_warning',
+                        'This post failed to publish. Retrying will try to publish it again to'
+                      )
+                    : t(
+                        'post_already_published_republish_warning',
+                        'This post was already published. Republishing will publish it again to'
+                      )}{' '}
                   {channels} {t('republish_at', 'at')}{' '}
                   {date.format('DD/MM/YYYY HH:mm')}.
                   {isRecurring && (
@@ -245,7 +363,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       className="flex-1"
                       onClick={() => resolve('republish')}
                     >
-                      {t('republish_the_post', 'Republish the post')}
+                      {isFailed
+                        ? t('retry_publishing', 'Retry publishing')
+                        : t('republish_the_post', 'Republish the post')}
                     </Button>
                   </div>
                 </div>
@@ -268,35 +388,50 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       // Pull the local values to build the payload, but rely on the server
       // (`/posts/valid`) for the actual validation — checkValidity now lives
       // server-side so it can't be bypassed.
-      const allValues = await ref.current.getAllValues();
+      const allValues = (await ref.current.getAllValues()) as ComposerChannelDraft[];
 
       const integrationById = (id: string) =>
         selectedIntegrations.find((p) => p.integration.id === id);
 
       const group = existingData.group || makeId(10);
+      const channels = existingData.channels || [];
+      const usedIds = new Set<string>();
 
-      const posts = allValues.map((post: any) => ({
-        integration: {
-          id: post.id,
-        },
-        group,
-        settings: { ...(post.settings || {}) },
-        value: post.values.map((value: any) => ({
-          ...(value.id ? { id: value.id } : {}),
-          content: value.content,
-          delay: value.delay || 0,
-          image:
-            (value?.media || []).map(
-              ({ id, path, alt, thumbnail, thumbnailTimestamp }: any) => ({
-                id,
-                path,
-                alt,
-                thumbnail,
-                thumbnailTimestamp,
-              })
-            ) || [],
-        })),
-      }));
+      const posts = allValues.map((post) => {
+        const channel = channels.find((item) => item.integration === post.id);
+        return {
+          integration: {
+            id: post.id,
+          },
+          group,
+          settings: { ...(post.settings || {}) },
+          value: post.values.map((value, index) => {
+            const owned = channel?.posts?.[index]?.id as string | undefined;
+            let id: string | undefined = owned || value.id;
+            if (id && usedIds.has(id)) {
+              id = undefined;
+            }
+            if (id) {
+              usedIds.add(id);
+            }
+            return {
+              ...(id ? { id } : {}),
+              content: value.content,
+              delay: value.delay || 0,
+              image:
+                (value.media || []).map(
+                  ({ id: mediaId, path, alt, thumbnail, thumbnailTimestamp }) => ({
+                    id: mediaId,
+                    path,
+                    alt,
+                    thumbnail,
+                    thumbnailTimestamp,
+                  })
+                ) || [],
+            };
+          }),
+        };
+      });
 
       if (!dummy) {
         const checkAllValid = await (
@@ -306,70 +441,99 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           })
         ).json();
 
-        const focus = (id: string, where: 'fix' | 'preview') => {
-          integrationById(id)?.ref?.current?.[where]?.();
+        const focusChannel = (
+          id: string,
+          where: ChannelFocusTarget
+        ) => {
+          const handle = integrationById(id)?.ref?.current as
+            | Partial<Record<ChannelFocusTarget, () => void>>
+            | undefined;
+          handle?.[where]?.();
         };
 
-        const notEnoughChars = checkAllValid.filter((p: any) => p.emptyContent);
+        const issues: ChannelIssue[] = [];
+        for (const item of checkAllValid) {
+          const messages: string[] = [];
+          let focusWhere: ChannelFocusTarget = 'preview';
 
-        for (const item of notEnoughChars) {
-          toaster.show(
-            `${capitalize(item.identifier.split('-')[0])} (${item.name}):` +
-              ' ' +
+          if (item.emptyContent) {
+            messages.push(
               t(
                 'post_needs_content_or_image',
                 'Your post should have at least one character or one image.'
-              ),
-            'warning'
-          );
-          setLoading(false);
-          focus(item.id, 'preview');
-          return;
-        }
+              )
+            );
+          }
 
-        if (type !== 'draft') {
-          for (const item of checkAllValid) {
-            if (item.valid === false) {
-              toaster.show(
-                `${capitalize(item.identifier.split('-')[0])} (${item.name}): ${
-                  item.settingsError ||
-                  t('please_fix_your_settings', 'Please fix your settings')
-                }`,
-                'warning'
+          if (type !== 'draft') {
+            // Surface character-limit failures before media/settings so a
+            // stricter channel (e.g. TikTok 2000) is never hidden behind
+            // "needs media" from another selected channel.
+            if (item.tooLong) {
+              messages.push(
+                t(
+                  'post_exceeds_character_limit',
+                  'Caption exceeds the {{max}} character limit',
+                  { max: item.maximumCharacters }
+                )
               );
-              focus(item.id, 'fix');
-              setLoading(false);
-              setShowSettings(true);
-              return;
+            }
+
+            if (item.valid === false) {
+              const settingsMessages: string[] =
+                Array.isArray(item.settingsErrors) && item.settingsErrors.length
+                  ? item.settingsErrors
+                  : [
+                      item.settingsError ||
+                        t(
+                          'please_fix_your_settings',
+                          'Please fix your settings'
+                        ),
+                    ];
+              messages.push(...settingsMessages);
+              focusWhere = 'form';
             }
 
             if (item.errors !== true) {
-              toaster.show(
-                `${capitalize(item.identifier.split('-')[0])} (${item.name}): ${
-                  item.errors
-                }`,
-                'warning'
-              );
-              focus(item.id, 'preview');
-              setLoading(false);
-              setShowSettings(false);
-              return;
-            }
-
-            if (item.tooLong) {
-              toaster.show(
-                `${item.name} (${item.identifier}) ${t(
-                  'post_is_too_long',
-                  'post is too long, please fix it'
-                )}`,
-                'warning'
-              );
-              focus(item.id, 'preview');
-              setLoading(false);
-              return;
+              messages.push(String(item.errors));
             }
           }
+
+          if (messages.length) {
+            issues.push({
+              id: item.id,
+              identifier: item.identifier,
+              name: item.name,
+              messages: [...new Set(messages)],
+              focus: focusWhere,
+            });
+          }
         }
+
+        if (issues.length) {
+          setChannelIssues(issues);
+          setChannelIssuesExpanded(true);
+          setLoading(false);
+          const first = issues[0];
+          setCurrent(first.id);
+          setHide(true);
+          if (first.focus === 'form') {
+            setShowSettings(true);
+          } else {
+            setShowSettings(false);
+          }
+          focusChannel(first.id, first.focus);
+          toaster.show(
+            t(
+              'fix_all_channel_issues',
+              'Fix every issue listed below before scheduling.'
+            ),
+            'warning'
+          );
+          return;
+        }
+
+        setChannelIssues([]);
       }
 
       const shortlinkPreference = shortlinkPreferenceData?.shortlink || 'ASK';
@@ -384,9 +548,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               messages: allValues
                 // platforms that remove links won't keep shortlinks either
                 .filter(
-                  (p: any) => !integrationById(p.id)?.integration?.stripLinks
+                  (p) => !integrationById(p.id)?.integration?.stripLinks
                 )
-                .flatMap((p: any) => p.values.flatMap((a: any) => a.content)),
+                .flatMap((p) => p.values.flatMap((a) => a.content)),
             }),
           })
         ).json();
@@ -418,6 +582,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         shortLink,
         date: date.utc().toISOString(),
         posts,
+        links,
+        applyTo: groupScope,
       };
 
       if (dummy) {
@@ -462,6 +628,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
         if (!addEditSets) {
           mutate();
+          if (type === 'schedule' || type === 'now') {
+            globalMutate('/coins/balance');
+          }
           toaster.show(
             !existingData.integration
               ? t('added_successfully', 'Added successfully')
@@ -479,8 +648,69 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }
       }
     },
-    [ref, repeater, tags, date, addEditSets, dummy, shortlinkPreferenceData]
+    [
+      addEditSets,
+      customClose,
+      date,
+      dummy,
+      existingData,
+      fetch,
+      groupScope,
+      links,
+      modal,
+      mutate,
+      ref,
+      repeater,
+      selectedIntegrations,
+      setCurrent,
+      setHide,
+      shortlinkPreferenceData,
+      t,
+      tags,
+      toaster,
+    ]
   );
+
+  const groupedChannels = existingData.channels || [];
+  const editingMany = groupedChannels.length > 1;
+  const channelChoices = groupedChannels.map((channel) => ({
+    id: channel.integration,
+    name:
+      integrations.find((item) => item.id === channel.integration)?.name ||
+      t('channel', 'channel'),
+  }));
+  const narrowToChannel = (integrationId: string) => {
+    const alreadyInternal = internalValues.some(
+      (item) => item.integration.id === integrationId
+    );
+    if (!alreadyInternal && globalValues.length) {
+      const channel = groupedChannels.find(
+        (item) => item.integration === integrationId
+      );
+      addInternalValue(
+        0,
+        integrationId,
+        globalValues.map((value, index) => ({
+          ...value,
+          id: (channel?.posts?.[index]?.id as string | undefined) || value.id,
+        }))
+      );
+    }
+    for (const selected of selectedIntegrations) {
+      if (selected.integration.id !== integrationId) {
+        addOrRemoveSelectedIntegration(
+          selected.integration,
+          selected.settings
+        );
+      }
+    }
+    setCurrent(integrationId);
+    setGroupScope('channel');
+  };
+  const onlyChannelName =
+    channelChoices.find(
+      (channel) => channel.id === selectedIntegrations[0]?.integration.id
+    )?.name || channelChoices[0]?.name;
 
   return (
     <div className="w-full h-full flex-1 p-[40px] mobile:p-0 flex relative">
@@ -488,7 +718,9 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         <div className="flex-1 flex min-h-0">
           <div className="flex flex-col flex-1 min-w-0 border-e border-newBorder mobile:border-e-0">
             <div className="bg-newBgColor h-[65px] mobile:h-[56px] rounded-s-[20px] mobile:rounded-none !rounded-b-[0] flex items-center gap-[12px] px-[20px] mobile:px-[14px] text-[20px] mobile:text-[18px] font-[600]">
-              {t('create_post_title', 'Create Post')}
+              {existingData?.integration
+                ? t('edit_post_title', 'Edit Post')
+                : t('create_post_title', 'Create Post')}
               <CreationMethodBadge
                 creationMethod={existingData?.posts?.[0]?.creationMethod}
                 size="sm"
@@ -497,7 +729,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                 <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
               </div>
             </div>
-            <div className="flex-1 flex flex-col gap-[16px]">
+            <div className="flex-1 flex flex-col gap-[16px] min-h-0">
               <div
                 className={clsx('flex-1 relative', showSettings && 'hidden')}
               >
@@ -505,6 +737,68 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   id="social-content"
                   className="gap-[32px] mobile:gap-[16px] flex flex-col pe-[8px] pt-[20px] ps-[20px] mobile:pt-[12px] mobile:ps-[12px] mobile:pe-[12px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
                 >
+                  {!!publishErrors.length && (
+                    <div className="rounded-[12px] border border-statusFailed bg-statusFailedBg px-[14px] py-[12px] flex flex-col gap-[6px]">
+                      <div className="text-[14px] font-[700] text-statusFailed">
+                        {t(
+                          'post_failed_to_publish',
+                          'This post failed to publish'
+                        )}
+                      </div>
+                      {publishErrors.map((error) => (
+                        <div
+                          key={error}
+                          className="text-[13px] text-statusFailed whitespace-pre-wrap break-words"
+                        >
+                          {error === 'Unknown Error'
+                            ? t(
+                                'post_failed_unknown',
+                                'The platform rejected this post but did not say why. Update it and try again.'
+                              )
+                            : error}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editingMany && groupScope === 'group' && (
+                    <div className="rounded-[12px] border border-newOutline bg-newBgColor px-[14px] py-[12px] flex flex-col gap-[10px]">
+                      <div className="text-[13px] text-newTextColor">
+                        {t(
+                          'edit_applies_to_all_channels',
+                          'Caption and time apply to all {{count}} channels: {{names}}.',
+                          {
+                            count: channelChoices.length,
+                            names: channelChoices
+                              .map((channel) => channel.name)
+                              .join(', '),
+                          }
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-[8px]">
+                        {channelChoices.map((channel) => (
+                          <button
+                            key={channel.id}
+                            type="button"
+                            onClick={() => narrowToChannel(channel.id)}
+                            className="h-[32px] px-[12px] rounded-[8px] border border-newOutline bg-newBgColorInner text-[12px] font-[700] text-newTextColor"
+                          >
+                            {t('edit_only_channel', 'Edit only {{name}}', {
+                              name: channel.name,
+                            })}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {editingMany && groupScope === 'channel' && (
+                    <div className="rounded-[12px] border border-newOutline bg-newBgColor px-[14px] py-[12px] text-[13px] text-newTextColor">
+                      {t(
+                        'editing_one_channel_only',
+                        'Editing {{name}} only. The other channels keep their caption and time.',
+                        { name: onlyChannelName }
+                      )}
+                    </div>
+                  )}
                   <div className="flex w-full mobile:flex-wrap mobile:gap-[8px]">
                     <div className="flex flex-1">
                       <PicksSocialsComponent toolTip={true} />
@@ -519,8 +813,15 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                     </div>
                   </div>
                   <div className="flex flex-1 gap-[6px] flex-col">
-                    <div>{!existingData.integration && <SelectCurrent />}</div>
-                    <div className="flex-1 flex">
+                    <div>
+                      {(!existingData.integration ||
+                        (editingMany && groupScope === 'group')) && (
+                        <SelectCurrent
+                          errorIds={channelIssues.map((issue) => issue.id)}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 flex min-w-0">
                       {!hide && <EditorWrapper totalPosts={1} value="" />}
                     </div>
                     <div
@@ -577,6 +878,66 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   </style>
                 </div>
               </div>
+              {!!channelIssues.length && (
+                <div className="mx-[20px] mobile:mx-[12px] mb-[12px] rounded-[12px] border border-statusFailed bg-statusFailedBg shrink-0">
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-[8px] px-[14px] py-[10px] text-start"
+                    onClick={() =>
+                      setChannelIssuesExpanded((expanded) => !expanded)
+                    }
+                    aria-expanded={channelIssuesExpanded}
+                  >
+                    <div className="flex-1 text-[14px] font-[700] text-statusFailed">
+                      {t(
+                        'fix_before_scheduling_count',
+                        'Fix {{count}} channel(s) before scheduling',
+                        { count: channelIssues.length }
+                      )}
+                    </div>
+                    <ChevronDownIcon
+                      rotated={channelIssuesExpanded}
+                      className="text-statusFailed shrink-0"
+                    />
+                  </button>
+                  {channelIssuesExpanded && (
+                    <div className="px-[14px] pb-[12px] flex flex-col gap-[10px] max-h-[140px] overflow-y-auto scrollbar scrollbar-thumb-newColColor scrollbar-track-transparent">
+                      {channelIssues.map((issue) => (
+                        <div key={issue.id} className="flex flex-col gap-[4px]">
+                          <button
+                            type="button"
+                            className="text-start text-[13px] font-[600] text-statusFailed underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setCurrent(issue.id);
+                              setHide(true);
+                              setShowSettings(issue.focus === 'form');
+                              const handle = selectedIntegrations
+                                .find((p) => p.integration.id === issue.id)
+                                ?.ref?.current as
+                                | Partial<Record<ChannelFocusTarget, () => void>>
+                                | undefined;
+                              handle?.[issue.focus]?.();
+                            }}
+                          >
+                            {capitalize(issue.identifier.split('-')[0])} (
+                            {issue.name})
+                          </button>
+                          <ul className="list-disc ps-[18px] text-[13px] text-statusFailed flex flex-col gap-[2px]">
+                            {issue.messages.map((message) => (
+                              <li
+                                key={message}
+                                className="whitespace-pre-wrap break-words"
+                              >
+                                {message}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="w-[580px] flex flex-col mobile:hidden">
@@ -611,6 +972,16 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
             {!dummy && (
               <RepeatComponent repeat={repeater} onChange={setRepeater} />
+            )}
+
+            {!dummy && (
+              <LinkPostsButton
+                value={links}
+                onChange={setLinks}
+                currentIds={(existingData?.posts || [])
+                  .map((post: { id?: string }) => post.id)
+                  .filter((id: string | undefined): id is string => !!id)}
+              />
             )}
           </div>
           <div className="pe-[20px] flex items-center justify-end gap-[8px] mobile:pe-0 mobile:flex-wrap mobile:justify-start">
@@ -656,22 +1027,33 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </button>
             )}
             {!addEditSets && (
-              <div className="group cursor-pointer relative mobile:basis-full">
-                <button
-                  disabled={
-                    selectedIntegrations.length === 0 || loading || locked
-                  }
-                  onClick={schedule('schedule')}
-                  className="text-white relative min-w-[180px] mobile:min-w-0 mobile:w-full btnSub disabled:cursor-not-allowed disabled:opacity-80 outline-none gap-[8px] flex justify-center items-center h-[44px] rounded-[8px] bg-[#FF5227] ps-[20px] pe-[16px]"
+              <div
+                ref={postNowMenuRef}
+                className="relative mobile:basis-full"
+              >
+                <div
+                  className={clsx(
+                    'text-white relative min-w-[180px] mobile:min-w-0 mobile:w-full btnSub outline-none flex justify-center items-center h-[44px] rounded-[8px] bg-[#FF5227] overflow-hidden',
+                    (selectedIntegrations.length === 0 ||
+                      loading ||
+                      locked) &&
+                      'opacity-80'
+                  )}
                 >
                   {loading && (
-                    <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%]">
+                    <div className="absolute left-[50%] top-[50%] -translate-y-[50%] -translate-x-[50%] z-[1]">
                       <div className="animate-spin h-[20px] w-[20px] border-4 border-white border-t-transparent rounded-full" />
                     </div>
                   )}
-                  <div
+                  <button
+                    type="button"
+                    disabled={
+                      selectedIntegrations.length === 0 || loading || locked
+                    }
+                    onClick={schedule('schedule')}
                     className={clsx(
-                      'text-[15px] font-[600]',
+                      'flex-1 h-full ps-[20px] text-[15px] font-[600] outline-none disabled:cursor-not-allowed',
+                      dummy ? 'pe-[20px]' : 'pe-[8px]',
                       loading && 'invisible'
                     )}
                   >
@@ -684,21 +1066,43 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       : existingData?.posts?.[0]?.state === 'DRAFT'
                       ? t('schedule', 'Schedule')
                       : t('update', 'Update')}
-                  </div>
+                  </button>
                   {!dummy && (
-                    <div className="flex justify-center items-center h-[20px] w-[20px] pt-[4px] arrow-change">
-                      <DropdownArrowSmallIcon className="group-hover:rotate-180 text-white" />
-                    </div>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedIntegrations.length === 0 || loading || locked
+                      }
+                      aria-expanded={postNowOpen}
+                      aria-haspopup="menu"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPostNowOpen((open) => !open);
+                      }}
+                      className={clsx(
+                        'arrow-change flex justify-center items-center h-full w-[36px] pe-[12px] border-s border-white/25 outline-none disabled:cursor-not-allowed',
+                        loading && 'invisible'
+                      )}
+                    >
+                      <DropdownArrowSmallIcon
+                        className={clsx(
+                          'text-white transition-transform',
+                          postNowOpen && 'rotate-180'
+                        )}
+                      />
+                    </button>
                   )}
-                </button>
+                </div>
 
-                {!dummy && (
+                {!dummy && postNowOpen && (
                   <button
+                    type="button"
                     onClick={schedule('now')}
                     disabled={
                       selectedIntegrations.length === 0 || loading || locked
                     }
-                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 hidden group-hover:flex absolute bottom-[100%] -left-[12px] p-[12px] w-[206px] bg-newBgColorInner"
+                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 flex absolute bottom-[100%] -left-[12px] p-[12px] w-[206px] bg-newBgColorInner"
                   >
                     <div className="text-white rounded-[8px] bg-[#E23E14] h-[44px] w-full flex justify-center items-center post-now">
                       {t('post_now', 'Post Now')}

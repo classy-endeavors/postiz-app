@@ -8,6 +8,8 @@ import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { mutate } from 'swr';
+import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
+import { COIN_COSTS } from '@gitroom/nestjs-libraries/database/prisma/coins/coins.constants';
 const list = [
   'Realistic',
   'Cartoon',
@@ -44,6 +46,21 @@ const AiImageModal: FC<{
         t('please_type_your_prompt', 'Please type your prompt'),
         'warning'
       );
+      return;
+    }
+
+    if (
+      !(await deleteDialog(
+        t(
+          'ai_image_costs_confirm',
+          'Generating an AI image costs {{count}} coins. Continue?',
+          { count: COIN_COSTS.image }
+        ),
+        t('yes_generate', 'Yes, generate'),
+        t('generate_ai_image', 'Generate AI Image'),
+        t('no_cancel', 'No, cancel!')
+      ))
+    ) {
       return;
     }
 
@@ -120,7 +137,14 @@ ${style}
           ))}
         </div>
       </div>
-      <div className="flex w-full min-w-0 phone:pb-[8px]">
+      <div className="flex w-full min-w-0 phone:pb-[8px] flex-col gap-[8px]">
+        <div className="text-[12px] text-textColor/70 text-center">
+          {t(
+            'ai_image_costs_hint',
+            'Costs {{count}} coins',
+            { count: COIN_COSTS.image }
+          )}
+        </div>
         <Button type="button" onClick={generate} className="flex-1 w-full">
           {t('generate', 'Generate')}
         </Button>
@@ -199,6 +223,16 @@ export const AiImage: FC<{
           </div>
           <div className="text-[10px] font-[600] iconBreak:hidden block">
             {t('ai', 'AI')} Image
+          </div>
+          <div
+            className="text-[9px] font-[700] px-[5px] py-[1px] rounded-full bg-newButter text-newTextColor"
+            title={t(
+              'ai_image_costs_hint',
+              'Costs {{count}} coins',
+              { count: COIN_COSTS.image }
+            )}
+          >
+            {COIN_COSTS.image}
           </div>
         </div>
       </div>

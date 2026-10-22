@@ -21,14 +21,17 @@ services:
       UPLOAD_DIRECTORY: '/uploads'
       NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
 
-      # === Cloudflare (R2) Settings
+      # === Cloud storage (R2 or Amazon S3 via STORAGE_PROVIDER=cloudflare)
+      # Keep the bucket private. Leave ACCESS_KEY / SECRET empty to use the default
+      # AWS credential chain (EC2 instance profile). Do not commit real secrets.
       # STORAGE_PROVIDER: 'cloudflare'
-      # CLOUDFLARE_ACCOUNT_ID: 'your-account-id'
-      # CLOUDFLARE_ACCESS_KEY: 'your-access-key'
-      # CLOUDFLARE_SECRET_ACCESS_KEY: 'your-secret-access-key'
-      # CLOUDFLARE_BUCKETNAME: 'your-bucket-name'
-      # CLOUDFLARE_BUCKET_URL: 'https://your-bucket-url.r2.cloudflarestorage.com/'
-      # CLOUDFLARE_REGION: 'auto'
+      # CLOUDFLARE_ACCOUNT_ID: ''
+      # CLOUDFLARE_ACCESS_KEY: ''
+      # CLOUDFLARE_SECRET_ACCESS_KEY: ''
+      # CLOUDFLARE_BUCKETNAME: 'aizyntra-media'
+      # CLOUDFLARE_BUCKET_URL: 'https://aizyntra-media.s3.us-east-1.amazonaws.com'
+      # CLOUDFLARE_REGION: 'us-east-1'
+      # CLOUDFLARE_ENDPOINT: 'https://s3.us-east-1.amazonaws.com'
 
       # === Social Media API Settings
       X_URL: ''

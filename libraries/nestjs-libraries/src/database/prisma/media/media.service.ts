@@ -25,8 +25,17 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import {
   getMaxSize,
+  googleDriveConfirmDownload,
+  googleDriveFileId,
+  resolveRemoteUploadUrl,
   uploadStreamToStorage,
 } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import {
+  isCloudBucketUrl,
+  objectKeyFromBucketUrl,
+  resolveMediaObjectKey,
+  stripPresignedQuery,
+} from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 // What every upload is normalized to before a provider ever sees it. The
 // service applies exactly these, so a platform-specific need belongs in the
@@ -117,6 +126,61 @@ export class MediaService {
     return this._mediaRepository.getMediaById(id);
   }
 
+  /**
+   * Return a short-lived fetchable URL for an org-owned media row.
+   * Does not mutate DB — canonical Media.path stays unsigned.
+   */
+  private async signObjectKey(fileName?: string | null): Promise<string | null> {
+    if (!fileName || !this.storage.signDownloadUrl) {
+      return null;
+    }
+    return this.storage.signDownloadUrl(fileName);
+  }
+
+  private async withSignedAccess<
+    T extends {
+      name?: string | null;
+      path?: string | null;
+      thumbnail?: string | null;
+    }
+  >(media: T | null | undefined): Promise<T | null | undefined> {
+    if (!media || !this.storage.signDownloadUrl) {
+      return media;
+    }
+
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL || '';
+    const path = stripPresignedQuery(media.path || '');
+
+    // Legacy local /uploads/... rows still live on the EC2 volume and are
+    // served by the dashboard. Do not rewrite them to S3 signed URLs — those
+    // objects were never migrated.
+    let signedPath: string | null = null;
+    if (isCloudBucketUrl(path, bucketUrl)) {
+      const key = resolveMediaObjectKey({
+        name: media.name,
+        path,
+        bucketUrl,
+      });
+      signedPath = await this.signObjectKey(key);
+    }
+
+    let thumbnail = media.thumbnail;
+    if (thumbnail && isCloudBucketUrl(thumbnail, bucketUrl)) {
+      const clean = stripPresignedQuery(thumbnail);
+      const key =
+        objectKeyFromBucketUrl(clean, bucketUrl) ||
+        clean.split('/').pop() ||
+        null;
+      thumbnail = (await this.signObjectKey(key)) || thumbnail;
+    }
+
+    return {
+      ...media,
+      ...(signedPath ? { path: signedPath } : {}),
+      ...(thumbnail !== media.thumbnail ? { thumbnail } : {}),
+    };
+  }
+
   async generateImage(
     prompt: string,
     org: Organization,
@@ -152,11 +216,75 @@ export class MediaService {
   // and a few upload parts are ever in memory, so a 1 GB video does not cost
   // 1 GB of heap
   async uploadFromUrl(org: string, url: string) {
-    let response: globalThis.Response;
+    const response = await this.fetchRemoteUpload(url);
+
+    // Cheap early exit when the server declares the size; Content-Length may
+    // be absent or wrong, so the stream cap below is what really enforces it.
+    // The type isn't known yet (sniffed below), so this uses the largest cap
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (declaredSize && declaredSize > getMaxSize('video/mp4')) {
+      await response.body!.cancel();
+      throw new BadRequestException('File is too large.');
+    }
+
+    const uploaded = await uploadStreamToStorage(
+      this.storage,
+      response.body!,
+      declaredSize
+    );
+    return this.saveFile(org, uploaded.originalname, uploaded.path);
+  }
+
+  // Fetches a remote media URL, rewriting Google Drive share/view links to the
+  // public direct-download endpoint so we get the file bytes (not the HTML
+  // viewer that would fail the type sniffer as "Unsupported file type").
+  private async fetchRemoteUpload(url: string): Promise<globalThis.Response> {
+    const resolved = resolveRemoteUploadUrl(url);
+    let response = await this.safeFetchRemote(resolved);
+
+    const contentType = (
+      response.headers.get('content-type') || ''
+    ).toLowerCase();
+    if (
+      contentType.includes('text/html') &&
+      googleDriveFileId(url || resolved)
+    ) {
+      const html = await response.text();
+      const retry = googleDriveConfirmDownload(resolved, html, response);
+      if (!retry) {
+        throw new BadRequestException(
+          'Could not download this Google Drive file. Make sure it is shared publicly ("Anyone with the link").'
+        );
+      }
+      response = await this.safeFetchRemote(retry.url, retry.headers);
+    }
+
+    if (!response.ok || !response.body) {
+      throw new BadRequestException('Failed to fetch URL');
+    }
+
+    const finalType = (
+      response.headers.get('content-type') || ''
+    ).toLowerCase();
+    if (finalType.includes('text/html')) {
+      throw new BadRequestException(
+        'Could not download this Google Drive file. Make sure it is shared publicly ("Anyone with the link").'
+      );
+    }
+
+    return response;
+  }
+
+  private async safeFetchRemote(
+    url: string,
+    headers?: Record<string, string>
+  ): Promise<globalThis.Response> {
     try {
-      response = await fetch(url, {
+      return await fetch(url, {
         // @ts-ignore — undici option, not in lib.dom fetch types
         dispatcher: ssrfSafeDispatcher,
+        redirect: 'follow',
+        ...(headers ? { headers } : {}),
       });
     } catch (err) {
       // Network-level failure (DNS, connection refused, SSRF block, etc.) —
@@ -164,39 +292,22 @@ export class MediaService {
       // reason reachable for callers that want to surface it
       throw new BadRequestException('Failed to fetch URL', { cause: err });
     }
-    if (!response.ok || !response.body) {
-      throw new BadRequestException('Failed to fetch URL');
-    }
-
-    // Cheap early exit when the server declares the size; Content-Length may
-    // be absent or wrong, so the stream cap below is what really enforces it.
-    // The type isn't known yet (sniffed below), so this uses the largest cap
-    const declaredSize = Number(response.headers.get('content-length'));
-    if (declaredSize && declaredSize > getMaxSize('video/mp4')) {
-      await response.body.cancel();
-      throw new BadRequestException('File is too large.');
-    }
-
-    const uploaded = await uploadStreamToStorage(
-      this.storage,
-      response.body,
-      declaredSize
-    );
-    return this.saveFile(org, uploaded.originalname, uploaded.path);
   }
 
-  saveFile(
+  async saveFile(
     org: string,
     fileName: string,
     filePath: string,
     originalName?: string
   ) {
-    return this._mediaRepository.saveFile(
+    // Persist the canonical (unsigned) path; sign only for the API response
+    const media = await this._mediaRepository.saveFile(
       org,
       fileName,
       filePath,
       originalName
     );
+    return (await this.withSignedAccess(media))!;
   }
 
   // Saves an upload and, when a normalizer is configured, hands it to the
@@ -318,7 +429,11 @@ export class MediaService {
     const list = await ioRedis.lrange(`uploadSessionMedia:${sessionId}`, 0, -1);
     return (
       await Promise.all(
-        list.map((id) => this._mediaRepository.getMediaStatus(org, id))
+        list.map(async (id) =>
+          this.withSignedAccess(
+            await this._mediaRepository.getMediaStatus(org, id)
+          )
+        )
       )
     ).filter((f) => f);
   }
@@ -329,7 +444,7 @@ export class MediaService {
       throw new HttpException('Media not found', 404);
     }
 
-    return media;
+    return (await this.withSignedAccess(media))!;
   }
 
   // The normalized file overwrites the original in place; only a container
@@ -480,12 +595,41 @@ export class MediaService {
     );
   }
 
-  getMedia(org: string, page: number, search?: string) {
-    return this._mediaRepository.getMedia(org, page, search);
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    type?: 'image' | 'video',
+    sort?: 'newest' | 'oldest' | 'name'
+  ) {
+    const result = await this._mediaRepository.getMedia(
+      org,
+      page,
+      search,
+      type,
+      sort
+    );
+    return {
+      ...result,
+      results: await Promise.all(
+        result.results.map(async (row) => (await this.withSignedAccess(row))!)
+      ),
+    };
   }
 
-  saveMediaInformation(org: string, data: SaveMediaInformationDto) {
-    return this._mediaRepository.saveMediaInformation(org, data);
+  async hasOriginalName(org: string, originalName: string) {
+    if (!originalName?.trim()) {
+      return false;
+    }
+    return !!(await this._mediaRepository.hasOriginalName(
+      org,
+      originalName.trim()
+    ));
+  }
+
+  async saveMediaInformation(org: string, data: SaveMediaInformationDto) {
+    const media = await this._mediaRepository.saveMediaInformation(org, data);
+    return (await this.withSignedAccess(media))!;
   }
 
   getVideoOptions() {

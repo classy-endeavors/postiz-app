@@ -2,6 +2,7 @@ import { YoutubeSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/provide
 import { TikTokDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/tiktok.dto';
 import { InstagramDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/instagram.dto';
 import { LinkedinDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/linkedin.dto';
+import { FacebookDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/facebook.dto';
 import { IsIn } from 'class-validator';
 
 export type ProviderExtension<T extends string, M> = { __type: T } & M;
@@ -10,7 +11,8 @@ export type AllProvidersSettings =
   | ProviderExtension<'tiktok', TikTokDto>
   | ProviderExtension<'instagram-standalone', InstagramDto>
   | ProviderExtension<'linkedin', LinkedinDto>
-  | ProviderExtension<'linkedin-page', LinkedinDto>;
+  | ProviderExtension<'linkedin-page', LinkedinDto>
+  | ProviderExtension<'facebook', FacebookDto>;
 
 export const allProviders = (setEmpty?: any) => {
   return [
@@ -19,6 +21,7 @@ export const allProviders = (setEmpty?: any) => {
     { value: InstagramDto, name: 'instagram-standalone' },
     { value: LinkedinDto, name: 'linkedin' },
     { value: LinkedinDto, name: 'linkedin-page' },
+    { value: FacebookDto, name: 'facebook' },
   ].filter((f) => f.value);
 };
 

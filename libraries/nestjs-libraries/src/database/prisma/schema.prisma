@@ -39,6 +39,9 @@ model Organization {
   submittedPost       Post[]               @relation("submittedForOrg")
   sets                Sets[]
   signatures          Signatures[]
+  commentReplies      CommentReply[]
+  postReplySettings   PostReplySetting[]
+  contentLinks        ContentLink[]
   subscription        Subscription?
   tags                Tags[]
   thirdParty          ThirdParty[]
@@ -425,6 +428,7 @@ model Integration {
   orderItems            OrderItems[]
   plugs                 Plugs[]
   posts                 Post[]
+  commentReplies        CommentReply[]
 
   @@unique([organizationId, internalId])
   @@index([rootInternalId])
@@ -437,6 +441,58 @@ model Integration {
   @@index([inBetweenSteps])
   @@index([refreshNeeded])
   @@index([disabled])
+}
+
+// Whether public comments on this published post should be answered
+model PostReplySetting {
+  postId         String       @id
+  organizationId String
+  enabled        Boolean      @default(false)
+  updatedAt      DateTime     @updatedAt
+  post           Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, enabled])
+}
+
+// A published post connected to other posts, on any channel. Comments on
+// either side can use the other post's link, such as a short pointing at
+// the full video.
+model ContentLink {
+  id             String       @id @default(uuid())
+  organizationId String
+  postId         String
+  relatedPostId  String
+  createdAt      DateTime     @default(now())
+  post           Post         @relation("contentLinkFrom", fields: [postId], references: [id], onDelete: Cascade)
+  relatedPost    Post         @relation("contentLinkTo", fields: [relatedPostId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([postId, relatedPostId])
+  @@index([relatedPostId])
+  @@index([organizationId])
+}
+
+// A comment written by someone else on a post this app published, and what
+// was replied, so the same comment is never answered twice
+model CommentReply {
+  id                String       @id @default(uuid())
+  organizationId    String
+  integrationId     String
+  platformCommentId String
+  text              String
+  reply             String?
+  status            String       @default("pending")
+  error             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  integration       Integration  @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, platformCommentId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Signatures {
@@ -521,6 +577,9 @@ model Post {
   submittedForOrder          Orders?                   @relation(fields: [submittedForOrderId], references: [id])
   submittedForOrganization   Organization?             @relation("submittedForOrg", fields: [submittedForOrganizationId], references: [id])
   tags                       TagsPosts[]
+  replySetting               PostReplySetting?
+  contentLinksFrom           ContentLink[]             @relation("contentLinkFrom")
+  contentLinksTo             ContentLink[]             @relation("contentLinkTo")
 
   @@index([group])
   @@index([deletedAt])

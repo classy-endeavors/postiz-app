@@ -16,6 +16,8 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import utc from 'dayjs/plugin/utc';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
+import { sanitizeMediaListForPersistence } from '@gitroom/nestjs-libraries/upload/s3.client.config';
+import { humanizePostError } from '@gitroom/helpers/utils/humanize.post.error';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -100,13 +102,32 @@ export class PostsRepository {
     });
   }
 
+  /** Never persist short-lived signed URLs into Post.image. */
+  private stringifyMediaForDb(images: unknown): string {
+    if (typeof images === 'string') {
+      try {
+        const parsed = JSON.parse(images);
+        if (Array.isArray(parsed)) {
+          return JSON.stringify(sanitizeMediaListForPersistence(parsed));
+        }
+      } catch {
+        return images;
+      }
+      return images;
+    }
+    if (Array.isArray(images)) {
+      return JSON.stringify(sanitizeMediaListForPersistence(images as any[]));
+    }
+    return JSON.stringify(images ?? []);
+  }
+
   updateImages(id: string, images: string) {
     return this._post.model.post.update({
       where: {
         id,
       },
       data: {
-        image: images,
+        image: this.stringifyMediaForDb(images),
       },
     });
   }
@@ -297,23 +318,34 @@ export class PostsRepository {
     const skip = page * limit;
 
     const stateFilter = query.state || 'all';
+    const now = dayjs.utc().toDate();
+    // Published/ERROR posts have publishDate in the past; QUEUE/DRAFT stay upcoming.
+    // "all" must OR those cases — a blanket publishDate>=now drops every published post.
     const stateAndDate =
       stateFilter === 'scheduled'
         ? {
             state: State.QUEUE,
+            publishDate: { gte: now },
           }
         : stateFilter === 'draft'
-        ? { state: State.DRAFT }
+        ? {
+            state: State.DRAFT,
+            publishDate: { gte: now },
+          }
         : stateFilter === 'published'
         ? { state: State.PUBLISHED }
         : {
-            state: {
-              in: [State.QUEUE, State.DRAFT, State.PUBLISHED, State.ERROR],
-            },
+            OR: [
+              { state: { in: [State.PUBLISHED, State.ERROR] } },
+              {
+                state: { in: [State.QUEUE, State.DRAFT] },
+                publishDate: { gte: now },
+              },
+            ],
           };
 
     const orderDirection: 'asc' | 'desc' =
-      stateFilter === 'published' ? 'desc' : 'asc';
+      stateFilter === 'published' || stateFilter === 'all' ? 'desc' : 'asc';
 
     const where = {
       AND: [
@@ -326,11 +358,6 @@ export class PostsRepository {
         },
       ],
       ...stateAndDate,
-      // Published posts were already posted (publishDate in the past), so fetch
-      // all of them; everything else stays upcoming. Ordering handles the rest.
-      ...(stateFilter === 'published'
-        ? {}
-        : { publishDate: { gte: dayjs.utc().toDate() } }),
       deletedAt: null as Date | null,
       parentPostId: null as string | null,
       intervalInDays: null as number | null,
@@ -396,27 +423,106 @@ export class PostsRepository {
     };
   }
 
-  async deletePost(orgId: string, group: string) {
+  async deletePost(orgId: string, group: string, integrationId?: string) {
+    const roots = await this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        group,
+        parentPostId: null,
+        ...(integrationId ? { integrationId } : {}),
+      },
+      select: {
+        id: true,
+      },
+    });
+
     await this._post.model.post.updateMany({
       where: {
         organizationId: orgId,
         group,
+        ...(integrationId ? { integrationId } : {}),
       },
       data: {
         deletedAt: new Date(),
       },
     });
 
-    return this._post.model.post.findFirst({
+    return roots;
+  }
+
+  // Soft-delete every row still on this group and return the root ids whose
+  // publish workflows must be stopped. Rows already moved to a new group are
+  // not included.
+  async softDeleteGroup(orgId: string, group: string) {
+    const roots = await this._post.model.post.findMany({
       where: {
         organizationId: orgId,
         group,
+        deletedAt: null,
         parentPostId: null,
       },
       select: {
         id: true,
       },
     });
+
+    await this._post.model.post.updateMany({
+      where: {
+        organizationId: orgId,
+        group,
+        deletedAt: null,
+      },
+      data: {
+        parentPostId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return roots.map((root) => root.id);
+  }
+
+  // Drop rows for one channel that were not part of this save (removed
+  // comments, or a channel that was split onto a new group). Other channels
+  // that share the group are left alone.
+  async softDeleteIntegrationExcept(
+    orgId: string,
+    group: string,
+    integrationId: string,
+    keepIds: string[]
+  ) {
+    const roots = await this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        group,
+        integrationId,
+        deletedAt: null,
+        parentPostId: null,
+        id: {
+          notIn: keepIds,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await this._post.model.post.updateMany({
+      where: {
+        organizationId: orgId,
+        group,
+        integrationId,
+        deletedAt: null,
+        id: {
+          notIn: keepIds,
+        },
+      },
+      data: {
+        parentPostId: null,
+        deletedAt: new Date(),
+      },
+    });
+
+    return roots.map((root) => root.id);
   }
 
   getPostsByGroup(orgId: string, group: string) {
@@ -438,6 +544,9 @@ export class PostsRepository {
             tag: true,
           },
         },
+      },
+      orderBy: {
+        createdAt: 'asc',
       },
     });
   }
@@ -502,15 +611,17 @@ export class PostsRepository {
   }
 
   async changeState(id: string, state: State, err?: any, body?: any) {
+    // Calendar shows Post.error to users — store a short message, not the
+    // Temporal ApplicationFailure JSON dump.
+    const userError = err ? humanizePostError(err) : undefined;
+
     const update = await this._post.model.post.update({
       where: {
         id,
       },
       data: {
         state,
-        ...(err
-          ? { error: typeof err === 'string' ? err : JSON.stringify(err) }
-          : {}),
+        ...(userError ? { error: userError } : {}),
       },
       include: {
         integration: {
@@ -525,7 +636,7 @@ export class PostsRepository {
       try {
         await this._errors.model.errors.create({
           data: {
-            message: typeof err === 'string' ? err : JSON.stringify(err),
+            message: userError || humanizePostError(err),
             organizationId: update.organizationId,
             platform: update.integration.providerIdentifier,
             postId: update.id,
@@ -554,22 +665,58 @@ export class PostsRepository {
     isDraft: boolean,
     action: 'schedule' | 'update' = 'schedule'
   ) {
-    return this._post.model.post.update({
+    const current = await this._post.model.post.findFirst({
       where: {
-        organizationId: orgId,
         id,
+        organizationId: orgId,
       },
-      data: {
-        publishDate: dayjs.utc(date).toDate(),
-        // schedule: set state to QUEUE (or DRAFT if it was a draft)
-        // update: don't change the state
-        ...(action === 'schedule'
-          ? {
-              state: isDraft ? 'DRAFT' : 'QUEUE',
-              releaseId: null,
-              releaseURL: null,
-            }
-          : {}),
+      select: {
+        group: true,
+      },
+    });
+
+    const publishDate = dayjs.utc(date).toDate();
+    const rows = current?.group
+      ? await this._post.model.post.findMany({
+          where: {
+            organizationId: orgId,
+            group: current.group,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            state: true,
+          },
+        })
+      : [];
+
+    const targets = rows.length ? rows : [{ id, state: isDraft ? 'DRAFT' : 'QUEUE' }];
+
+    for (const row of targets) {
+      await this._post.model.post.update({
+        where: {
+          id: row.id,
+          organizationId: orgId,
+        },
+        data: {
+          publishDate,
+          // schedule: set state to QUEUE (or leave a draft as a draft)
+          // update: don't change the state
+          ...(action === 'schedule'
+            ? {
+                state: row.state === 'DRAFT' ? 'DRAFT' : 'QUEUE',
+                releaseId: null,
+                releaseURL: null,
+              }
+            : {}),
+        },
+      });
+    }
+
+    return this._post.model.post.findFirst({
+      where: {
+        id,
+        organizationId: orgId,
       },
     });
   }
@@ -607,11 +754,16 @@ export class PostsRepository {
     // Keep the existing group instead of rotating it, so open clients
     // (calendar) holding the group stay valid. Used by out-of-band updates
     // (agent / MCP / public API); the dashboard keeps the rotate-and-sweep.
-    keepGroup = false
+    keepGroup = false,
+    // Group id already chosen for every channel in this save. The caller
+    // sweeps old rows after all channels are written, so a per-channel sweep
+    // cannot delete a sibling that has not been saved yet.
+    assignedGroup?: string
   ) {
     const posts: Post[] = [];
     const uuid = uuidv4();
-    const group = keepGroup && body.group ? body.group : uuid;
+    const group =
+      assignedGroup || (keepGroup && body.group ? body.group : uuid);
 
     for (const value of body.value) {
       const updateData = (type: 'create' | 'update') => ({
@@ -649,7 +801,7 @@ export class PostsRepository {
               state:
                 state === 'draft' ? ('DRAFT' as const) : ('QUEUE' as const),
             }),
-        image: JSON.stringify(value.image),
+        image: this.stringifyMediaForDb(value.image),
         settings: JSON.stringify(body.settings),
         organization: {
           connect: {
@@ -731,35 +883,23 @@ export class PostsRepository {
         )?.id!
       : undefined;
 
-    if (body.group && !keepGroup) {
-      await this._post.model.post.updateMany({
-        where: {
-          group: body.group,
-          deletedAt: null,
-        },
-        data: {
-          parentPostId: null,
-          deletedAt: new Date(),
-        },
-      });
+    // Assigned groups are swept once by the caller, after every channel in the
+    // save has been written. Sweeping here would delete siblings that share
+    // the group and have not been updated yet.
+    if (!assignedGroup && body.group && !keepGroup) {
+      await this.softDeleteGroup(orgId, body.group);
     }
 
     // keepGroup: the updated rows still carry the old group, so sweep only the
-    // rows dropped from it (removed comments) by id instead of by group.
-    if (body.group && keepGroup) {
-      await this._post.model.post.updateMany({
-        where: {
-          group: body.group,
-          deletedAt: null,
-          id: {
-            notIn: posts.map((p) => p.id),
-          },
-        },
-        data: {
-          parentPostId: null,
-          deletedAt: new Date(),
-        },
-      });
+    // rows dropped from this channel (removed comments). Other channels that
+    // share the group stay.
+    if (!assignedGroup && body.group && keepGroup) {
+      await this.softDeleteIntegrationExcept(
+        orgId,
+        body.group,
+        body.integration.id,
+        posts.map((p) => p.id)
+      );
     }
 
     return { previousPost, posts };
@@ -789,7 +929,7 @@ export class PostsRepository {
         publishDate: data.publishDate,
         releaseId: data.releaseId,
         releaseURL: data.releaseURL,
-        image: JSON.stringify(data.image),
+        image: this.stringifyMediaForDb(data.image),
         settings: JSON.stringify(data.settings),
         organization: {
           connect: {
@@ -805,6 +945,76 @@ export class PostsRepository {
       },
       select: {
         id: true,
+      },
+    });
+  }
+
+  findDirectPublishRecord(
+    orgId: string,
+    integrationId: string,
+    releaseId: string
+  ) {
+    return this._post.model.post.findFirst({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        releaseId,
+        deletedAt: null,
+        parentPostId: null,
+      },
+      select: {
+        id: true,
+        publishDate: true,
+        settings: true,
+        releaseURL: true,
+        title: true,
+        state: true,
+      },
+    });
+  }
+
+  async rescheduleDirectPublishRecord(
+    orgId: string,
+    id: string,
+    publishDate: Date,
+    entry: { action: 'rescheduled'; at: string; from: string; to: string }
+  ) {
+    const post = await this._post.model.post.findFirst({
+      where: {
+        id,
+        organizationId: orgId,
+        deletedAt: null,
+      },
+      select: {
+        settings: true,
+      },
+    });
+
+    let settings: Record<string, any> = {};
+    try {
+      settings = JSON.parse(post?.settings || '{}');
+    } catch (err) {}
+
+    if (!settings.directPublish) {
+      return null;
+    }
+
+    const activity = Array.isArray(settings.activity) ? settings.activity : [];
+    settings.publishAt = entry.to;
+    settings.privacy = 'private';
+    settings.activity = [...activity, entry].slice(-20);
+
+    return this._post.model.post.update({
+      where: {
+        id,
+      },
+      data: {
+        publishDate,
+        settings: JSON.stringify(settings),
+      },
+      select: {
+        id: true,
+        publishDate: true,
       },
     });
   }

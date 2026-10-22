@@ -1,6 +1,7 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
+import { stripPresignedQuery } from '@gitroom/nestjs-libraries/upload/s3.client.config';
 
 @Injectable()
 export class MediaRepository {
@@ -15,7 +16,7 @@ export class MediaRepository {
           },
         },
         name: fileName,
-        path: filePath,
+        path: stripPresignedQuery(filePath),
         originalName: originalName || null,
       },
       select: {
@@ -47,7 +48,7 @@ export class MediaRepository {
       where: { id, organizationId: org },
       data: {
         ...(data.name ? { name: data.name } : {}),
-        ...(data.path ? { path: data.path } : {}),
+        ...(data.path ? { path: stripPresignedQuery(data.path) } : {}),
         ...(data.fileSize ? { fileSize: data.fileSize } : {}),
         status: data.error ? 'failed' : 'ready',
         processingError: data.error || null,
@@ -104,7 +105,9 @@ export class MediaRepository {
       },
       data: {
         alt: data.alt,
-        thumbnail: data.thumbnail,
+        thumbnail: data.thumbnail
+          ? stripPresignedQuery(data.thumbnail)
+          : data.thumbnail,
         thumbnailTimestamp: data.thumbnailTimestamp,
       },
       select: {
@@ -119,7 +122,13 @@ export class MediaRepository {
     });
   }
 
-  async getMedia(org: string, page: number, search?: string) {
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    type?: 'image' | 'video',
+    sort?: 'newest' | 'oldest' | 'name'
+  ) {
     const pageNum = (page || 1) - 1;
     const trimmedSearch = search?.trim();
     const searchFilter = trimmedSearch
@@ -130,28 +139,32 @@ export class MediaRepository {
           },
         }
       : {};
-    const query = {
-      where: {
-        organization: {
-          id: org,
-        },
-        deletedAt: null,
-        status: { not: 'processing' },
-        ...searchFilter,
-      },
+    const typeFilter =
+      type === 'video'
+        ? { path: { endsWith: '.mp4' } }
+        : type === 'image'
+        ? { NOT: { path: { endsWith: '.mp4' } } }
+        : {};
+    const orderBy =
+      sort === 'oldest'
+        ? { createdAt: 'asc' as const }
+        : sort === 'name'
+        ? { originalName: 'asc' as const }
+        : { createdAt: 'desc' as const };
+    const where = {
+      organizationId: org,
+      deletedAt: null,
+      // still being normalized: it shows up once the workflow releases it
+      status: { not: 'processing' },
+      ...searchFilter,
+      ...typeFilter,
     };
-    const pages = Math.ceil((await this._media.model.media.count(query)) / 18);
+    const pages = Math.ceil(
+      (await this._media.model.media.count({ where })) / 18
+    );
     const results = await this._media.model.media.findMany({
-      where: {
-        organizationId: org,
-        deletedAt: null,
-        // still being normalized: it shows up once the workflow releases it
-        status: { not: 'processing' },
-        ...searchFilter,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where,
+      orderBy,
       select: {
         id: true,
         name: true,
@@ -160,6 +173,8 @@ export class MediaRepository {
         thumbnail: true,
         alt: true,
         thumbnailTimestamp: true,
+        createdAt: true,
+        fileSize: true,
       },
       skip: pageNum * 18,
       take: 18,
@@ -169,5 +184,23 @@ export class MediaRepository {
       pages,
       results,
     };
+  }
+
+  // Exact name match (case-insensitive) so the library can warn before a
+  // second upload of the same filename.
+  hasOriginalName(org: string, originalName: string) {
+    return this._media.model.media.findFirst({
+      where: {
+        organizationId: org,
+        deletedAt: null,
+        originalName: {
+          equals: originalName,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
   }
 }
