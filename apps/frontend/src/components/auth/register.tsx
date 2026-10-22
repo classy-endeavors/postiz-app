@@ -68,6 +68,11 @@ export function Register() {
   if (!code && !provider) {
     return <RegisterAfter token="" provider="LOCAL" />;
   }
+  // Provider in the URL without an OAuth code (e.g. /auth?provider=GENERIC)
+  // must not hang on the spinner — show the normal register form.
+  if (provider && !code) {
+    return <RegisterAfter token="" provider="LOCAL" />;
+  }
   if (!show) {
     return <LoadingComponent />;
   }

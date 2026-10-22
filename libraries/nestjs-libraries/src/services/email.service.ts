@@ -73,58 +73,65 @@ export class EmailService {
       return;
     }
 
+    const brandName = process.env.EMAIL_FROM_NAME;
+    const logoUrl =
+      process.env.EMAIL_LOGO_URL ||
+      'https://res.cloudinary.com/tqphscdt/image/upload/v1790880898/logo.png';
+    const settingsUrl = `${process.env.FRONTEND_URL}/settings`;
+
+    // Table-based layout for broad email-client support; AI Zyntra brand colors.
     const modifiedHtml = `
-    <div style="
-        background: linear-gradient(to bottom right, #e6f2ff, #f0e6ff);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-    ">
-        <div style="
-            background-color: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(4px);
-            border-radius: 0.5rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            max-width: 48rem;
-            width: 100%;
-            padding: 2rem;
-        ">
-            <h1 style="
-                font-size: 1.875rem;
-                font-weight: bold;
-                margin-bottom: 1.5rem;
-                text-align: left;
-                color: #1f2937;
-            ">${subject}</h1>
-            
-            <div style="
-                margin-bottom: 2rem;
-                color: #374151;
-            ">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#fff7f3;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#fff7f3;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;">
+
+          <!-- Brand (shown once) -->
+          <tr>
+            <td style="padding:0 4px 20px 4px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <img src="${logoUrl}" alt="${brandName}" width="36" height="36" style="display:block;border:0;border-radius:9px;width:36px;height:36px;" />
+                  </td>
+                  <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:#141310;">${brandName}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background-color:#ffffff;border:1px solid #ffe0d6;border-top:4px solid #FF5227;border-radius:14px;padding:36px 36px 32px 36px;">
+              <h1 style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;font-weight:700;color:#141310;line-height:1.3;">${subject}</h1>
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.7;color:#4b5563;">
                 ${html}
-            </div>
-            
-            <div style="
-                display: flex;
-                align-items: center;
-                border-top: 1px solid #e5e7eb;
-                padding-top: 1.5rem;
-            ">
-                <div>
-                    <h2 style="
-                        font-size: 1.25rem;
-                        font-weight: 600;
-                        color: #1f2937;
-                        margin: 0;
-                    ">${process.env.EMAIL_FROM_NAME}</h2>
-                    <div style="font-size: 12px">
-                      You can change your notification preferences in your <a href="${process.env.FRONTEND_URL}/settings">account settings.</a>
-                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer (plain text, no repeated logo/name) -->
+          <tr>
+            <td align="center" style="padding:24px 16px 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#9a8f8a;">
+              You can change your notification preferences in your
+              <a href="${settingsUrl}" style="color:#FF5227;text-decoration:underline;">account settings</a>.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
     `;
 
     let lastErr: unknown;
