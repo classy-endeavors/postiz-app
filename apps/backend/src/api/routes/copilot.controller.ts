@@ -81,7 +81,8 @@ const assistantTextFromMessage = (message: any): string => {
   return '';
 };
 
-// Refund only when the model falsely claims it cannot write text at all.
+// Refund when the model falsely claims it cannot write text at all, or when
+// the turn produced no assistant text (silent failure / tool-only dead end).
 // Real limits (edit/merge media, missing channel for schedule) stay charged.
 const isTextCapabilityRefusal = (text: string) => {
   const normalized = (text || '').replace(/\s+/g, ' ').trim();
@@ -91,6 +92,14 @@ const isTextCapabilityRefusal = (text: string) => {
   return /(?:cannot|can't|unable to|do not have|don't have).{0,40}(?:generate text|generate or modify text|functionality to do that|write (?:text|a caption|the caption)|modify text)/i.test(
     normalized
   );
+};
+
+const shouldRefundAgentMessage = (text: string) => {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return true;
+  }
+  return isTextCapabilityRefusal(normalized);
 };
 
 const threadIdFromRequest = (req: Request): string | undefined => {
@@ -205,16 +214,36 @@ export class CopilotController {
         }
         try {
           const memory = await mastra.getAgent('postiz').getMemory();
-          const recalled = await memory.recall({
-            resourceId: organization.id,
-            threadId,
-          });
-          const lastAssistant = [...(recalled?.messages || [])]
-            .reverse()
-            .find((message: any) => message?.role === 'assistant');
-          return isTextCapabilityRefusal(
-            assistantTextFromMessage(lastAssistant)
-          );
+          // Memory may lag the stream by a beat — retry before treating as silence
+          // so a successful reply is not refunded by accident.
+          let replyAfterUser = '';
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (attempt > 0) {
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            }
+            const recalled = await memory.recall({
+              resourceId: organization.id,
+              threadId,
+            });
+            const messages = recalled?.messages || [];
+            let lastUserIndex = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i]?.role === 'user') {
+                lastUserIndex = i;
+                break;
+              }
+            }
+            replyAfterUser = messages
+              .slice(lastUserIndex + 1)
+              .filter((message: any) => message?.role === 'assistant')
+              .map((message: any) => assistantTextFromMessage(message))
+              .join(' ')
+              .trim();
+            if (replyAfterUser || lastUserIndex < 0) {
+              break;
+            }
+          }
+          return shouldRefundAgentMessage(replyAfterUser);
         } catch (err) {
           Logger.warn(`Could not check agent reply for coin refund: ${err}`);
           return false;
