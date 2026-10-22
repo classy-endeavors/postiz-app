@@ -157,9 +157,13 @@ export class CoinsService {
     await this.checkBalance(organizationId, COIN_COSTS[action]);
     // Agent chat appends channel/media blocks for the model; history should only
     // show the text the user typed.
+    // Truncated legacy rows may lack a closing marker — strip through EOS too.
     const text = (detail || '')
-      .replace(/\[--integrations--\][\s\S]*?\[--integrations--\]/g, '')
-      .replace(/\[--Media--\][\s\S]*?\[--Media--\]/g, '')
+      .replace(
+        /\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g,
+        ''
+      )
+      .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
       .replace(/\s+/g, ' ')
       .trim();
     const { id } = await this._coinsRepository.addTransaction(
