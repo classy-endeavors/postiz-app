@@ -27,11 +27,21 @@ import {
   aiConfig,
   createOpenAIClient,
 } from '@gitroom/nestjs-libraries/openai/ai.config';
+import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 
 export type ChannelsContext = {
   integrations: string;
   organization: string;
   ui: string;
+};
+
+const titleFromUserText = (detail: string) => {
+  const text = (detail || '')
+    .replace(/\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g, '')
+    .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.slice(0, 60) || 'Chat';
 };
 
 // the copilot runtime writes its own CORS headers on the response, keep them aligned with main.ts
@@ -146,7 +156,8 @@ export class CopilotController {
   constructor(
     private _subscriptionService: SubscriptionService,
     private _mastraService: MastraService,
-    private _coinsService: CoinsService
+    private _coinsService: CoinsService,
+    private _prisma: PrismaService
   ) {}
   @Post('/chat')
   chatAgent(
@@ -232,67 +243,35 @@ export class CopilotController {
       return copilotRuntimeHandler(req, res);
     }
 
+    const detail = userMessageText(req);
+    const threadId = threadIdFromRequest(req);
+    // Silent / failed runs often never create a mastra_threads row (title gen
+    // never runs), so the history sidebar stays empty even though recall works.
+    // Ensure the thread exists up front for this org.
+    if (threadId && threadId !== 'new') {
+      await this.ensureAgentThread(
+        threadId,
+        organization.id,
+        titleFromUserText(detail)
+      );
+    }
+
     return this._coinsService.spend(
       organization.id,
       'message',
       async () =>
         awaitAgentHttpResponse(copilotRuntimeHandler, req, res),
-      userMessageText(req),
+      detail,
       async () => {
-        const threadId = threadIdFromRequest(req);
         if (!threadId || threadId === 'new') {
           return false;
         }
         try {
-          const memory = await mastra.getAgent('postiz').getMemory();
-          // Wait until the HTTP stream finished (above), then retry recall —
-          // Mastra can still lag briefly after RUN_FINISHED.
-          // Only refund when we have seen the user turn and the assistant text
-          // after it is empty or a text-capability refusal. Empty recall / missing
-          // thread must not refund — that incorrectly zeroed successful captions.
-          let replyAfterUser = '';
-          let sawUserTurn = false;
-          for (let attempt = 0; attempt < 12; attempt++) {
-            if (attempt > 0) {
-              await new Promise((resolve) => setTimeout(resolve, 400));
-            }
-            try {
-              const recalled = await memory.recall({
-                resourceId: organization.id,
-                threadId,
-              });
-              const messages = recalled?.messages || [];
-              let lastUserIndex = -1;
-              for (let i = messages.length - 1; i >= 0; i--) {
-                if (messages[i]?.role === 'user') {
-                  lastUserIndex = i;
-                  break;
-                }
-              }
-              if (lastUserIndex < 0) {
-                continue;
-              }
-              sawUserTurn = true;
-              replyAfterUser = messages
-                .slice(lastUserIndex + 1)
-                .filter((message: any) => message?.role === 'assistant')
-                .map((message: any) => assistantTextFromMessage(message))
-                .join(' ')
-                .trim();
-              if (replyAfterUser) {
-                break;
-              }
-            } catch (err) {
-              if (/no thread found/i.test(String(err))) {
-                continue;
-              }
-              throw err;
-            }
-          }
-          if (!sawUserTurn) {
-            return false;
-          }
-          return shouldRefundAgentMessage(replyAfterUser);
+          return await this.shouldRefundAfterAgentRun(
+            mastra,
+            organization.id,
+            threadId
+          );
         } catch (err) {
           Logger.warn(`Could not check agent reply for coin refund: ${err}`);
           return false;
@@ -316,50 +295,49 @@ export class CopilotController {
   @Get('/list')
   @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   async getList(@GetOrgFromRequest() organization: Organization) {
-    const mastra = await this._mastraService.mastra();
-    const memory = await mastra.getAgent('postiz').getMemory();
     try {
-      const list = await memory.listThreads({
-        filter: { resourceId: organization.id },
-        perPage: false,
-        page: 0,
-        orderBy: { field: 'updatedAt', direction: 'DESC' },
+      const threads = await this._prisma.mastra_threads.findMany({
+        where: { resourceId: organization.id },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 200,
+        select: { id: true, title: true },
       });
 
-      const threads = (list.threads || []).map((p) => ({
-        id: p.id,
-        title: p.title || 'Chat',
-      }));
-
-      // Silent / failed agent runs can persist messages without a thread row
-      // (title generation never runs). Merge any missing ids from messages.
+      // Also surface threads that have messages for this org but no thread row
+      // (or resourceId was never written on the thread).
+      const messageThreadIds = await this._prisma.mastra_messages.findMany({
+        where: { resourceId: organization.id },
+        distinct: ['thread_id'],
+        select: { thread_id: true },
+        take: 200,
+      });
       const known = new Set(threads.map((t) => t.id));
-      const fromMessages = await this.threadsFromMessages(
-        memory,
-        organization.id,
-        known
-      );
-      for (const extra of fromMessages) {
-        if (!known.has(extra.id)) {
-          threads.unshift(extra);
-          known.add(extra.id);
+      for (const row of messageThreadIds) {
+        if (known.has(row.thread_id)) {
+          continue;
         }
+        const firstUser = await this._prisma.mastra_messages.findFirst({
+          where: { thread_id: row.thread_id, role: 'user' },
+          orderBy: { createdAt: 'asc' },
+          select: { content: true },
+        });
+        const title = titleFromUserText(
+          this.plainTextFromStoredContent(firstUser?.content)
+        );
+        await this.ensureAgentThread(row.thread_id, organization.id, title);
+        threads.unshift({ id: row.thread_id, title });
+        known.add(row.thread_id);
       }
 
-      return { threads };
+      return {
+        threads: threads.map((p) => ({
+          id: p.id,
+          title: p.title || 'Chat',
+        })),
+      };
     } catch (err) {
       Logger.warn(`Could not list agent threads: ${err}`);
-      try {
-        const fromMessages = await this.threadsFromMessages(
-          await mastra.getAgent('postiz').getMemory(),
-          organization.id,
-          new Set()
-        );
-        return { threads: fromMessages };
-      } catch (fallbackErr) {
-        Logger.warn(`Could not rebuild agent threads from messages: ${fallbackErr}`);
-        return { threads: [] };
-      }
+      return { threads: [] };
     }
   }
 
@@ -372,79 +350,144 @@ export class CopilotController {
     const mastra = await this._mastraService.mastra();
     const memory = await mastra.getAgent('postiz').getMemory();
     try {
-      return await memory.recall({
+      const recalled = await memory.recall({
         resourceId: organization.id,
         threadId,
       });
+      if ((recalled?.messages || []).length > 0) {
+        const firstUser = (recalled.messages || []).find(
+          (m: any) => m?.role === 'user'
+        );
+        await this.ensureAgentThread(
+          threadId,
+          organization.id,
+          titleFromUserText(assistantTextFromMessage(firstUser) || '')
+        );
+      }
+      return recalled;
     } catch (err) {
       Logger.warn(`Could not recall messages for thread ${threadId}: ${err}`);
       return { messages: [] };
     }
   }
 
-  // Mastra's getMemory() typing omits listMessagesByResourceId / createThread
-  // that exist on the runtime Memory instance — keep this helper untyped.
-  private async threadsFromMessages(
-    memory: any,
+  private async ensureAgentThread(
+    threadId: string,
     resourceId: string,
-    alreadyListed: Set<string>
-  ): Promise<{ id: string; title: string }[]> {
-    const listed = await memory.listMessagesByResourceId({
-      resourceId,
-      perPage: false,
-    });
-    const byThread = new Map<
-      string,
-      { id: string; title: string; updatedAt: number }
-    >();
-
-    for (const message of listed.messages || []) {
-      const threadId = message?.threadId || message?.thread_id;
-      if (!threadId || typeof threadId !== 'string') {
-        continue;
-      }
-      if (alreadyListed.has(threadId)) {
-        continue;
-      }
-      const raw = assistantTextFromMessage(message) || '';
-      const text = raw
-        .replace(/\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g, '')
-        .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const created = new Date(
-        message?.createdAt || message?.createdAtZ || 0
-      ).getTime();
-      const existing = byThread.get(threadId);
-      if (!existing) {
-        const title =
-          message?.role === 'user' && text ? text.slice(0, 60) || 'Chat' : 'Chat';
-        byThread.set(threadId, { id: threadId, title, updatedAt: created });
-      } else if (message?.role === 'user' && text && existing.title === 'Chat') {
-        existing.title = text.slice(0, 60) || 'Chat';
-      }
-      if (created > (byThread.get(threadId)?.updatedAt || 0)) {
-        byThread.get(threadId)!.updatedAt = created;
-      }
-    }
-
-    const threads = [...byThread.values()].sort(
-      (a, b) => b.updatedAt - a.updatedAt
-    );
-
-    // Persist missing thread rows so the next listThreads call succeeds.
-    for (const thread of threads) {
-      try {
-        await memory.createThread({
-          threadId: thread.id,
+    title: string
+  ) {
+    const now = new Date();
+    try {
+      await this._prisma.mastra_threads.upsert({
+        where: { id: threadId },
+        create: {
+          id: threadId,
           resourceId,
-          title: thread.title,
-        });
-      } catch {
-        // Already exists or storage rejected — still return it for the sidebar.
+          title: title || 'Chat',
+          createdAt: now,
+          updatedAt: now,
+        },
+        update: {
+          resourceId,
+          updatedAt: now,
+          ...(title && title !== 'Chat' ? { title } : {}),
+        },
+      });
+    } catch (err) {
+      Logger.warn(`Could not upsert agent thread ${threadId}: ${err}`);
+    }
+  }
+
+  private plainTextFromStoredContent(content?: string | null) {
+    if (!content) {
+      return '';
+    }
+    try {
+      const parsed = JSON.parse(content);
+      return assistantTextFromMessage({ content: parsed, role: 'user' });
+    } catch {
+      return content;
+    }
+  }
+
+  private async shouldRefundAfterAgentRun(
+    mastra: Awaited<ReturnType<MastraService['mastra']>>,
+    organizationId: string,
+    threadId: string
+  ) {
+    // Prefer Prisma — Mastra recall can lag or miss when resourceId on the
+    // message row was null, which is exactly when silent turns happen.
+    let replyAfterUser = '';
+    let sawUserTurn = false;
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+
+      const rows = await this._prisma.mastra_messages.findMany({
+        where: { thread_id: threadId },
+        orderBy: { createdAt: 'asc' },
+        select: { role: true, content: true },
+      });
+
+      let lastUserIndex = -1;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (rows[i]?.role === 'user') {
+          lastUserIndex = i;
+          break;
+        }
+      }
+      if (lastUserIndex < 0) {
+        // Fall back to Mastra recall once in case Prisma write is still pending.
+        try {
+          const memory = await mastra.getAgent('postiz').getMemory();
+          const recalled = await memory.recall({
+            resourceId: organizationId,
+            threadId,
+          });
+          const messages = recalled?.messages || [];
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i]?.role === 'user') {
+              lastUserIndex = i;
+              sawUserTurn = true;
+              replyAfterUser = messages
+                .slice(i + 1)
+                .filter((message: any) => message?.role === 'assistant')
+                .map((message: any) => assistantTextFromMessage(message))
+                .join(' ')
+                .trim();
+              break;
+            }
+          }
+        } catch (err) {
+          if (!/no thread found/i.test(String(err))) {
+            throw err;
+          }
+        }
+        if (sawUserTurn && replyAfterUser) {
+          break;
+        }
+        continue;
+      }
+
+      sawUserTurn = true;
+      replyAfterUser = rows
+        .slice(lastUserIndex + 1)
+        .filter((message) => message?.role === 'assistant')
+        .map((message) =>
+          this.plainTextFromStoredContent(message.content)
+        )
+        .join(' ')
+        .trim();
+      if (replyAfterUser) {
+        break;
       }
     }
 
-    return threads.map((p) => ({ id: p.id, title: p.title }));
+    if (!sawUserTurn) {
+      return false;
+    }
+    return shouldRefundAgentMessage(replyAfterUser);
   }
 }
