@@ -1235,18 +1235,30 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                 </div>
 
                 {!dummy && postNowOpen && (
-                  <button
-                    type="button"
-                    onClick={schedule('now')}
-                    disabled={
-                      selectedIntegrations.length === 0 || loading || locked
-                    }
-                    className="rounded-[8px] z-[300] disabled:cursor-not-allowed disabled:opacity-80 flex absolute bottom-[100%] -left-[12px] -translate-y-[10px] menu-shadow p-[12px] w-[206px] bg-newBgColorInner"
+                  <div
+                    role="menu"
+                    className="rounded-[8px] z-[300] absolute bottom-[calc(100%+28px)] end-0 menu-shadow p-[8px] min-w-[220px] bg-newBgColorInner border border-newBorder flex flex-col gap-[6px]"
                   >
-                    <div className="text-white rounded-[8px] bg-[#E23E14] h-[44px] w-full flex justify-center items-center post-now">
-                      {t('post_now', 'Post Now')}
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={schedule('now')}
+                      disabled={
+                        selectedIntegrations.length === 0 || loading || locked
+                      }
+                      className="disabled:cursor-not-allowed disabled:opacity-80 flex flex-col items-stretch gap-[2px] rounded-[8px] px-[12px] py-[10px] text-start hover:bg-newBgColor outline-none post-now"
+                    >
+                      <span className="text-[14px] font-[600] text-textColor">
+                        {t('post_now', 'Post Now')}
+                      </span>
+                      <span className="text-[12px] text-newTextColor">
+                        {t(
+                          'post_now_confirm_hint',
+                          'Publishes immediately — you will be asked to confirm'
+                        )}
+                      </span>
+                    </button>
+                  </div>
                 )}
               </div>
             )}
