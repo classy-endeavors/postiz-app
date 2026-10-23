@@ -992,9 +992,10 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     void date;
 
     try {
-      // Overlap channel profile with video pagination so cold loads are not
-      // user/info + N list pages + N query batches (ZQA-012).
-      const userStatsPromise = fetch(
+      // Cold path must stay a single TikTok round-trip (ZQA-012). Paginated
+      // video/list made first Analytics loads ~1.8s even after dropping video/query.
+      // Channel tiles come from user/info; Redis still caches the full payload.
+      const userStatsData = await fetch(
         'https://open.tiktokapis.com/v2/user/info/?fields=follower_count,following_count,likes_count,video_count',
         {
           method: 'GET',
@@ -1004,58 +1005,6 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
         }
       ).then((response) => response.json());
 
-      type TikTokVideoRef = {
-        id: string;
-        like_count?: number;
-        comment_count?: number;
-        share_count?: number;
-        view_count?: number;
-      };
-
-      // video/list already returns like/comment/share/view counts — do not
-      // re-fetch the same IDs via video/query (that doubled TikTok round-trips).
-      const listedVideos: TikTokVideoRef[] = [];
-      let cursor: number | undefined;
-      let hasMore = true;
-      let pages = 0;
-
-      while (hasMore && pages < 10) {
-        pages += 1;
-        const body: { max_count: number; cursor?: number } = {
-          max_count: 20,
-        };
-        if (cursor !== undefined) {
-          body.cursor = cursor;
-        }
-
-        const videoListResponse = await fetch(
-          'https://open.tiktokapis.com/v2/video/list/?fields=id,like_count,comment_count,share_count,view_count',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify(body),
-          }
-        );
-
-        const videoListData = await videoListResponse.json();
-        const videos: TikTokVideoRef[] = videoListData?.data?.videos || [];
-        for (const video of videos) {
-          if (video?.id) {
-            listedVideos.push(video);
-          }
-        }
-
-        hasMore = !!videoListData?.data?.has_more;
-        cursor = videoListData?.data?.cursor;
-        if (!hasMore || cursor === undefined) {
-          hasMore = false;
-        }
-      }
-
-      const userStatsData = await userStatsPromise;
       const userStats = userStatsData?.data?.user;
       const accountLikes = Number(userStats?.likes_count || 0);
       const videoCount = Number(userStats?.video_count || 0);
@@ -1090,66 +1039,6 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
         label: 'Videos',
         percentageChange: 0,
         data: [{ total: String(videoCount), date: today }],
-      });
-
-      let lifetimeViews = 0;
-      let totalComments = 0;
-      let totalShares = 0;
-      for (const video of listedVideos) {
-        lifetimeViews += Number(video.view_count || 0);
-        totalComments += Number(video.comment_count || 0);
-        totalShares += Number(video.share_count || 0);
-      }
-
-      const videosCounted = listedVideos.length || videoCount;
-      const percentage = (value: number) =>
-        String(lifetimeViews ? +((value / lifetimeViews) * 100).toFixed(2) : 0);
-
-      result.push({
-        label: 'Lifetime Video Views',
-        percentageChange: 0,
-        data: [{ total: String(lifetimeViews), date: today }],
-      });
-      result.push({
-        label: 'Comments',
-        percentageChange: 0,
-        data: [{ total: String(totalComments), date: today }],
-      });
-      result.push({
-        label: 'Shares',
-        percentageChange: 0,
-        data: [{ total: String(totalShares), date: today }],
-      });
-      result.push({
-        label: 'Avg Views per Video',
-        percentageChange: 0,
-        data: [
-          {
-            total: String(
-              videosCounted ? Math.round(lifetimeViews / videosCounted) : 0
-            ),
-            date: today,
-          },
-        ],
-      });
-      result.push({
-        label: 'Like Ratio',
-        average: true,
-        format: 'percentage',
-        percentageChange: 0,
-        data: [{ total: percentage(accountLikes), date: today }],
-      });
-      result.push({
-        label: 'Engagement Rate',
-        average: true,
-        format: 'percentage',
-        percentageChange: 0,
-        data: [
-          {
-            total: percentage(accountLikes + totalComments + totalShares),
-            date: today,
-          },
-        ],
       });
 
       return result;
