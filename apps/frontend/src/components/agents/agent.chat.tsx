@@ -191,14 +191,21 @@ const LoadMessages: FC<{ id: string }> = ({ id }) => {
 };
 
 // Sidebar is a separate SWR cache; refresh when a run finishes so new chats appear
-// (Mastra title generation can lag a bit behind the first reply).
+// (Mastra title generation can lag a bit behind the first reply). Also refresh when
+// the first user message lands so history is not empty if the agent stays silent.
 const RefreshThreadsOnActivity: FC = () => {
   const { isLoading, messages } = useCopilotChatInternal();
   const { mutate } = useSWRConfig();
   const wasLoading = useRef(false);
   const lastCount = useRef(0);
+  const refreshedForCount = useRef(0);
 
   useEffect(() => {
+    if (messages.length > 0 && messages.length !== refreshedForCount.current) {
+      refreshedForCount.current = messages.length;
+      mutate('threads');
+    }
+
     const finishedRun =
       wasLoading.current && !isLoading && messages.length > lastCount.current;
     wasLoading.current = isLoading;
@@ -210,7 +217,11 @@ const RefreshThreadsOnActivity: FC = () => {
     lastCount.current = messages.length;
     mutate('threads');
     const timer = setTimeout(() => mutate('threads'), 2500);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => mutate('threads'), 6000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
   }, [isLoading, messages.length, mutate]);
 
   return null;
