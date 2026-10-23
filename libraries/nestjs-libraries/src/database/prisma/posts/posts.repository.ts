@@ -1496,4 +1496,49 @@ export class PostsRepository {
       },
     });
   }
+
+  /** Scheduled + published roots for one channel (visual feed planner). */
+  getFeedPreviewPosts(orgId: string, integrationId: string) {
+    const now = dayjs.utc().toDate();
+    return this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        deletedAt: null,
+        parentPostId: null,
+        OR: [
+          {
+            state: { in: [State.QUEUE, State.DRAFT] },
+            publishDate: { gte: now },
+          },
+          {
+            state: State.PUBLISHED,
+          },
+        ],
+      },
+      orderBy: {
+        publishDate: 'desc',
+      },
+      take: 120,
+      select: {
+        id: true,
+        content: true,
+        image: true,
+        publishDate: true,
+        releaseURL: true,
+        releaseId: true,
+        state: true,
+        settings: true,
+        group: true,
+        integration: {
+          select: {
+            id: true,
+            providerIdentifier: true,
+            name: true,
+            picture: true,
+          },
+        },
+      },
+    });
+  }
 }

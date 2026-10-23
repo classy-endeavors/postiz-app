@@ -11,7 +11,7 @@ import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 
 // Helper function to get start and end dates based on display type
 function getDateRange(
-  display: 'day' | 'week' | 'month' | 'list',
+  display: 'day' | 'week' | 'month' | 'list' | 'preview',
   referenceDate?: string
 ) {
   const date = referenceDate ? newDayjs(referenceDate) : newDayjs();
@@ -33,6 +33,7 @@ function getDateRange(
         endDate: date.endOf('month').format('YYYY-MM-DD'),
       };
     case 'list':
+    case 'preview':
       return {
         startDate: date.format('YYYY-MM-DD'),
         endDate: date.format('YYYY-MM-DD'),
@@ -165,7 +166,7 @@ export const Filters = () => {
   }, [calendar]);
 
   const setCalendarView = useCallback(() => {
-    if (calendar.display !== 'list') {
+    if (calendar.display !== 'list' && calendar.display !== 'preview') {
       return;
     }
 
@@ -178,6 +179,20 @@ export const Filters = () => {
     });
   }, [calendar]);
 
+  const setPreview = useCallback(() => {
+    if (calendar.display === 'preview') {
+      return;
+    }
+
+    const range = getDateRange('preview');
+    calendar.setFilters({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      display: 'preview',
+      customer: calendar.customer,
+    });
+  }, [calendar]);
+
   const setCustomer = useCallback(
     (customer: string) => {
       if (calendar.customer === customer) {
@@ -186,7 +201,7 @@ export const Filters = () => {
       calendar.setFilters({
         startDate: calendar.startDate,
         endDate: calendar.endDate,
-        display: calendar.display as 'day' | 'week' | 'month',
+        display: calendar.display as 'day' | 'week' | 'month' | 'list' | 'preview',
         customer: customer,
       });
     },
@@ -267,6 +282,11 @@ export const Filters = () => {
   );
 
   const isListView = calendar.display === 'list';
+  const isPreviewView = calendar.display === 'preview';
+  const hasFeedPreview = calendar.integrations.some(
+    (integration) => integration.feedPreview && !integration.disabled
+  );
+  const hideDateNav = isListView || isPreviewView;
 
   const setListStateFilter = useCallback(
     (next: ListStateFilter) => () => {
@@ -297,7 +317,22 @@ export const Filters = () => {
 
   return (
     <div className="text-textColor flex flex-col md:flex-row mobile:flex-row mobile:flex-wrap mobile:justify-center gap-[8px] items-center select-none">
-      {!isListView && (
+      {isPreviewView && (
+        <div className="flex flex-grow flex-row items-center gap-[16px] mobile:w-full">
+          <div className="flex flex-col min-w-[230px] mobile:min-w-0">
+            <div className="font-heading font-[800] text-[20px] mobile:text-[15px] tracking-[-0.01em] whitespace-nowrap mobile:truncate">
+              {t('feed_preview', 'Feed preview')}
+            </div>
+            <div className="text-[12px] text-textItemBlur mobile:hidden">
+              {t(
+                'feed_preview_subtitle',
+                'See how upcoming posts will look on your profile grid.'
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {!hideDateNav && (
         <div className="flex flex-grow flex-row items-center gap-[16px] mobile:w-full mobile:justify-between mobile:gap-[8px]">
           <div className="flex flex-col min-w-[230px] mobile:min-w-0">
             <div className="font-heading font-[800] text-[20px] mobile:text-[15px] tracking-[-0.01em] whitespace-nowrap mobile:truncate">
@@ -438,7 +473,7 @@ export const Filters = () => {
         onChange={(customer: string) => setCustomer(customer)}
         integrations={calendar.integrations}
       />
-      {!isListView && (
+      {!hideDateNav && (
         <div className={segmentGroupClass}>
           <div
             className={clsx(
@@ -478,7 +513,9 @@ export const Filters = () => {
           className={clsx(
             'py-[6px] flex justify-center items-center w-[34px]',
             segmentItemClass,
-            !isListView ? segmentActiveClass : segmentIdleClass
+            !isListView && !isPreviewView
+              ? segmentActiveClass
+              : segmentIdleClass
           )}
         >
           {/*calendar*/}
@@ -498,6 +535,33 @@ export const Filters = () => {
             />
           </svg>
         </div>
+        {hasFeedPreview && (
+          <div
+            onClick={setPreview}
+            className={clsx(
+              'py-[6px] flex justify-center items-center w-[34px]',
+              segmentItemClass,
+              isPreviewView ? segmentActiveClass : segmentIdleClass
+            )}
+            title={t('feed_preview', 'Feed preview')}
+          >
+            {/*grid*/}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+            >
+              <path
+                d="M1.5 1.5h4v4h-4v-4zm0 9h4v4h-4v-4zm9-9h4v4h-4v-4zm0 9h4v4h-4v-4z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        )}
         <div
           onClick={setList}
           className={clsx(
