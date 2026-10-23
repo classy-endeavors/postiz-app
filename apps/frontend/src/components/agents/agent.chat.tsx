@@ -287,6 +287,7 @@ const NewInput: FC<InputProps> = (props) => {
   const [value, setValue] = useState('');
   const { properties } = useContext(PropertiesContext);
   const { mutate: reloadCoins } = useCoinsBalance();
+  const { mutate: mutateThreads } = useSWRConfig();
   return (
     <>
       <MediaPortal
@@ -331,9 +332,19 @@ No channels are selected for scheduling/drafting. You can still write or edit ca
           );
           setValue('');
           setMedia([]);
+          // Thread row is upserted on the backend as soon as the message is
+          // charged — refresh history immediately so the sidebar is not empty
+          // while the agent is still thinking (or if it goes silent).
+          void mutateThreads('threads');
           Promise.resolve(send).then(
-            () => reloadCoins(),
-            () => reloadCoins()
+            () => {
+              reloadCoins();
+              void mutateThreads('threads');
+            },
+            () => {
+              reloadCoins();
+              void mutateThreads('threads');
+            }
           );
           return send;
         }}
