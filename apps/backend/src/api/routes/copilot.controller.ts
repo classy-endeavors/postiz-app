@@ -280,6 +280,57 @@ export class CopilotController {
     );
   }
 
+  // Register /list before /:thread/list so "list" is never treated as a thread id.
+  @Get('/list')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
+  async getList(@GetOrgFromRequest() organization: Organization) {
+    const mastra = await this._mastraService.mastra();
+    const memory = await mastra.getAgent('postiz').getMemory();
+    try {
+      const list = await memory.listThreads({
+        filter: { resourceId: organization.id },
+        perPage: false,
+        page: 0,
+        orderBy: { field: 'updatedAt', direction: 'DESC' },
+      });
+
+      const threads = (list.threads || []).map((p) => ({
+        id: p.id,
+        title: p.title || 'Chat',
+      }));
+
+      // Silent / failed agent runs can persist messages without a thread row
+      // (title generation never runs). Merge any missing ids from messages.
+      const known = new Set(threads.map((t) => t.id));
+      const fromMessages = await this.threadsFromMessages(
+        memory,
+        organization.id,
+        known
+      );
+      for (const extra of fromMessages) {
+        if (!known.has(extra.id)) {
+          threads.unshift(extra);
+          known.add(extra.id);
+        }
+      }
+
+      return { threads };
+    } catch (err) {
+      Logger.warn(`Could not list agent threads: ${err}`);
+      try {
+        const fromMessages = await this.threadsFromMessages(
+          await mastra.getAgent('postiz').getMemory(),
+          organization.id,
+          new Set()
+        );
+        return { threads: fromMessages };
+      } catch (fallbackErr) {
+        Logger.warn(`Could not rebuild agent threads from messages: ${fallbackErr}`);
+        return { threads: [] };
+      }
+    }
+  }
+
   @Get('/:thread/list')
   @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   async getMessagesList(
@@ -299,23 +350,69 @@ export class CopilotController {
     }
   }
 
-  @Get('/list')
-  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
-  async getList(@GetOrgFromRequest() organization: Organization) {
-    const mastra = await this._mastraService.mastra();
-    const memory = await mastra.getAgent('postiz').getMemory();
-    const list = await memory.listThreads({
-      filter: { resourceId: organization.id },
-      perPage: 100000,
-      page: 0,
-      orderBy: { field: 'createdAt', direction: 'DESC' },
+  // Mastra's getMemory() typing omits listMessagesByResourceId / createThread
+  // that exist on the runtime Memory instance — keep this helper untyped.
+  private async threadsFromMessages(
+    memory: any,
+    resourceId: string,
+    alreadyListed: Set<string>
+  ): Promise<{ id: string; title: string }[]> {
+    const listed = await memory.listMessagesByResourceId({
+      resourceId,
+      perPage: false,
     });
+    const byThread = new Map<
+      string,
+      { id: string; title: string; updatedAt: number }
+    >();
 
-    return {
-      threads: list.threads.map((p) => ({
-        id: p.id,
-        title: p.title,
-      })),
-    };
+    for (const message of listed.messages || []) {
+      const threadId = message?.threadId || message?.thread_id;
+      if (!threadId || typeof threadId !== 'string') {
+        continue;
+      }
+      if (alreadyListed.has(threadId)) {
+        continue;
+      }
+      const raw = assistantTextFromMessage(message) || '';
+      const text = raw
+        .replace(/\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g, '')
+        .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const created = new Date(
+        message?.createdAt || message?.createdAtZ || 0
+      ).getTime();
+      const existing = byThread.get(threadId);
+      if (!existing) {
+        const title =
+          message?.role === 'user' && text ? text.slice(0, 60) || 'Chat' : 'Chat';
+        byThread.set(threadId, { id: threadId, title, updatedAt: created });
+      } else if (message?.role === 'user' && text && existing.title === 'Chat') {
+        existing.title = text.slice(0, 60) || 'Chat';
+      }
+      if (created > (byThread.get(threadId)?.updatedAt || 0)) {
+        byThread.get(threadId)!.updatedAt = created;
+      }
+    }
+
+    const threads = [...byThread.values()].sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+
+    // Persist missing thread rows so the next listThreads call succeeds.
+    for (const thread of threads) {
+      try {
+        await memory.createThread({
+          threadId: thread.id,
+          resourceId,
+          title: thread.title,
+        });
+      } catch {
+        // Already exists or storage rejected — still return it for the sidebar.
+      }
+    }
+
+    return threads.map((p) => ({ id: p.id, title: p.title }));
   }
 }

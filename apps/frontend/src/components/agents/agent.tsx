@@ -224,7 +224,10 @@ const Threads: FC = () => {
   }, []);
   const { id } = useParams<{ id: string }>();
 
-  const { data } = useSWR('threads', threads);
+  const { data } = useSWR('threads', threads, {
+    revalidateOnFocus: true,
+    refreshInterval: 8000,
+  });
 
   const startNewChat = useCallback(
     (e: MouseEvent) => {
