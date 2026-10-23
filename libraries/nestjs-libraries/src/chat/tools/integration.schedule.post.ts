@@ -196,7 +196,7 @@ If validation fails, the result contains output.errors describing what to fix; t
 
             // Same server-side validation as the dashboard / public API
             // (settings DTO + media checkValidity + empty / too-long content).
-            const settings = platform.settings.reduce(
+            const settings = (platform.settings || []).reduce(
               (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
                 ...acc,
                 [s.key]: s.value,
@@ -306,7 +306,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                   {
                     integration,
                     group: makeId(10),
-                    settings: post.settings.reduce(
+                    settings: (post.settings || []).reduce(
                       (
                         acc: AllProvidersSettings,
                         s: { key: string; value: any }

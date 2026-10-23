@@ -130,12 +130,18 @@ export class LoadToolsService {
       },
       model: agentModel,
       tools,
+      // Cap tool loops so a stuck/invalid tool call cannot burn ~60s then go silent.
+      defaultOptions: {
+        maxSteps: 8,
+      },
       memory: new Memory({
         storage: pStore,
         options: {
-          generateTitle: true,
+          // Titles are set from the first user message when we upsert the thread.
+          // generateTitle can lag or fail on silent turns and never create the row.
+          generateTitle: false,
           workingMemory: {
-            enabled: true,
+            enabled: false,
             schema: AgentState,
           },
         },
