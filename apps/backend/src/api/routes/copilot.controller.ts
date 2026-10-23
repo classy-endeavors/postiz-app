@@ -350,18 +350,10 @@ export class CopilotController {
     }
   }
 
+  // Mastra's getMemory() typing omits listMessagesByResourceId / createThread
+  // that exist on the runtime Memory instance — keep this helper untyped.
   private async threadsFromMessages(
-    memory: {
-      listMessagesByResourceId: (args: {
-        resourceId: string;
-        perPage: false;
-      }) => Promise<{ messages?: any[] }>;
-      createThread: (args: {
-        threadId: string;
-        resourceId: string;
-        title?: string;
-      }) => Promise<{ id: string; title?: string | null }>;
-    },
+    memory: any,
     resourceId: string,
     alreadyListed: Set<string>
   ): Promise<{ id: string; title: string }[]> {
