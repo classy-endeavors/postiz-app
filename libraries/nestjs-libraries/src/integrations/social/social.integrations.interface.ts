@@ -48,7 +48,29 @@ export interface IAuthenticator {
     id: string,
     accessToken: string
   ): Promise<{ id: string; url: string }[]>;
+  /** Published profile-grid media for a feed / visual planner preview. */
+  feedMedia?(
+    id: string,
+    accessToken: string,
+    options?: { limit?: number }
+  ): Promise<FeedMediaItem[]>;
+  /** Classify a local scheduled/published post for the feed grid. */
+  feedPreviewPost?(
+    settings: unknown,
+    media: Array<{ path?: string; thumbnail?: string }>
+  ): { include: boolean; isReel: boolean };
 }
+
+export type FeedMediaItem = {
+  id: string;
+  caption?: string;
+  mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+  mediaProductType?: string;
+  thumbnailUrl: string;
+  permalink?: string;
+  timestamp: string;
+  isReel: boolean;
+};
 
 export interface AnalyticsData {
   label: string;

@@ -15,6 +15,10 @@ import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.reque
 import { Organization, User } from '@prisma/client';
 import { GetPostsDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.dto';
 import { GetPostsListDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.list.dto';
+import {
+  GetFeedPreviewDto,
+  SwapFeedPreviewDto,
+} from '@gitroom/nestjs-libraries/dtos/posts/get.feed.preview.dto';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { ApiTags } from '@nestjs/swagger';
 import { GeneratorDto } from '@gitroom/nestjs-libraries/dtos/generator/generator.dto';
@@ -163,6 +167,26 @@ export class PostsController {
     @Query() query: GetPostsListDto
   ) {
     return this._postsService.getPostsList(org.id, query);
+  }
+
+  @Get('/feed-preview')
+  async getFeedPreview(
+    @GetOrgFromRequest() org: Organization,
+    @Query() query: GetFeedPreviewDto
+  ) {
+    return this._postsService.getFeedPreview(org.id, query.integration);
+  }
+
+  @Put('/feed-preview/swap')
+  async swapFeedPreview(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: SwapFeedPreviewDto
+  ) {
+    return this._postsService.swapFeedPreviewDates(
+      org.id,
+      body.sourceId,
+      body.targetId
+    );
   }
 
   @Get('/old')
