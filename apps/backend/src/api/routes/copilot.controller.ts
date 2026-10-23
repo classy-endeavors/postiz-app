@@ -103,12 +103,42 @@ const shouldRefundAgentMessage = (text: string) => {
 };
 
 const threadIdFromRequest = (req: Request): string | undefined => {
-  return (
-    req?.body?.body?.threadId ||
-    req?.body?.threadId ||
-    req?.body?.body?.thread_id ||
-    req?.headers?.['x-thread-id']
-  );
+  const body = req?.body;
+  const nested = body?.body;
+  const candidates = [
+    nested?.threadId,
+    nested?.thread_id,
+    body?.threadId,
+    body?.thread_id,
+    nested?.agent?.threadId,
+    body?.params?.threadId,
+    req?.headers?.['x-thread-id'],
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+};
+
+// CopilotKit pipes the agent stream and resolves before the run finishes.
+// Coin refundIf must wait until the response closes or silence is mis-read.
+const awaitAgentHttpResponse = async (
+  handler: (req: Request, res: Response) => unknown,
+  req: Request,
+  res: Response
+) => {
+  const finished = new Promise<void>((resolve, reject) => {
+    const done = () => resolve();
+    res.once('finish', done);
+    res.once('close', done);
+    res.once('error', reject);
+  });
+  await Promise.resolve(handler(req, res));
+  if (!res.writableEnded) {
+    await finished;
+  }
 };
 
 @Controller('/copilot')
@@ -205,7 +235,8 @@ export class CopilotController {
     return this._coinsService.spend(
       organization.id,
       'message',
-      async () => copilotRuntimeHandler(req, res),
+      async () =>
+        awaitAgentHttpResponse(copilotRuntimeHandler, req, res),
       userMessageText(req),
       async () => {
         const threadId = threadIdFromRequest(req);
@@ -214,15 +245,16 @@ export class CopilotController {
         }
         try {
           const memory = await mastra.getAgent('postiz').getMemory();
-          // Memory can lag the stream. Retry before treating the turn as silence.
+          // Wait until the HTTP stream finished (above), then retry recall —
+          // Mastra can still lag briefly after RUN_FINISHED.
           // Only refund when we have seen the user turn and the assistant text
           // after it is empty or a text-capability refusal. Empty recall / missing
           // thread must not refund — that incorrectly zeroed successful captions.
           let replyAfterUser = '';
           let sawUserTurn = false;
-          for (let attempt = 0; attempt < 8; attempt++) {
+          for (let attempt = 0; attempt < 12; attempt++) {
             if (attempt > 0) {
-              await new Promise((resolve) => setTimeout(resolve, 500));
+              await new Promise((resolve) => setTimeout(resolve, 400));
             }
             try {
               const recalled = await memory.recall({
