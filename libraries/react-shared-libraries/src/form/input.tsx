@@ -71,7 +71,7 @@ export const Input: FC<
         {icon && <div className="ps-[16px] shrink-0">{icon}</div>}
         <input
           className={clsx(
-            'h-full bg-transparent outline-none flex-1 min-w-0 text-[14px] text-textColor',
+            'h-full w-full bg-transparent outline-none flex-1 min-w-0 text-[14px] text-textColor',
             icon ? 'pl-[8px]' : 'ps-[16px]',
             suffix ? 'pe-[8px]' : 'pe-[16px]'
           )}

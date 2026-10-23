@@ -33,7 +33,9 @@ export default async function AuthLayout({
             <LogoTextComponent />
           </div>
           <div className="flex flex-1 items-center px-[32px] py-[24px]">
-            <div className="w-full max-w-[400px] mx-auto flex">{children}</div>
+            <div className="w-full max-w-[400px] mx-auto flex flex-col min-w-0">
+              {children}
+            </div>
           </div>
         </div>
         <div className="flex-1 hidden lg:flex flex-col justify-center rounded-[22px] bg-btnPrimary border-[1.5px] border-newOutline shadow-hard px-[56px] text-white overflow-hidden relative">

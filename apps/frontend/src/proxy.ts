@@ -102,6 +102,14 @@ export async function proxy(request: NextRequest) {
   if (!nextUrl.pathname.startsWith('/auth') && !authCookie) {
     const providers = ['google', 'settings'];
     const findIndex = providers.find((p) => nextUrl.href.indexOf(p) > -1);
+    const hasOauthCode = nextUrl.searchParams.has('code');
+
+    // Logged-out visit to /settings (no OAuth code) must go to login.
+    // Sending provider=GENERIC without a code makes /auth spin forever.
+    if (findIndex === 'settings' && !hasOauthCode) {
+      return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
+    }
+
     const additional = !findIndex
       ? ''
       : (url.indexOf('?') > -1 ? '&' : '?') +

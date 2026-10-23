@@ -6,7 +6,7 @@
 - Main services: `frontend` (Next.js), `backend` (NestJS), `cron`, `commands`, `extension`, `sdk`, and `workers`.
 - Data layer uses Prisma ORM (`libraries/nestjs-libraries/src/database/prisma/schema.prisma`) with PostgreSQL as the default database.
 - Redis (BullMQ) is used for queues and caching.
-- Email notifications via Resend.
+- Email notifications via Resend, Nodemailer, or native Amazon SES (`EMAIL_PROVIDER=ses`, `@aws-sdk/client-sesv2`).
 - Social login integrations (Instagram, Facebook) and Make.com/N8N integrations.
 
 ## Developer Workflows
@@ -28,7 +28,7 @@
 - Make sure to keep the `.env.example` file updated with new environment variables.
 
 ## Integration Points
-- External APIs: Social media (Instagram, Facebook), Make.com, N8N, Resend, Stripe, etc.
+- External APIs: Social media (Instagram, Facebook), Make.com, N8N, Resend, Amazon SES, Stripe, etc.
 - SDK (`apps/sdk`) provides programmatic access to Postiz features.
 - Extension (`apps/extension`) is built with Vite, React, TypeScript, and Tailwind CSS.
 

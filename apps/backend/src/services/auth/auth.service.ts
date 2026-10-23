@@ -11,6 +11,7 @@ import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/n
 import { ForgotReturnPasswordDto } from '@gitroom/nestjs-libraries/dtos/auth/forgot-return.password.dto';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
 import { NewsletterService } from '@gitroom/nestjs-libraries/newsletter/newsletter.service';
+import { emailCtaButton } from '@gitroom/nestjs-libraries/emails/email.cta';
 
 @Injectable()
 export class AuthService {
@@ -73,10 +74,13 @@ export class AuthService {
             : false;
 
         const obj = { addedOrg, jwt: await this.jwt(create.users[0].user) };
+        const activateUrl = `${process.env.FRONTEND_URL}/auth/activate/${obj.jwt}`;
         await this._emailService.sendEmail(
           body.email,
           'Activate your account',
-          `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${obj.jwt}">here</a> to activate your account`,
+          `Welcome to AI Zyntra. Confirm your email to finish setting up your account.` +
+            emailCtaButton('Activate account', activateUrl) +
+            `<p style="margin:16px 0 0 0;font-size:13px;color:#9a8f8a;">If the button doesn't work, copy and paste this link into your browser:<br /><a href="${activateUrl}" style="color:#FF5227;word-break:break-all;">${activateUrl}</a></p>`,
           'top'
         );
         return obj;
@@ -235,10 +239,13 @@ export class AuthService {
       expires: dayjs().add(20, 'minutes').format('YYYY-MM-DD HH:mm:ss'),
     });
 
+    const resetUrl = `${process.env.FRONTEND_URL}/auth/forgot/${resetValues}`;
     await this._notificationService.sendEmail(
       user.email,
       'Reset your password',
-      `You have requested to reset your passsord. <br />Click <a href="${process.env.FRONTEND_URL}/auth/forgot/${resetValues}">here</a> to reset your password<br />The link will expire in 20 minutes`
+      `You have requested to reset your password. Click the button below to choose a new one. The link will expire in 20 minutes.` +
+        emailCtaButton('Reset password', resetUrl) +
+        `<p style="margin:16px 0 0 0;font-size:13px;color:#9a8f8a;">If you didn't request this, you can safely ignore this email.</p>`
     );
   }
 
@@ -288,10 +295,13 @@ export class AuthService {
 
     const jwt = await this.jwt(user);
 
+    const activateUrl = `${process.env.FRONTEND_URL}/auth/activate/${jwt}`;
     await this._emailService.sendEmail(
       user.email,
       'Activate your account',
-      `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${jwt}">here</a> to activate your account`,
+      `Welcome to AI Zyntra. Confirm your email to finish setting up your account.` +
+        emailCtaButton('Activate account', activateUrl) +
+        `<p style="margin:16px 0 0 0;font-size:13px;color:#9a8f8a;">If the button doesn't work, copy and paste this link into your browser:<br /><a href="${activateUrl}" style="color:#FF5227;word-break:break-all;">${activateUrl}</a></p>`,
       'top'
     );
 
