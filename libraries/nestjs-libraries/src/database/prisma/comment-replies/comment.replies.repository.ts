@@ -220,6 +220,47 @@ export class CommentRepliesRepository {
     });
   }
 
+  // Facebook feed webhooks send `{pageId}_{storyId}` while video/reel posts in
+  // our DB may store only the bare video id. Match exact id or either side's
+  // trailing story id so auto-replies still find the published post.
+  async findFacebookPost(
+    organizationId: string,
+    integrationId: string,
+    postId: string
+  ) {
+    const exact = await this.findPost(organizationId, integrationId, postId);
+    if (exact) {
+      return exact;
+    }
+    const storyId = postId.includes('_') ? postId.split('_').pop()! : postId;
+    if (!storyId || storyId === postId) {
+      return null;
+    }
+    return this._post.model.post.findFirst({
+      where: {
+        organizationId,
+        integrationId,
+        deletedAt: null,
+        parentPostId: null,
+        OR: [
+          { releaseId: storyId },
+          { releaseId: { endsWith: `_${storyId}` } },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        releaseURL: true,
+        replySetting: {
+          select: {
+            enabled: true,
+          },
+        },
+      },
+    });
+  }
+
   linksFor(organizationId: string, postId: string) {
     return this._link.model.contentLink.findMany({
       where: {

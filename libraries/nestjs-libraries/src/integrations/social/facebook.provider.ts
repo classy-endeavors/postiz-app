@@ -37,6 +37,8 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     'pages_manage_posts',
     'pages_manage_engagement',
     'pages_read_engagement',
+    'pages_read_user_content',
+    'pages_manage_metadata',
     'read_insights',
   ];
   override maxConcurrentJob = 500; // Facebook has reasonable rate limits
@@ -468,13 +470,15 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
           if (page && !page.access_token) {
             foundWithoutToken = true;
           } else if (page) {
-            return {
+            const info = {
               id: page.id,
               name: page.name,
               access_token: page.access_token,
               picture: page.picture?.data?.url || '',
               username: page.username,
             };
+            await this.subscribePageWebhooks(info.id, info.access_token);
+            return info;
           }
         }
         url = response.paging?.next;
@@ -530,6 +534,42 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     }
 
     throw new Error('Page not found in your accounts');
+  }
+
+  // Install this app on the Page so Meta can deliver `feed` webhooks (comments).
+  // Requires pages_manage_metadata. Failures are non-fatal so connect still works
+  // before Advanced Access is approved.
+  async subscribePageWebhooks(pageId: string, pageAccessToken: string) {
+    try {
+      await fetch(
+        `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${pageId}/subscribed_apps` +
+          `?subscribed_fields=feed&access_token=${pageAccessToken}`,
+        { method: 'POST' }
+      );
+    } catch (err) {
+      console.warn('Facebook Page webhook subscribe failed', { pageId, err });
+    }
+  }
+
+  async replyToComment(token: string, commentId: string, message: string) {
+    const response = await this.fetch(
+      `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${commentId}/comments` +
+        `?message=${encodeURIComponent(message)}&access_token=${token}`,
+      {
+        method: 'POST',
+      },
+      'reply to comment'
+    );
+    const body = await response.json();
+    if (!body?.id) {
+      throw new BadBody(
+        this.identifier,
+        JSON.stringify(body || {}),
+        '{}',
+        'Facebook did not accept the comment reply'
+      );
+    }
+    return String(body.id);
   }
 
   // Single, read-only status check of a story video - the polling loop that
