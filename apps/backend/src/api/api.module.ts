@@ -60,6 +60,7 @@ import { OauthProvider } from '@gitroom/backend/services/auth/providers/oauth.pr
 import { StripeController } from '@gitroom/backend/api/routes/stripe.controller';
 import { RepliesController } from '@gitroom/backend/api/routes/replies.controller';
 import { InstagramWebhookController } from '@gitroom/backend/api/routes/instagram.webhook.controller';
+import { FacebookWebhookController } from '@gitroom/backend/api/routes/facebook.webhook.controller';
 
 const authenticatedController = [
   UsersController,
@@ -102,6 +103,7 @@ const authenticatedController = [
         AuthController,
         PublicController,
         InstagramWebhookController,
+        FacebookWebhookController,
         MonitorController,
         EnterpriseController,
         NoAuthIntegrationsController,

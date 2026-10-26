@@ -52,7 +52,7 @@ export const CommentsPage = () => {
         <div className="text-[13px] text-textItemBlur mt-[4px] max-w-[720px]">
           {t(
             'comment_replies_page_help',
-            'Turn replies on for the posts you want answered. A reply uses the post and anything you linked to it, and costs 1 coin when it is posted. Reconnect YouTube and Instagram so comment permission is included.'
+            'Turn replies on for the posts you want answered. A reply uses the post and anything you linked to it, and costs 1 coin when it is posted. Reconnect YouTube, Instagram, and Facebook Page so comment permission is included.'
           )}
         </div>
       </div>

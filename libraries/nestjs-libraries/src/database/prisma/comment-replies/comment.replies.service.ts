@@ -13,6 +13,7 @@ import {
 import { YoutubeProvider } from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
 import { InstagramProvider } from '@gitroom/nestjs-libraries/integrations/social/instagram.provider';
 import { InstagramStandaloneProvider } from '@gitroom/nestjs-libraries/integrations/social/instagram.standalone.provider';
+import { FacebookProvider } from '@gitroom/nestjs-libraries/integrations/social/facebook.provider';
 
 const plain = (value?: string | null) =>
   (value || '')
@@ -122,6 +123,51 @@ export class CommentRepliesService {
     }
   }
 
+  // Page `feed` webhooks: top-level comments have parent_id === post_id.
+  // Replies to comments have a different parent_id and are ignored to avoid loops.
+  async handleFacebookWebhook(payload: any) {
+    if (payload?.object !== 'page') {
+      return;
+    }
+    for (const entry of payload.entry || []) {
+      const pageId = String(entry.id || '');
+      for (const change of entry.changes || []) {
+        if (change.field !== 'feed') {
+          continue;
+        }
+        const value = change.value || {};
+        if (value.item !== 'comment' || value.verb !== 'add') {
+          continue;
+        }
+        const postId = value.post_id ? String(value.post_id) : '';
+        const commentId = value.comment_id ? String(value.comment_id) : '';
+        const message = value.message ? String(value.message) : '';
+        const parentId = value.parent_id ? String(value.parent_id) : '';
+        if (!postId || !commentId || !message) {
+          continue;
+        }
+        // Top-level comment: parent_id is missing or equals post_id
+        if (parentId && parentId !== postId) {
+          continue;
+        }
+        if (value.from?.id && String(value.from.id) === pageId) {
+          continue;
+        }
+        const integration = await this._repository.findIntegration(pageId, [
+          'facebook',
+        ]);
+        if (!integration) {
+          continue;
+        }
+        await this.answerFacebook(integration, {
+          commentId,
+          text: message,
+          releaseId: postId,
+        });
+      }
+    }
+  }
+
   async pollYoutube() {
     const posts = await this._repository.enabledYoutubePosts();
     const channels = new Map<string, { integration: Integration; posts: typeof posts }>();
@@ -179,9 +225,17 @@ export class CommentRepliesService {
     }
   }
 
-  private async answer(
+  private async answerFacebook(
     integration: Integration,
     incoming: { commentId: string; text: string; releaseId: string }
+  ) {
+    return this.answer(integration, incoming, true);
+  }
+
+  private async answer(
+    integration: Integration,
+    incoming: { commentId: string; text: string; releaseId: string },
+    facebookPostMatch = false
   ) {
     const claimed = await this._repository.claim(
       integration.organizationId,
@@ -194,11 +248,17 @@ export class CommentRepliesService {
     }
 
     try {
-      const post = await this._repository.findPost(
-        integration.organizationId,
-        integration.id,
-        incoming.releaseId
-      );
+      const post = facebookPostMatch
+        ? await this._repository.findFacebookPost(
+            integration.organizationId,
+            integration.id,
+            incoming.releaseId
+          )
+        : await this._repository.findPost(
+            integration.organizationId,
+            integration.id,
+            incoming.releaseId
+          );
       if (!post?.replySetting?.enabled) {
         await this._repository.finish(
           integration.id,
@@ -305,6 +365,16 @@ export class CommentRepliesService {
       const provider = this._integrationManager.getSocialIntegration(
         'youtube'
       ) as YoutubeProvider;
+      await this.withRefresh(integration, (token) =>
+        provider.replyToComment(token, commentId, reply)
+      );
+      return;
+    }
+
+    if (integration.providerIdentifier === 'facebook') {
+      const provider = this._integrationManager.getSocialIntegration(
+        'facebook'
+      ) as FacebookProvider;
       await this.withRefresh(integration, (token) =>
         provider.replyToComment(token, commentId, reply)
       );
