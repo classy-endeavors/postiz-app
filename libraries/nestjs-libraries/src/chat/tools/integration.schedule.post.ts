@@ -156,8 +156,9 @@ If validation fails, the result contains output.errors describing what to fix; t
                       ),
                   })
                 )
+                .default([])
                 .describe(
-                  'This relies on the integrationSchema tool to get the settings [input:settings]'
+                  'Optional for simple text drafts — pass [] when type is draft and no provider settings are required. Otherwise from integrationSchema [input:settings]'
                 ),
             })
           )
