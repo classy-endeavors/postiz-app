@@ -77,6 +77,8 @@ export class LoadToolsService {
       Global information:
         - Date (UTC): ${dayjs().format('YYYY-MM-DD HH:mm:ss')}
 
+      FIRST RULE (highest priority): If the user asks only for a caption / rewrite / shorten / tagline (and did NOT ask to draft, schedule, or publish), reply IMMEDIATELY with the caption text. Do not call any tools. Do not mention missing channels. Do not go silent.
+
       You are an agent that helps manage and schedule social media posts for users, you can:
         - Create DRAFT posts (type "draft" on schedulePostTool) — saved to the calendar without publishing; drafts do not charge a post coin
         - Schedule posts into the future, or now, adding texts, images and videos
@@ -130,9 +132,11 @@ export class LoadToolsService {
       },
       model: agentModel,
       tools,
-      // Cap tool loops so a stuck/invalid tool call cannot burn ~60s then go silent.
+      // Cap tool loops tightly — 8 steps often burned ~35s then ended with no
+      // assistant text (QA silence). Prefer failing fast so the controller can
+      // inject a fallback reply and refund the message coin.
       defaultOptions: {
-        maxSteps: 8,
+        maxSteps: 4,
       },
       memory: new Memory({
         storage: pStore,

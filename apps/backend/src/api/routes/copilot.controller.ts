@@ -132,23 +132,183 @@ const threadIdFromRequest = (req: Request): string | undefined => {
   return undefined;
 };
 
+const isCaptionOnlyRequest = (detail: string) => {
+  const text = (detail || '').toLowerCase();
+  if (!/(caption|rewrite|shorten|rephrase|tagline)/.test(text)) {
+    return false;
+  }
+  return !/(draft|schedule|publish|post now|create (a |an )?(post|draft))/.test(
+    text
+  );
+};
+
+const silenceFallbackText = (detail: string) => {
+  if (isCaptionOnlyRequest(detail)) {
+    return (
+      'I hit a temporary error before I could send that caption. ' +
+      'Writing or rewriting captions works for any platform style even when that ' +
+      'channel is not selected or connected — please send your caption request again.'
+    );
+  }
+  return (
+    'I hit a temporary error and could not finish that reply. ' +
+    'Please try again. For drafts, select a connected channel on the left first; ' +
+    'for captions only, no channel selection is required.'
+  );
+};
+
+// Pull assistant-visible text out of AG-UI SSE (`data: {...}\n\n`) chunks.
+const extractAssistantTextFromSseChunk = (chunk: string): string => {
+  let out = '';
+  for (const line of chunk.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) {
+      continue;
+    }
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === '[DONE]') {
+      continue;
+    }
+    try {
+      const event = JSON.parse(payload);
+      const type = event?.type;
+      if (
+        type === 'TEXT_MESSAGE_CONTENT' ||
+        type === 'TEXT_MESSAGE_CHUNK' ||
+        type === 'TEXT_MESSAGE'
+      ) {
+        const delta =
+          (typeof event?.delta === 'string' && event.delta) ||
+          (typeof event?.content === 'string' && event.content) ||
+          '';
+        out += delta;
+      }
+    } catch {
+      // ignore non-JSON SSE comments / partial frames
+    }
+  }
+  return out;
+};
+
+const encodeAgUiTextMessageSse = (messageId: string, text: string) => {
+  const frames = [
+    {
+      type: 'TEXT_MESSAGE_START',
+      messageId,
+      role: 'assistant',
+    },
+    {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId,
+      delta: text,
+    },
+    {
+      type: 'TEXT_MESSAGE_END',
+      messageId,
+    },
+  ];
+  return frames.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('');
+};
+
+type AgentStreamResult = {
+  assistantText: string;
+  injectedFallback: boolean;
+};
+
 // CopilotKit pipes the agent stream and resolves before the run finishes.
-// Coin refundIf must wait until the response closes or silence is mis-read.
+// Tee the SSE body so coin refundIf (and a silence fallback) see real tokens,
+// not a lagging Mastra memory write that often never lands on silent turns.
 const awaitAgentHttpResponse = async (
   handler: (req: Request, res: Response) => unknown,
   req: Request,
-  res: Response
-) => {
+  res: Response,
+  fallbackText: string
+): Promise<AgentStreamResult> => {
+  let assistantText = '';
+  let injectedFallback = false;
+  let ended = false;
+
+  const originalWrite = res.write.bind(res);
+  const originalEnd = res.end.bind(res);
+
+  const noteChunk = (chunk: unknown) => {
+    if (chunk == null || chunk === '') {
+      return;
+    }
+    const asString =
+      typeof chunk === 'string'
+        ? chunk
+        : Buffer.isBuffer(chunk)
+        ? chunk.toString('utf8')
+        : '';
+    if (asString) {
+      assistantText += extractAssistantTextFromSseChunk(asString);
+    }
+  };
+
+  const injectFallbackIfSilent = () => {
+    if (injectedFallback || assistantText.trim()) {
+      return;
+    }
+    injectedFallback = true;
+    const messageId = `fallback-${Date.now().toString(36)}`;
+    const payload = encodeAgUiTextMessageSse(messageId, fallbackText);
+    assistantText = fallbackText;
+    try {
+      originalWrite(payload);
+    } catch (err) {
+      Logger.warn(`Could not inject silent-agent fallback SSE: ${err}`);
+    }
+  };
+
+  (res as any).write = (
+    chunk: any,
+    encoding?: any,
+    cb?: any
+  ): boolean => {
+    if (typeof chunk !== 'function') {
+      noteChunk(chunk);
+    }
+    return originalWrite(chunk, encoding, cb);
+  };
+
+  (res as any).end = (chunk?: any, encoding?: any, cb?: any) => {
+    if (ended) {
+      return originalEnd(chunk, encoding, cb);
+    }
+    ended = true;
+    if (chunk != null && typeof chunk !== 'function') {
+      noteChunk(chunk);
+    }
+    injectFallbackIfSilent();
+    return originalEnd(chunk, encoding, cb);
+  };
+
   const finished = new Promise<void>((resolve, reject) => {
     const done = () => resolve();
     res.once('finish', done);
     res.once('close', done);
     res.once('error', reject);
   });
-  await Promise.resolve(handler(req, res));
-  if (!res.writableEnded) {
-    await finished;
+
+  try {
+    await Promise.resolve(handler(req, res));
+    if (!res.writableEnded) {
+      await finished;
+    }
+  } finally {
+    // Client abort can skip res.end(); still treat zero streamed text as silence.
+    if (!assistantText.trim() && !injectedFallback) {
+      injectFallbackIfSilent();
+    }
+    (res as any).write = originalWrite;
+    (res as any).end = originalEnd;
   }
+
+  return {
+    assistantText: assistantText.trim(),
+    injectedFallback,
+  };
 };
 
 @Controller('/copilot')
@@ -245,6 +405,7 @@ export class CopilotController {
 
     const detail = userMessageText(req);
     const threadId = threadIdFromRequest(req);
+    const fallbackText = silenceFallbackText(detail);
     // Silent / failed runs often never create a mastra_threads row (title gen
     // never runs), so the history sidebar stays empty even though recall works.
     // Ensure the thread exists up front for this org.
@@ -256,13 +417,47 @@ export class CopilotController {
       );
     }
 
+    // Stream tee is authoritative for silence — Mastra memory often lags or
+    // never writes on failed turns, which previously skipped refunds.
+    let streamResult: AgentStreamResult = {
+      assistantText: '',
+      injectedFallback: false,
+    };
+
     return this._coinsService.spend(
       organization.id,
       'message',
-      async () =>
-        awaitAgentHttpResponse(copilotRuntimeHandler, req, res),
+      async () => {
+        streamResult = await awaitAgentHttpResponse(
+          copilotRuntimeHandler,
+          req,
+          res,
+          fallbackText
+        );
+        if (
+          streamResult.injectedFallback &&
+          threadId &&
+          threadId !== 'new'
+        ) {
+          await this.persistFallbackAssistantMessage(
+            threadId,
+            organization.id,
+            streamResult.assistantText || fallbackText
+          );
+        }
+        return streamResult;
+      },
       detail,
       async () => {
+        // Prefer what was actually streamed to the client.
+        if (streamResult.injectedFallback) {
+          return true;
+        }
+        if (shouldRefundAgentMessage(streamResult.assistantText)) {
+          return true;
+        }
+        // Fallback: Prisma/Mastra recall when the stream tee missed frames
+        // (e.g. protobuf accept) but the turn still left no usable reply.
         if (!threadId || threadId === 'new') {
           return false;
         }
@@ -407,6 +602,38 @@ export class CopilotController {
       return assistantTextFromMessage({ content: parsed, role: 'user' });
     } catch {
       return content;
+    }
+  }
+
+  // Silent runs often never persist an assistant row; write one so reload
+  // shows the same fallback the SSE client received (when the socket was open).
+  private async persistFallbackAssistantMessage(
+    threadId: string,
+    resourceId: string,
+    text: string
+  ) {
+    const now = new Date();
+    const id = `fallback-${threadId.slice(0, 8)}-${now.getTime().toString(36)}`;
+    try {
+      await this._prisma.mastra_messages.create({
+        data: {
+          id,
+          thread_id: threadId,
+          resourceId,
+          role: 'assistant',
+          type: 'text',
+          content: JSON.stringify({
+            format: 2,
+            parts: [{ type: 'text', text }],
+          }),
+          createdAt: now,
+        },
+      });
+      await this.ensureAgentThread(threadId, resourceId, 'Chat');
+    } catch (err) {
+      Logger.warn(
+        `Could not persist silent-agent fallback message for ${threadId}: ${err}`
+      );
     }
   }
 
