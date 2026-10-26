@@ -76,10 +76,10 @@ const FeedCell: FC<{
       ref={setRefs}
       onClick={() => onOpen(item)}
       className={clsx(
-        'relative aspect-square rounded-[4px] overflow-hidden bg-newBgColorInner border border-newOutline group cursor-pointer',
+        'relative aspect-square overflow-hidden bg-newBgColorInner group cursor-pointer',
         item.canReorder && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40',
-        isOver && 'ring-2 ring-newTextColor'
+        isOver && 'ring-2 ring-inset ring-newTextColor'
       )}
       title={caption}
     >
@@ -90,23 +90,23 @@ const FeedCell: FC<{
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-[12px] text-textItemBlur px-[8px] text-center">
+        <div className="w-full h-full flex items-center justify-center text-[11px] text-textItemBlur px-[6px] text-center bg-newButter">
           {caption || t('no_media', 'No media')}
         </div>
       )}
 
       {item.isScheduled && (
-        <div className="absolute top-[6px] start-[6px] px-[6px] py-[2px] rounded-[6px] bg-black/70 text-white text-[10px] font-[700] uppercase tracking-wide">
+        <div className="absolute top-[5px] start-[5px] px-[5px] py-[1px] rounded-[4px] bg-black/70 text-white text-[9px] font-[700] uppercase tracking-wide">
           {t('scheduled', 'Scheduled')}
         </div>
       )}
 
       {item.isReel && (
-        <div className="absolute top-[6px] end-[6px] text-white drop-shadow">
+        <div className="absolute top-[5px] end-[5px] text-white drop-shadow">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="currentColor"
           >
@@ -116,11 +116,11 @@ const FeedCell: FC<{
       )}
 
       {item.canReorder && (
-        <div className="absolute bottom-[6px] end-[6px] opacity-0 group-hover:opacity-100 transition-opacity text-white drop-shadow">
+        <div className="absolute bottom-[5px] end-[5px] opacity-0 group-hover:opacity-100 transition-opacity text-white drop-shadow">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
+            width="12"
+            height="12"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -132,7 +132,7 @@ const FeedCell: FC<{
       )}
 
       {item.isScheduled && (
-        <div className="absolute bottom-[6px] start-[6px] px-[5px] py-[1px] rounded-[4px] bg-black/60 text-white text-[9px] font-[600]">
+        <div className="absolute bottom-[5px] start-[5px] px-[4px] py-[1px] rounded-[3px] bg-black/60 text-white text-[8px] font-[600]">
           {newDayjs(item.publishDate).format('MMM D, HH:mm')}
         </div>
       )}
@@ -271,6 +271,18 @@ export const FeedPreview: FC = () => {
     [fetch, integrations, modals, mutate, reloadCalendarView, t, toaster]
   );
 
+  const selectedChannel =
+    feedChannels.find((channel) => channel.id === integrationId) ||
+    feedChannels[0];
+  const profileName =
+    data?.integration?.name || selectedChannel?.name || '';
+  const profileHandle =
+    data?.integration?.profile || selectedChannel?.display || '';
+  const profilePicture =
+    data?.integration?.picture ||
+    selectedChannel?.picture ||
+    '/no-picture.jpg';
+
   if (!feedChannels.length) {
     return (
       <div className="flex-1 flex items-center justify-center text-textItemBlur text-[14px] p-[24px]">
@@ -283,74 +295,132 @@ export const FeedPreview: FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col gap-[16px] min-h-0">
-      <div className="flex flex-wrap items-center gap-[10px]">
-        <div className="text-[13px] font-heading font-[700] text-textItemBlur">
-          {t('feed_preview_channel', 'Channel')}
-        </div>
-        <div className="flex flex-wrap gap-[6px]">
-          {feedChannels.map((channel) => (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => onSelectChannel(channel.id)}
-              className={clsx(
-                'flex items-center gap-[8px] h-[34px] px-[10px] rounded-[10px] border-[1.5px] text-[13px] font-heading font-[700] transition-transform hover:-translate-y-[1px]',
-                integrationId === channel.id
-                  ? 'border-newTextColor bg-newTextColor text-newBgColorInner'
-                  : 'border-newOutline bg-newBgColorInner text-newTextColor shadow-hardSm'
-              )}
-            >
-              <img
-                src={channel.picture || '/no-picture.jpg'}
-                alt=""
-                className="w-[18px] h-[18px] rounded-full object-cover"
-              />
-              {channel.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="text-[12px] text-textItemBlur">
-        {t(
-          'feed_preview_hint',
-          'Drag scheduled posts to swap their times. Published posts stay fixed.'
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="flex-1 flex items-center justify-center text-textItemBlur text-[14px]">
-          {t('loading', 'Loading...')}
-        </div>
-      ) : error ? (
-        <div className="flex-1 flex items-center justify-center text-textItemBlur text-[14px]">
-          {t(
-            'feed_preview_load_failed',
-            'Could not load feed preview. Try reconnecting the channel.'
-          )}
-        </div>
-      ) : !data?.items?.length ? (
-        <div className="flex-1 flex items-center justify-center text-textItemBlur text-[14px]">
-          {t(
-            'feed_preview_empty',
-            'No posts yet. Schedule posts to preview your grid.'
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto pe-[4px] scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
-          <div className="grid grid-cols-3 gap-[2px] max-w-[720px]">
-            {data.items.map((item) => (
-              <FeedCell
-                key={item.id}
-                item={item}
-                onSwap={onSwap}
-                onOpen={onOpen}
-              />
+    <div className="flex-1 flex flex-col min-h-0 items-center overflow-y-auto scrollbar scrollbar-thumb-tableBorder scrollbar-track-transparent">
+      <div className="w-full max-w-[420px] flex flex-col gap-[12px] py-[8px] px-[12px] mobile:px-[4px]">
+        {feedChannels.length > 1 && (
+          <div className="flex flex-wrap justify-center gap-[6px]">
+            {feedChannels.map((channel) => (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => onSelectChannel(channel.id)}
+                className={clsx(
+                  'flex items-center gap-[8px] h-[32px] px-[10px] rounded-full border-[1.5px] text-[12px] font-heading font-[700] transition-transform hover:-translate-y-[1px]',
+                  integrationId === channel.id
+                    ? 'border-newTextColor bg-newTextColor text-newBgColorInner'
+                    : 'border-newOutline bg-newBgColorInner text-newTextColor shadow-hardSm'
+                )}
+              >
+                <img
+                  src={channel.picture || '/no-picture.jpg'}
+                  alt=""
+                  className="w-[16px] h-[16px] rounded-full object-cover"
+                />
+                {channel.name}
+              </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+
+        <p className="text-center text-[12px] text-textItemBlur">
+          {t(
+            'feed_preview_hint',
+            'Drag scheduled posts to swap their times. Published posts stay fixed.'
+          )}
+        </p>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-[360px] text-textItemBlur text-[14px]">
+            {t('loading', 'Loading...')}
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center min-h-[360px] text-textItemBlur text-[14px] text-center px-[16px]">
+            {t(
+              'feed_preview_load_failed',
+              'Could not load feed preview. Try reconnecting the channel.'
+            )}
+          </div>
+        ) : (
+          <div className="w-full rounded-[28px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hardSm overflow-hidden">
+            <div className="flex items-center gap-[12px] px-[16px] py-[14px] border-b border-newSep">
+              <img
+                src={profilePicture}
+                alt=""
+                className="w-[44px] h-[44px] rounded-full object-cover shrink-0"
+              />
+              <div className="min-w-0 flex flex-col leading-[1.25]">
+                <div className="font-heading font-[800] text-[15px] text-newTextColor truncate">
+                  {profileName}
+                </div>
+                {!!profileHandle && (
+                  <div className="text-[12px] text-textItemBlur truncate">
+                    @{String(profileHandle).replace(/^@/, '')}
+                  </div>
+                )}
+              </div>
+              <img
+                src={`/icons/platforms/${
+                  data?.integration?.providerIdentifier ||
+                  selectedChannel?.identifier ||
+                  'instagram'
+                }.png`}
+                alt=""
+                className="ms-auto w-[18px] h-[18px] rounded-[4px] shrink-0 opacity-80"
+              />
+            </div>
+
+            <div className="flex items-center justify-center gap-[28px] border-b border-newSep py-[10px]">
+              <div className="text-newTextColor">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                >
+                  <path
+                    d="M1.5 1.5h4v4h-4v-4zm0 9h4v4h-4v-4zm9-9h4v4h-4v-4zm0 9h4v4h-4v-4z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <div className="text-textItemBlur">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M5 3h10a2 2 0 0 1 2 2v2.17l3.41-1.7A1 1 0 0 1 22 6.38v11.24a1 1 0 0 1-1.59.81L17 16.83V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+                </svg>
+              </div>
+            </div>
+
+            {!data?.items?.length ? (
+              <div className="flex items-center justify-center min-h-[320px] text-textItemBlur text-[13px] text-center px-[20px]">
+                {t(
+                  'feed_preview_empty',
+                  'No posts yet. Schedule posts to preview your grid.'
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-[1px] bg-newSep">
+                {data.items.map((item) => (
+                  <FeedCell
+                    key={item.id}
+                    item={item}
+                    onSwap={onSwap}
+                    onOpen={onOpen}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
