@@ -28,6 +28,10 @@ import {
   createOpenAIClient,
 } from '@gitroom/nestjs-libraries/openai/ai.config';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
+import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { AllProvidersSettings } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/all.providers.settings';
 
 export type ChannelsContext = {
   integrations: string;
@@ -151,6 +155,76 @@ const isDraftRequest = (detail: string) => {
   );
 };
 
+const stripAgentMetaBlocks = (detail: string) =>
+  (detail || '')
+    .replace(/\[--integrations--\][\s\S]*?(?:\[--integrations--\]|$)/g, '')
+    .replace(/\[--Media--\][\s\S]*?(?:\[--Media--\]|$)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const extractDraftCaption = (detail: string) => {
+  const cleaned = stripAgentMetaBlocks(detail);
+  const patterns = [
+    /caption[:\s]+["“']?(.+?)["”']?(?=\.\s*Do not|\.\s*Please|$)/i,
+    /(?:with the text|text)[:\s]+["“']?(.+?)["”']?(?=\.\s*Do not|\.\s*Please|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+  }
+  const stripped = cleaned
+    .replace(/^.*?create a draft[^.]*?(?:caption|text)[:\s]*/i, '')
+    .replace(/\.\s*Do not (publish|schedule).*$/i, '')
+    .replace(/\.\s*Please ignore\.?$/i, '')
+    .trim();
+  return stripped || cleaned || 'Draft';
+};
+
+const escapeHtmlText = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const selectedIntegrationIdFromRequest = (
+  req: Request,
+  detail: string
+): string | undefined => {
+  const fromProps = req?.body?.body?.forwardedProps?.integrations;
+  if (Array.isArray(fromProps) && fromProps.length) {
+    const first = fromProps[0];
+    if (typeof first === 'string' && first.trim()) {
+      return first.trim();
+    }
+    if (first && typeof first === 'object' && typeof first.id === 'string') {
+      return first.id;
+    }
+  }
+
+  const block = detail.match(
+    /\[--integrations--\]([\s\S]*?)\[--integrations--\]/
+  )?.[1];
+  if (!block) {
+    return undefined;
+  }
+  try {
+    const jsonMatch = block.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      return undefined;
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (Array.isArray(parsed) && parsed[0]?.id) {
+      return String(parsed[0].id);
+    }
+  } catch {
+    // ignore malformed channel block
+  }
+  return undefined;
+};
+
 const silenceFallbackText = (detail: string) => {
   if (isCaptionOnlyRequest(detail)) {
     return (
@@ -238,8 +312,10 @@ const awaitAgentHttpResponse = async (
   handler: (req: Request, res: Response) => unknown,
   req: Request,
   res: Response,
-  fallbackText: string
+  fallbackText: string,
+  options?: { injectOnSilence?: boolean }
 ): Promise<AgentStreamResult> => {
+  const injectOnSilence = options?.injectOnSilence !== false;
   let assistantText = '';
   let injectedFallback = false;
   let ended = false;
@@ -266,7 +342,11 @@ const awaitAgentHttpResponse = async (
     if (injectedFallback || assistantText.trim()) {
       return;
     }
+    // Mark silence even when we skip SSE inject (draft recovery writes later).
     injectedFallback = true;
+    if (!injectOnSilence) {
+      return;
+    }
     const messageId = `fallback-${Date.now().toString(36)}`;
     const payload = encodeAgUiTextMessageSse(messageId, fallbackText);
     assistantText = fallbackText;
@@ -333,7 +413,9 @@ export class CopilotController {
     private _subscriptionService: SubscriptionService,
     private _mastraService: MastraService,
     private _coinsService: CoinsService,
-    private _prisma: PrismaService
+    private _prisma: PrismaService,
+    private _postsService: PostsService,
+    private _integrationService: IntegrationService
   ) {}
   @Post('/chat')
   chatAgent(
@@ -439,6 +521,7 @@ export class CopilotController {
       assistantText: '',
       injectedFallback: false,
     };
+    let recoveredUsefulReply = false;
 
     return this._coinsService.spend(
       organization.id,
@@ -448,23 +531,52 @@ export class CopilotController {
           copilotRuntimeHandler,
           req,
           res,
-          fallbackText
+          fallbackText,
+          // Draft asks: detect silence first, then recover the draft and
+          // persist the real success/error text (generic SSE would be wrong).
+          { injectOnSilence: !isDraftRequest(detail) }
         );
+
+        let replyText = streamResult.assistantText || fallbackText;
+
+        // Agent tool loops still go silent on draft asks. If we detected
+        // silence and the user clearly asked for a draft with a selected
+        // channel, create the draft here so Calendar + chat both succeed.
+        if (streamResult.injectedFallback && isDraftRequest(detail)) {
+          const recovery = await this.tryCreateSilentDraft(
+            organization.id,
+            detail,
+            req
+          );
+          if (recovery.ok) {
+            recoveredUsefulReply = true;
+            replyText = recovery.message;
+            streamResult.assistantText = recovery.message;
+          } else if (recovery.message) {
+            replyText = recovery.message;
+            streamResult.assistantText = recovery.message;
+          }
+        }
+
         if (
-          streamResult.injectedFallback &&
+          (streamResult.injectedFallback || recoveredUsefulReply) &&
           threadId &&
           threadId !== 'new'
         ) {
           await this.persistFallbackAssistantMessage(
             threadId,
             organization.id,
-            streamResult.assistantText || fallbackText
+            replyText
           );
         }
         return streamResult;
       },
       detail,
       async () => {
+        // A recovered draft + visible reply is a successful turn — keep the coin.
+        if (recoveredUsefulReply) {
+          return false;
+        }
         // Prefer what was actually streamed to the client.
         if (streamResult.injectedFallback) {
           return true;
@@ -560,25 +672,32 @@ export class CopilotController {
   ): Promise<any> {
     const mastra = await this._mastraService.mastra();
     const memory = await mastra.getAgent('postiz').getMemory();
+    const prismaMessages = await this.loadPrismaThreadMessages(
+      threadId,
+      organization.id
+    );
     try {
       const recalled = await memory.recall({
         resourceId: organization.id,
         threadId,
       });
-      if ((recalled?.messages || []).length > 0) {
-        const firstUser = (recalled.messages || []).find(
-          (m: any) => m?.role === 'user'
-        );
+      const merged = this.mergeRecallWithPrismaMessages(
+        recalled?.messages || [],
+        prismaMessages
+      );
+      if (merged.length > 0) {
+        const firstUser = merged.find((m: any) => m?.role === 'user');
         await this.ensureAgentThread(
           threadId,
           organization.id,
           titleFromUserText(assistantTextFromMessage(firstUser) || '')
         );
       }
-      return recalled;
+      return { ...(recalled || {}), messages: merged };
     } catch (err) {
       Logger.warn(`Could not recall messages for thread ${threadId}: ${err}`);
-      return { messages: [] };
+      // Silent-agent fallbacks are written to Prisma only — still return them.
+      return { messages: prismaMessages };
     }
   }
 
@@ -621,6 +740,160 @@ export class CopilotController {
     }
   }
 
+  private async loadPrismaThreadMessages(
+    threadId: string,
+    organizationId: string
+  ) {
+    try {
+      const rows = await this._prisma.mastra_messages.findMany({
+        where: {
+          thread_id: threadId,
+          OR: [{ resourceId: organizationId }, { resourceId: null }],
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          createdAt: true,
+        },
+      });
+      return rows.map((row) => {
+        let content: any = row.content;
+        try {
+          content = JSON.parse(row.content);
+        } catch {
+          content = { format: 2, parts: [{ type: 'text', text: row.content }] };
+        }
+        return {
+          id: row.id,
+          role: row.role,
+          content,
+          createdAt: row.createdAt,
+        };
+      });
+    } catch (err) {
+      Logger.warn(
+        `Could not load prisma messages for thread ${threadId}: ${err}`
+      );
+      return [] as any[];
+    }
+  }
+
+  private mergeRecallWithPrismaMessages(
+    recalled: any[],
+    prismaMessages: any[]
+  ) {
+    const byId = new Map<string, any>();
+    for (const message of recalled || []) {
+      if (message?.id) {
+        byId.set(String(message.id), message);
+      }
+    }
+    for (const message of prismaMessages || []) {
+      if (!message?.id) {
+        continue;
+      }
+      if (!byId.has(String(message.id))) {
+        byId.set(String(message.id), message);
+      }
+    }
+    const merged = Array.from(byId.values());
+    merged.sort((a, b) => {
+      const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aTime - bTime;
+    });
+    return merged;
+  }
+
+  // When the model burns tool steps and goes silent on a draft request,
+  // create the draft from the selected channel + caption in the prompt.
+  private async tryCreateSilentDraft(
+    organizationId: string,
+    detail: string,
+    req: Request
+  ): Promise<{ ok: boolean; message: string }> {
+    const integrationId = selectedIntegrationIdFromRequest(req, detail);
+    if (!integrationId) {
+      return {
+        ok: false,
+        message:
+          'I could not save a draft because no channel is selected. ' +
+          'Select a connected channel on the left, then ask me again to create the draft.',
+      };
+    }
+
+    try {
+      const integration = await this._integrationService.getIntegrationById(
+        organizationId,
+        integrationId
+      );
+      if (!integration) {
+        return {
+          ok: false,
+          message: `I could not find the selected channel (${integrationId}). Reconnect it under Add Channel, then try again.`,
+        };
+      }
+
+      const caption = extractDraftCaption(detail);
+      const html = `<p>${escapeHtmlText(caption)}</p>`;
+      const output = await this._postsService.createPost(
+        organizationId,
+        {
+          date: new Date().toISOString(),
+          type: 'draft',
+          shortLink: false,
+          tags: [],
+          posts: [
+            {
+              integration,
+              group: makeId(10),
+              settings: {
+                __type: integration.providerIdentifier,
+              } as AllProvidersSettings,
+              value: [
+                {
+                  content: html,
+                  id: makeId(10),
+                  delay: 0,
+                  image: [],
+                },
+              ],
+            },
+          ],
+        },
+        'MCP'
+      );
+
+      const postId = output?.[0]?.postId;
+      const previewUrl = postId
+        ? `${process.env.FRONTEND_URL}/p/${postId}?share=true`
+        : '';
+      const channelLabel =
+        integration.name || integration.providerIdentifier || 'channel';
+      return {
+        ok: true,
+        message:
+          `Saved your ${channelLabel} draft to Calendar → Draft` +
+          (previewUrl ? `.\n\nPreview: ${previewUrl}` : '.') +
+          `\n\nCaption: "${caption}"`,
+      };
+    } catch (err) {
+      const message =
+        (err as any)?.response?.message ||
+        (err instanceof Error ? err.message : String(err));
+      Logger.warn(`Silent draft recovery failed: ${message}`);
+      return {
+        ok: false,
+        message:
+          typeof message === 'string' && message.trim()
+            ? `I could not save that draft: ${message}`
+            : 'I could not save that draft. Please try again with a connected channel selected.',
+      };
+    }
+  }
+
   // Silent runs often never persist an assistant row; write one so reload
   // shows the same fallback the SSE client received (when the socket was open).
   private async persistFallbackAssistantMessage(
@@ -641,6 +914,7 @@ export class CopilotController {
           content: JSON.stringify({
             format: 2,
             parts: [{ type: 'text', text }],
+            content: text,
           }),
           createdAt: now,
         },
