@@ -229,7 +229,31 @@ export class CommentRepliesService {
     integration: Integration,
     incoming: { commentId: string; text: string; releaseId: string }
   ) {
-    return this.answer(integration, incoming, true);
+    // Reel/video webhooks use the feed story id; older rows may only store the
+    // bare video id. Resolve every known shape before matching the Postiz post.
+    let releaseId = incoming.releaseId;
+    try {
+      const provider = this._integrationManager.getSocialIntegration(
+        'facebook'
+      ) as FacebookProvider;
+      const candidates = await this.withRefresh(integration, (token) =>
+        provider.webhookPostIdCandidates(token, incoming.releaseId)
+      );
+      for (const candidate of candidates) {
+        const post = await this._repository.findFacebookPost(
+          integration.organizationId,
+          integration.id,
+          candidate
+        );
+        if (post) {
+          releaseId = candidate;
+          break;
+        }
+      }
+    } catch {
+      // fall through with the webhook post_id
+    }
+    return this.answer(integration, { ...incoming, releaseId }, true);
   }
 
   private async answer(

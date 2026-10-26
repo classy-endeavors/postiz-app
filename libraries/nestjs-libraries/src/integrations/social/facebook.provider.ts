@@ -572,6 +572,60 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     return String(body.id);
   }
 
+  // Feed webhooks send `{pageId}_{storyPostId}` for reel comments, while we often
+  // store the bare video id (or the opposite). Collect every id shape we might have
+  // saved so comment auto-reply can find the Postiz post.
+  async webhookPostIdCandidates(
+    token: string,
+    postId: string
+  ): Promise<string[]> {
+    const out = new Set<string>();
+    const add = (value?: string | null) => {
+      if (value) {
+        out.add(String(value));
+      }
+    };
+    add(postId);
+    const pageId = postId.includes('_') ? postId.split('_')[0] : '';
+    const storyId = postId.includes('_') ? postId.split('_').pop()! : postId;
+    add(storyId);
+
+    try {
+      const attached = await (
+        await fetch(
+          `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(
+            postId
+          )}?fields=attachments{target{id}}&access_token=${encodeURIComponent(
+            token
+          )}`
+        )
+      ).json();
+      add(attached?.attachments?.data?.[0]?.target?.id);
+    } catch {
+      // ignore - candidate list still has the raw webhook ids
+    }
+
+    try {
+      const videoMeta = await (
+        await fetch(
+          `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(
+            storyId
+          )}?fields=post_id&access_token=${encodeURIComponent(token)}`
+        )
+      ).json();
+      if (videoMeta?.post_id) {
+        add(String(videoMeta.post_id));
+        if (pageId) {
+          add(`${pageId}_${videoMeta.post_id}`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return [...out];
+  }
+
   // Single, read-only status check of a story video - the polling loop that
   // used to live inside post() is now driven by the post workflow.
   private async fbVideoStatus(videoId: string, accessToken: string) {
@@ -897,7 +951,21 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       ).json();
 
       finalUrl = 'https://www.facebook.com/reel/' + videoId;
+      // Prefer `{pageId}_{storyPostId}` when Meta exposes it - feed comment
+      // webhooks use that id, not the bare video id.
       finalId = videoId;
+      try {
+        const videoMeta = await (
+          await fetch(
+            `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${videoId}?fields=post_id&access_token=${accessToken}`
+          )
+        ).json();
+        if (videoMeta?.post_id) {
+          finalId = `${id}_${videoMeta.post_id}`;
+        }
+      } catch {
+        // keep bare video id
+      }
     } else {
       const uploadPhotos = !firstPost?.media?.length
         ? []
