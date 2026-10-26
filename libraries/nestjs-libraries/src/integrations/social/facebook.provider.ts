@@ -951,21 +951,9 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       ).json();
 
       finalUrl = 'https://www.facebook.com/reel/' + videoId;
-      // Prefer `{pageId}_{storyPostId}` when Meta exposes it - feed comment
-      // webhooks use that id, not the bare video id.
+      // Keep the bare video id. Composer comments and video insights use it;
+      // feed webhook story ids are resolved in webhookPostIdCandidates().
       finalId = videoId;
-      try {
-        const videoMeta = await (
-          await fetch(
-            `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${videoId}?fields=post_id&access_token=${accessToken}`
-          )
-        ).json();
-        if (videoMeta?.post_id) {
-          finalId = `${id}_${videoMeta.post_id}`;
-        }
-      } catch {
-        // keep bare video id
-      }
     } else {
       const uploadPhotos = !firstPost?.media?.length
         ? []
@@ -1091,6 +1079,35 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     ];
   }
 
+  // Feed story ids (`{pageId}_{storyPostId}`) are not always valid targets for
+  // `/{id}/comments` on reels. Prefer the video/attachment target when present.
+  private async commentTargetId(
+    accessToken: string,
+    postId: string
+  ): Promise<string> {
+    if (!postId.includes('_')) {
+      return postId;
+    }
+    try {
+      const attached = await (
+        await fetch(
+          `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${encodeURIComponent(
+            postId
+          )}?fields=attachments{target{id}}&access_token=${encodeURIComponent(
+            accessToken
+          )}`
+        )
+      ).json();
+      const targetId = attached?.attachments?.data?.[0]?.target?.id;
+      if (targetId) {
+        return String(targetId);
+      }
+    } catch {
+      // fall through to the original id
+    }
+    return postId;
+  }
+
   async comment(
     id: string,
     postId: string,
@@ -1100,7 +1117,11 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     integration: Integration
   ): Promise<PostResponse[]> {
     const [commentPost] = postDetails;
-    const replyToId = lastCommentId || postId;
+    // Reels may have been saved as `{pageId}_{storyPostId}`; Meta's comments
+    // edge for videos expects the bare video id (attachment target).
+    const replyToId =
+      lastCommentId ||
+      (await this.commentTargetId(accessToken, postId));
 
     const data = await (
       await this.fetch(
