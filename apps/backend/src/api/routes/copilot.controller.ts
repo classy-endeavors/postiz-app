@@ -142,12 +142,28 @@ const isCaptionOnlyRequest = (detail: string) => {
   );
 };
 
+const isDraftRequest = (detail: string) => {
+  const text = (detail || '').toLowerCase();
+  return (
+    /\bdraft\b/.test(text) ||
+    /do not (publish|schedule)/.test(text) ||
+    /don't (publish|schedule)/.test(text)
+  );
+};
+
 const silenceFallbackText = (detail: string) => {
   if (isCaptionOnlyRequest(detail)) {
     return (
       'I hit a temporary error before I could send that caption. ' +
       'Writing or rewriting captions works for any platform style even when that ' +
       'channel is not selected or connected — please send your caption request again.'
+    );
+  }
+  if (isDraftRequest(detail)) {
+    return (
+      'I hit a temporary error before I could save that draft. ' +
+      'Please select a connected channel on the left and ask me again to create the draft ' +
+      '(type draft — it will not publish). Your coin for this failed turn was refunded.'
     );
   }
   return (
