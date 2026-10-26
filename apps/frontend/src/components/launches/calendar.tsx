@@ -66,6 +66,7 @@ import {
 } from '@gitroom/frontend/components/launches/direct.publish.details';
 import { Button } from '@gitroom/react/form/button';
 import { Filters } from '@gitroom/frontend/components/launches/filters';
+import { FeedPreview } from '@gitroom/frontend/components/launches/feed.preview';
 
 // Extend dayjs with necessary plugins
 extend(isSameOrAfter);
@@ -699,7 +700,9 @@ export const Calendar = () => {
   const { display } = useCalendar();
   return (
     <>
-      {display === 'list' ? (
+      {display === 'preview' ? (
+        <FeedPreview />
+      ) : display === 'list' ? (
         <ListView />
       ) : display === 'day' ? (
         <DayView />

@@ -193,6 +193,7 @@ export class PostsRepository {
         releaseURL: true,
         releaseId: true,
         state: true,
+        error: true,
         intervalInDays: true,
         group: true,
         creationMethod: true,
@@ -1490,6 +1491,51 @@ export class PostsRepository {
             providerIdentifier: true,
             picture: true,
             type: true,
+          },
+        },
+      },
+    });
+  }
+
+  /** Scheduled + published roots for one channel (visual feed planner). */
+  getFeedPreviewPosts(orgId: string, integrationId: string) {
+    const now = dayjs.utc().toDate();
+    return this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        deletedAt: null,
+        parentPostId: null,
+        OR: [
+          {
+            state: { in: [State.QUEUE, State.DRAFT] },
+            publishDate: { gte: now },
+          },
+          {
+            state: State.PUBLISHED,
+          },
+        ],
+      },
+      orderBy: {
+        publishDate: 'desc',
+      },
+      take: 120,
+      select: {
+        id: true,
+        content: true,
+        image: true,
+        publishDate: true,
+        releaseURL: true,
+        releaseId: true,
+        state: true,
+        settings: true,
+        group: true,
+        integration: {
+          select: {
+            id: true,
+            providerIdentifier: true,
+            name: true,
+            picture: true,
           },
         },
       },

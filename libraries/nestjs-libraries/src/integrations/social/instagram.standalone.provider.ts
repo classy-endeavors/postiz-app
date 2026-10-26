@@ -284,4 +284,24 @@ export class InstagramStandaloneProvider
       'graph.instagram.com'
     );
   }
+
+  feedPreviewPost(
+    settings: unknown,
+    media: Array<{ path?: string; thumbnail?: string }>
+  ) {
+    return instagramProvider.feedPreviewPost(settings, media);
+  }
+
+  async feedMedia(
+    id: string,
+    accessToken: string,
+    options?: { limit?: number }
+  ) {
+    return instagramProvider.feedMedia(
+      id,
+      accessToken,
+      options,
+      'graph.instagram.com'
+    );
+  }
 }

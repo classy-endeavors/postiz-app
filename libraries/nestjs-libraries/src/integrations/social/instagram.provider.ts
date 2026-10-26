@@ -1,6 +1,7 @@
 import {
   AnalyticsData,
   AuthTokenDetails,
+  FeedMediaItem,
   PendingCheckResponse,
   PostDetails,
   PostResponse,
@@ -1286,6 +1287,87 @@ export class InstagramProvider
       duration: audio.duration_in_ms || 0,
       previewUrl: audio.download_url || '',
     }));
+  }
+
+  feedPreviewPost(
+    settings: unknown,
+    media: Array<{ path?: string; thumbnail?: string }>
+  ): { include: boolean; isReel: boolean } {
+    const postType =
+      settings && typeof settings === 'object'
+        ? (settings as { post_type?: string }).post_type
+        : undefined;
+    if (postType === 'story') {
+      return { include: false, isReel: false };
+    }
+    const first = media?.[0];
+    const isReel = !!(first?.path && hasExtension(first.path, 'mp4'));
+    return { include: true, isReel };
+  }
+
+  async feedMedia(
+    id: string,
+    token: string,
+    options?: { limit?: number },
+    type = 'graph.facebook.com'
+  ): Promise<FeedMediaItem[]> {
+    const [accessToken] = token.split('___');
+    const limit = Math.min(Math.max(options?.limit || 60, 1), 60);
+    // media_product_type is Facebook-Login only; Instagram Login rejects it.
+    const withProductType = type === 'graph.facebook.com';
+    const fields = withProductType
+      ? 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp'
+      : 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
+    const items: FeedMediaItem[] = [];
+    let url: string | null =
+      `https://${type}/${META_GRAPH_API_VERSION}/${id}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+
+    while (url && items.length < limit) {
+      const page: {
+        data?: Array<{
+          id: string;
+          caption?: string;
+          media_type?: string;
+          media_product_type?: string;
+          media_url?: string;
+          thumbnail_url?: string;
+          permalink?: string;
+          timestamp?: string;
+        }>;
+        paging?: { next?: string };
+      } = await (await this.fetch(url)).json();
+
+      for (const media of page.data || []) {
+        if (media.media_product_type === 'STORY') {
+          continue;
+        }
+        const isReel =
+          media.media_product_type === 'REELS' ||
+          (!media.media_product_type && media.media_type === 'VIDEO');
+        const thumbnailUrl =
+          media.thumbnail_url || media.media_url || '';
+        if (!thumbnailUrl) {
+          continue;
+        }
+        items.push({
+          id: media.id,
+          caption: media.caption,
+          mediaType: (media.media_type as FeedMediaItem['mediaType']) || 'IMAGE',
+          mediaProductType: media.media_product_type,
+          thumbnailUrl,
+          permalink: media.permalink,
+          timestamp: media.timestamp || new Date().toISOString(),
+          isReel,
+        });
+        if (items.length >= limit) {
+          break;
+        }
+      }
+
+      url = page.paging?.next || null;
+    }
+
+    return items;
   }
 
   async postAnalytics(

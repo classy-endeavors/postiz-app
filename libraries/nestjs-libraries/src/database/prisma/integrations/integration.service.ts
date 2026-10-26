@@ -9,6 +9,7 @@ import { IntegrationRepository } from '@gitroom/nestjs-libraries/database/prisma
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import {
   AnalyticsData,
+  FeedMediaItem,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { Integration, Organization } from '@prisma/client';
@@ -624,6 +625,81 @@ export class IntegrationService {
     }
 
     return [];
+  }
+
+  async getFeedMedia(
+    orgId: string,
+    integration: string,
+    forceRefresh = false
+  ): Promise<FeedMediaItem[]> {
+    const getIntegration = await this.getIntegrationById(orgId, integration);
+
+    if (!getIntegration || getIntegration.type !== 'social') {
+      return [];
+    }
+
+    const integrationProvider = this._integrationManager.getSocialIntegration(
+      getIntegration.providerIdentifier
+    );
+
+    if (!integrationProvider.feedMedia) {
+      return [];
+    }
+
+    if (
+      dayjs(getIntegration?.tokenExpiration).isBefore(dayjs()) ||
+      forceRefresh
+    ) {
+      const data = await this._refreshIntegrationService.refresh(
+        getIntegration
+      );
+      if (!data) {
+        return [];
+      }
+
+      const { accessToken } = data;
+
+      if (accessToken) {
+        getIntegration.token = accessToken;
+
+        if (integrationProvider.refreshWait) {
+          await timer(10000);
+        }
+      } else {
+        await this.disconnectChannel(orgId, getIntegration);
+        return [];
+      }
+    }
+
+    const cacheKey = `feed-media:${orgId}:${integration}`;
+    const cached = await ioRedis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    try {
+      const media = await integrationProvider.feedMedia(
+        getIntegration.internalId,
+        getIntegration.token,
+        { limit: 60 }
+      );
+      if (media.length) {
+        await ioRedis.set(
+          cacheKey,
+          JSON.stringify(media),
+          'EX',
+          !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
+            ? 60
+            : 900
+        );
+      }
+      return media;
+    } catch (e) {
+      if (e instanceof RefreshToken) {
+        return this.getFeedMedia(orgId, integration, true);
+      }
+      throw e;
+    }
   }
 
   customers(orgId: string) {

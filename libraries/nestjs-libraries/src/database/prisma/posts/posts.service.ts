@@ -379,6 +379,250 @@ export class PostsService {
     });
   }
 
+  async getFeedPreview(orgId: string, integrationId: string) {
+    const integration = await this._integrationService.getIntegrationById(
+      orgId,
+      integrationId
+    );
+    if (!integration || integration.deletedAt) {
+      throw new NotFoundException('Integration not found');
+    }
+
+    const provider = this._integrationManager.getSocialIntegration(
+      integration.providerIdentifier
+    );
+    if (!provider.feedMedia) {
+      throw new BadRequestException(
+        'This channel does not support feed preview'
+      );
+    }
+
+    const [posts, platformMedia] = await Promise.all([
+      this._postRepository.getFeedPreviewPosts(orgId, integrationId),
+      this._integrationService.getFeedMedia(orgId, integrationId),
+    ]);
+
+    const classify = (post: { image: string | null; settings: string | null }) => {
+      let images: Array<{ path?: string; thumbnail?: string }> = [];
+      let settings: unknown = {};
+      try {
+        images = JSON.parse(post.image || '[]');
+      } catch {
+        images = [];
+      }
+      try {
+        settings = JSON.parse(post.settings || '{}');
+      } catch {
+        settings = {};
+      }
+      return (
+        provider.feedPreviewPost?.(settings, images) || {
+          include: true,
+          isReel: false,
+        }
+      );
+    };
+
+    const feedPosts = posts.filter((post) => classify(post).include);
+
+    const scheduled = feedPosts.filter(
+      (p) => p.state === State.QUEUE || p.state === State.DRAFT
+    );
+    const publishedLocal = feedPosts.filter((p) => p.state === State.PUBLISHED);
+    const platformIds = new Set(platformMedia.map((m) => m.id));
+
+    const scheduledItems = await Promise.all(
+      scheduled.map(async (post) => {
+        const media = await this.resolveFeedThumbnail(post, classify(post).isReel);
+        return {
+          id: post.id,
+          postId: post.id,
+          group: post.group,
+          source: 'postiz' as const,
+          releaseId: post.releaseId,
+          thumbnailUrl: media.thumbnailUrl,
+          caption: post.content,
+          publishDate: post.publishDate.toISOString(),
+          state: post.state,
+          isReel: media.isReel,
+          isScheduled: true,
+          canReorder: true,
+          permalink: post.releaseURL || undefined,
+        };
+      })
+    );
+
+    scheduledItems.sort((a, b) =>
+      dayjs(b.publishDate).diff(dayjs(a.publishDate))
+    );
+
+    const platformItems = platformMedia.map((media) => {
+      const matched = publishedLocal.find((p) => p.releaseId === media.id);
+      return {
+        id: matched?.id || `platform:${media.id}`,
+        postId: matched?.id,
+        group: matched?.group,
+        source: matched ? ('postiz' as const) : ('platform' as const),
+        releaseId: media.id,
+        thumbnailUrl: media.thumbnailUrl,
+        caption: media.caption || matched?.content || '',
+        publishDate: media.timestamp,
+        state: 'PUBLISHED' as const,
+        isReel: media.isReel,
+        isScheduled: false,
+        canReorder: false,
+        permalink: media.permalink,
+      };
+    });
+
+    // Local publishes not yet returned by the platform API (brief lag).
+    const unmatchedPublished = await Promise.all(
+      publishedLocal
+        .filter((p) => !p.releaseId || !platformIds.has(p.releaseId))
+        .map(async (post) => {
+          const media = await this.resolveFeedThumbnail(
+            post,
+            classify(post).isReel
+          );
+          return {
+            id: post.id,
+            postId: post.id,
+            group: post.group,
+            source: 'postiz' as const,
+            releaseId: post.releaseId,
+            thumbnailUrl: media.thumbnailUrl,
+            caption: post.content,
+            publishDate: post.publishDate.toISOString(),
+            state: post.state,
+            isReel: media.isReel,
+            isScheduled: false,
+            canReorder: false,
+            permalink: post.releaseURL || undefined,
+          };
+        })
+    );
+
+    unmatchedPublished.sort((a, b) =>
+      dayjs(b.publishDate).diff(dayjs(a.publishDate))
+    );
+
+    return {
+      integration: {
+        id: integration.id,
+        name: integration.name,
+        picture: await this._integrationService.signPictureUrl(
+          integration.picture || ''
+        ),
+        providerIdentifier: integration.providerIdentifier,
+        profile: integration.profile,
+      },
+      items: [...scheduledItems, ...unmatchedPublished, ...platformItems].slice(
+        0,
+        90
+      ),
+    };
+  }
+
+  private async resolveFeedThumbnail(
+    post: {
+      id: string;
+      image: string | null;
+      settings: string | null;
+    },
+    isReel: boolean
+  ): Promise<{ thumbnailUrl: string; isReel: boolean }> {
+    let images: Array<{ path?: string; thumbnail?: string; name?: string; id?: string }> =
+      [];
+    try {
+      images = JSON.parse(post.image || '[]');
+    } catch {
+      images = [];
+    }
+
+    const first = images[0];
+    if (!first?.path && !first?.thumbnail) {
+      return { thumbnailUrl: '', isReel };
+    }
+
+    const preferThumb = isReel || !!(first?.path && hasExtension(first.path, 'mp4'));
+    const candidate = preferThumb
+      ? { ...first, path: first.thumbnail || first.path }
+      : first;
+
+    const signed = await this.signMediaForDisplay([candidate]);
+    return {
+      thumbnailUrl: signed?.[0]?.path || candidate.path || '',
+      isReel,
+    };
+  }
+
+  /** Sign media URLs for display without persisting Post.image. */
+  private async signMediaForDisplay(
+    imagesList: Array<{ path?: string; thumbnail?: string; name?: string; id?: string; url?: string }>
+  ) {
+    if (!this.storage.signDownloadUrl) {
+      return imagesList;
+    }
+
+    return Promise.all(
+      imagesList.map(async (m) => {
+        const objectKey = await this.resolvePublishObjectKey(m);
+        if (!objectKey) {
+          return m;
+        }
+        const signed = await this.storage.signDownloadUrl!(objectKey);
+        return { ...m, name: m.name || objectKey, url: signed, path: signed };
+      })
+    );
+  }
+
+  async swapFeedPreviewDates(
+    orgId: string,
+    sourceId: string,
+    targetId: string
+  ) {
+    if (sourceId === targetId) {
+      return { ok: true };
+    }
+
+    const [source, target] = await Promise.all([
+      this._postRepository.getPostById(sourceId, orgId),
+      this._postRepository.getPostById(targetId, orgId),
+    ]);
+
+    if (!source || !target) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (source.integrationId !== target.integrationId) {
+      throw new BadRequestException('Posts must belong to the same channel');
+    }
+
+    const provider = this._integrationManager.getSocialIntegration(
+      source.integration.providerIdentifier
+    );
+    if (!provider.feedMedia) {
+      throw new BadRequestException(
+        'This channel does not support feed preview reorder'
+      );
+    }
+
+    if (
+      (source.state !== State.QUEUE && source.state !== State.DRAFT) ||
+      (target.state !== State.QUEUE && target.state !== State.DRAFT)
+    ) {
+      throw new BadRequestException('Only scheduled posts can be reordered');
+    }
+
+    const sourceDate = dayjs.utc(source.publishDate).toISOString();
+    const targetDate = dayjs.utc(target.publishDate).toISOString();
+
+    await this.changeDate(orgId, sourceId, targetDate, 'schedule');
+    await this.changeDate(orgId, targetId, sourceDate, 'schedule');
+
+    return { ok: true };
+  }
+
   private async withSignedIntegrationPictures<
     T extends { integration?: { picture?: string | null } | null }
   >(posts: T[]): Promise<T[]> {

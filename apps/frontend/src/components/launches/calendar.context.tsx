@@ -58,7 +58,7 @@ export const CalendarContext = createContext({
   setFilters: (filters: {
     startDate: string;
     endDate: string;
-    display: 'week' | 'month' | 'day' | 'list';
+    display: 'week' | 'month' | 'day' | 'list' | 'preview';
     customer: string | null;
   }) => {
     /** empty **/
@@ -104,6 +104,7 @@ export interface Integrations {
   changeProfilePicture: boolean;
   additionalSettings: string;
   changeNickName: boolean;
+  feedPreview?: boolean;
   time: {
     time: number;
   }[];
@@ -229,7 +230,9 @@ export const CalendarWeekProvider: FC<{
     isLoading: calendarIsLoading,
     mutate: mutateCalendar,
   } = useSWR(
-    filters.display !== 'list' ? `/posts-${params}` : null,
+    filters.display !== 'list' && filters.display !== 'preview'
+      ? `/posts-${params}`
+      : null,
     loadData,
     {
       refreshInterval: 3600000,
@@ -284,7 +287,7 @@ export const CalendarWeekProvider: FC<{
     (newFilters: {
       startDate: string;
       endDate: string;
-      display: 'week' | 'month' | 'day' | 'list';
+      display: 'week' | 'month' | 'day' | 'list' | 'preview';
       customer: string | null;
     }) => {
       setDisplaySaved(newFilters.display);
@@ -370,7 +373,12 @@ export const CalendarWeekProvider: FC<{
   }, [mutateCalendar, mutateList, swr]);
 
   // Determine loading state based on current view
-  const loading = filters.display === 'list' ? listIsLoading : calendarIsLoading;
+  const loading =
+    filters.display === 'list'
+      ? listIsLoading
+      : filters.display === 'preview'
+      ? false
+      : calendarIsLoading;
 
   return (
     <CalendarContext.Provider

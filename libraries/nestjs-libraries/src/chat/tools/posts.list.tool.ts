@@ -39,6 +39,7 @@ List the organization's posts scheduled to be published between two dates (the s
 Returns every post in the window whatever its state (scheduled, draft, published, errored).
 "startDate" and "endDate" are required (UTC) - to list all upcoming posts, pass a wide window (for example from now to a year ahead).
 Each item has an "id", its publish date, state, content, channel and current provider settings.
+When state is ERROR, "error" contains the failure reason — always show that message to the user, not only that the post failed.
 Posts cannot be deleted through the AI Zyntra tools - if the user wants to delete a post, tell them to do it themselves in the AI Zyntra app; never offer to delete a post.
 `,
       inputSchema: z.object({
@@ -62,6 +63,12 @@ Posts cannot be deleted through the AI Zyntra tools - if the user wants to delet
                 .describe('The post id'),
               publishDate: z.string().describe('UTC time'),
               state: z.string().describe('QUEUE, DRAFT, PUBLISHED or ERROR'),
+              error: z
+                .string()
+                .optional()
+                .describe(
+                  'Failure reason when state is ERROR; show this to the user'
+                ),
               content: z.string(),
               settings: z
                 .any()
@@ -94,6 +101,7 @@ Posts cannot be deleted through the AI Zyntra tools - if the user wants to delet
                 .utc()
                 .format('YYYY-MM-DDTHH:mm:ss'),
               state: p.state,
+              ...(p.error ? { error: p.error } : {}),
               content: p.content || '',
               settings: parseSettings(p.settings),
               group: p.group,
