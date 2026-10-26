@@ -246,6 +246,9 @@ export const FeedPreview: FC = () => {
           <ExistingDataContextProvider value={data}>
             <AddEditModal
               allIntegrations={integrations.map((p) => ({ ...p }))}
+              reopenModal={() => {
+                void onOpen(item);
+              }}
               mutate={() => {
                 mutate();
                 reloadCalendarView();
