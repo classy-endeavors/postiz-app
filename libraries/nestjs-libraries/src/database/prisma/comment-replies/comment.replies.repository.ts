@@ -220,9 +220,11 @@ export class CommentRepliesRepository {
     });
   }
 
-  // Facebook feed webhooks send `{pageId}_{storyId}` while video/reel posts in
-  // our DB may store only the bare video id. Match exact id or either side's
-  // trailing story id so auto-replies still find the published post.
+  // Facebook feed webhooks send `{pageId}_{storyPostId}` for reel comments.
+  // Video publish may store the bare video id (or `{pageId}_{storyPostId}` on
+  // newer publishes). Match exact id or either side's trailing id so
+  // auto-replies still find the published post. Callers may also resolve
+  // video↔story via Graph before calling this.
   async findFacebookPost(
     organizationId: string,
     integrationId: string,
