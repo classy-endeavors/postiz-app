@@ -18,6 +18,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
 const allowedIntegrations = [
+  'facebook',
   'tiktok',
   'youtube',
   'instagram-standalone',
