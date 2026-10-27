@@ -38,6 +38,9 @@ import { ExistingDataContextProvider } from '@gitroom/frontend/components/launch
 import { useDrag, useDrop } from 'react-dnd';
 import { Integration, Post, State, Tags } from '@prisma/client';
 import { useAddProvider } from '@gitroom/frontend/components/launches/add.provider.component';
+import { SetSelectionModal } from '@gitroom/frontend/components/launches/set.selection.modal';
+import { useCreatePost } from '@gitroom/frontend/components/launches/new.post';
+import { HelpDocsLink } from '@gitroom/frontend/components/onboarding/getting-started';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
@@ -620,6 +623,9 @@ export const ListView = () => {
   const t = useT();
   const user = useUser();
   const { integrations, loading, listPosts, listState } = useCalendar();
+  const addChannel = useAddProvider();
+  const createPost = useCreatePost();
+  const hasChannels = integrations.some((integration) => !integration.disabled);
   const emptyMessage =
     listState === 'scheduled'
       ? t('no_upcoming_posts', 'No upcoming posts scheduled')
@@ -628,6 +634,31 @@ export const ListView = () => {
       : listState === 'published'
       ? t('no_published_posts', 'No published posts')
       : t('no_posts', 'No posts');
+  const emptyHint =
+    listState === 'scheduled'
+      ? t(
+          'no_upcoming_posts_hint',
+          'Schedule a post from the calendar or Create Post to see it here.'
+        )
+      : listState === 'draft'
+      ? t(
+          'no_draft_posts_hint',
+          'Save a draft while editing a post and it will show up in this list.'
+        )
+      : listState === 'published'
+      ? t(
+          'no_published_posts_hint',
+          'Published posts from your channels will appear here once they go live.'
+        )
+      : hasChannels
+      ? t(
+          'no_posts_hint',
+          'Create your first post to start filling the calendar and this list.'
+        )
+      : t(
+          'no_posts_connect_hint',
+          'Connect a social channel first, then schedule or publish a post.'
+        );
 
   // Use shared post actions hook
   const { editPost, deletePost, copyDebugJson, openStatistics, openMissingRelease } = usePostActions();
@@ -655,8 +686,50 @@ export const ListView = () => {
 
   if (listPosts.length === 0) {
     return (
-      <div className="flex flex-col flex-1 items-center justify-center">
-        <div className="text-textColor text-[16px]">{emptyMessage}</div>
+      <div className="flex flex-col flex-1 items-center justify-center px-[24px] py-[48px] gap-[16px] text-center">
+        <div className="w-[48px] h-[48px] rounded-full bg-boxFocused flex items-center justify-center text-textItemFocused">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+          </svg>
+        </div>
+        <div>
+          <div className="font-heading font-[800] text-[18px] text-newTextColor">
+            {emptyMessage}
+          </div>
+          <div className="text-[14px] text-textItemBlur mt-[6px] max-w-[420px]">
+            {emptyHint}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-[8px]">
+          {hasChannels ? (
+            <button
+              type="button"
+              onClick={createPost}
+              className="h-[40px] px-[16px] rounded-[10px] bg-btnPrimary text-white text-[14px] font-[700]"
+            >
+              {t('create_new_post', 'Create Post')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={addChannel}
+              className="h-[40px] px-[16px] rounded-[10px] bg-btnPrimary text-white text-[14px] font-[700]"
+            >
+              {t('add_channel', 'Add Channel')}
+            </button>
+          )}
+          <HelpDocsLink className="h-[40px] px-[14px] rounded-[10px] border border-newOutline bg-newBgColorInner no-underline hover:no-underline hover:bg-boxHover" />
+        </div>
       </div>
     );
   }
@@ -2023,44 +2096,3 @@ export const DeletePost = () => {
   );
 };
 
-export const SetSelectionModal: FC<{
-  sets: any[];
-  onSelect: (set: any) => void;
-  onContinueWithoutSet: () => void;
-}> = ({ sets, onSelect, onContinueWithoutSet }) => {
-  const t = useT();
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="text-lg font-medium">
-        {t('choose_set_or_continue', 'Choose a set or continue without one')}
-      </div>
-
-      <div className="flex flex-col gap-2 max-h-60 overflow-y-auto">
-        {sets.map((set) => (
-          <div
-            key={set.id}
-            onClick={() => onSelect(set)}
-            className="p-3 border border-tableBorder rounded-lg cursor-pointer hover:transition-colors"
-          >
-            <div className="font-medium">{set.name}</div>
-            {set.description && (
-              <div className="text-sm text-gray-400 mt-1">
-                {set.description}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-2 pt-2 border-t border-tableBorder">
-        <button
-          onClick={onContinueWithoutSet}
-          className="flex-1 px-4 py-2 text-textColor rounded-lg hover:transition-colors"
-        >
-          {t('continue_without_set', 'Continue without set')}
-        </button>
-      </div>
-    </div>
-  );
-};

@@ -4,17 +4,16 @@ import dayjs from 'dayjs';
 import { useCalendar } from '@gitroom/frontend/components/launches/calendar.context';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { SetSelectionModal } from '@gitroom/frontend/components/launches/calendar';
+import { SetSelectionModal } from '@gitroom/frontend/components/launches/set.selection.modal';
 import { AddEditModal } from '@gitroom/frontend/components/new-launch/add.edit.modal';
-import { ModalWrapperComponent } from '@gitroom/frontend/components/new-launch/modal.wrapper.component';
 
-export const NewPost = () => {
+export const useCreatePost = () => {
   const fetch = useFetch();
   const modal = useModals();
   const { integrations, reloadCalendarView, sets } = useCalendar();
   const t = useT();
 
-  const createAPost = useCallback(async () => {
+  return useCallback(async () => {
     const date = (await (await fetch('/posts/find-slot')).json()).date;
 
     const set: any = !sets.length
@@ -47,6 +46,36 @@ export const NewPost = () => {
 
     if (set === 'exit') return;
 
+    const openEditor = async () => {
+      const nextDate = (await (await fetch('/posts/find-slot')).json()).date;
+      modal.openModal({
+        id: 'add-edit-modal',
+        closeOnClickOutside: false,
+        removeLayout: true,
+        closeOnEscape: false,
+        withCloseButton: false,
+        askClose: true,
+        fullScreen: true,
+        classNames: {
+          modal: 'w-[100%] max-w-[1400px] text-textColor',
+        },
+        children: (
+          <AddEditModal
+            allIntegrations={integrations.map((p) => ({
+              ...p,
+            }))}
+            {...(set?.content ? { set: JSON.parse(set.content) } : {})}
+            reopenModal={openEditor}
+            mutate={reloadCalendarView}
+            integrations={integrations}
+            date={dayjs.utc(nextDate).local()}
+          />
+        ),
+        size: '80%',
+        title: ``,
+      });
+    };
+
     modal.openModal({
       id: 'add-edit-modal',
       closeOnClickOutside: false,
@@ -64,7 +93,7 @@ export const NewPost = () => {
             ...p,
           }))}
           {...(set?.content ? { set: JSON.parse(set.content) } : {})}
-          reopenModal={createAPost}
+          reopenModal={openEditor}
           mutate={reloadCalendarView}
           integrations={integrations}
           date={dayjs.utc(date).local()}
@@ -73,7 +102,13 @@ export const NewPost = () => {
       size: '80%',
       title: ``,
     });
-  }, [integrations, sets]);
+  }, [fetch, integrations, modal, reloadCalendarView, sets, t]);
+};
+
+export const NewPost = () => {
+  const createAPost = useCreatePost();
+  const t = useT();
+
   return (
     <button
       onClick={createAPost}

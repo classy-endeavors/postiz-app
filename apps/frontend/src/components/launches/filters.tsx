@@ -8,6 +8,7 @@ import { SelectCustomer } from '@gitroom/frontend/components/launches/select.cus
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import i18next from 'i18next';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
+import { HelpDocsLink } from '@gitroom/frontend/components/onboarding/getting-started';
 
 // Helper function to get start and end dates based on display type
 function getDateRange(
@@ -588,6 +589,7 @@ export const Filters = () => {
           </svg>
         </div>
       </div>
+      <HelpDocsLink className="ms-[4px] mobile:hidden text-textItemBlur hover:text-textItemFocused" />
     </div>
   );
 };

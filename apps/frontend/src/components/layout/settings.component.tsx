@@ -34,6 +34,10 @@ import { GlobalSettings } from '@gitroom/frontend/components/settings/global.set
 import { ApprovedAppsComponent } from '@gitroom/frontend/components/approved-apps/approved-apps.component';
 import { ChannelsSettings } from '@gitroom/frontend/components/settings/channels.settings';
 import { ProfileSettings } from '@gitroom/frontend/components/settings/profile.settings';
+import {
+  HelpDocsLink,
+  markGettingStartedAgentTried,
+} from '@gitroom/frontend/components/onboarding/getting-started';
 export const SettingsPopup: FC<{
   getRef?: Ref<any>;
 }> = (props) => {
@@ -104,6 +108,12 @@ export const SettingsPopup: FC<{
       setTab(tabFromUrl(queryTab));
     }
   }, [url]);
+
+  useEffect(() => {
+    if (tab === 'mcp' && user?.orgId) {
+      markGettingStartedAgentTried(user.orgId);
+    }
+  }, [tab, user?.orgId]);
 
   const t = useT();
   const list = useMemo(() => {
@@ -181,14 +191,17 @@ export const SettingsPopup: FC<{
               <LogoutComponent />
             </div>
           )}
-          <a
-            href="https://github.com/classy-endeavors/postiz-app"
-            target="_blank"
-            rel="noreferrer"
-            className="block mt-4 mobile:mt-[6px] mobile:px-[12px] text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
-          >
-            {t('open_source_licenses', 'Open-source licenses')}
-          </a>
+          <div className="mt-4 mobile:mt-[6px] mobile:px-[12px] flex flex-col gap-[8px]">
+            <HelpDocsLink className="text-[12px] text-newTextColor/[0.7] hover:text-newTextColor" />
+            <a
+              href="https://github.com/classy-endeavors/postiz-app"
+              target="_blank"
+              rel="noreferrer"
+              className="block text-[12px] text-newTextColor/[0.4] hover:text-newTextColor/[0.7] transition-colors"
+            >
+              {t('open_source_licenses', 'Open-source licenses')}
+            </a>
+          </div>
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
