@@ -30,6 +30,17 @@ const ClipsPrompt = z.object({
   ),
 });
 
+const ChannelCaptionsPrompt = z.object({
+  captions: z.array(
+    z.object({
+      integrationId: z.string(),
+      content: z
+        .string()
+        .describe('Caption tailored for this channel, no hashtags'),
+    })
+  ),
+});
+
 @Injectable()
 export class OpenaiService {
   // The model answers with line numbers and not times, so a clip can only
@@ -74,6 +85,48 @@ Clips must not overlap. Write the title and the post in this language, whatever 
     ).choices[0].message.parsed || { clips: [] };
 
     return clips;
+  }
+
+  async generateChannelCaptions(
+    baseContent: string,
+    channels: { id: string; identifier: string; name: string }[]
+  ) {
+    if (!channels.length) {
+      return [] as { integrationId: string; content: string }[];
+    }
+
+    const { captions } = (
+      await openai.chat.completions.parse(
+        {
+          model: aiConfig.textModel,
+          messages: [
+            {
+              role: 'system',
+              content: `You rewrite one social post into a short caption for each channel.
+Keep the same language and meaning. Adapt tone and length to the channel type (identifier).
+Return exactly one caption per channel id. No hashtags.`,
+            },
+            {
+              role: 'user',
+              content: `base post:\n${baseContent}\n\nchannels:\n${channels
+                .map(
+                  (c) =>
+                    `- id=${c.id}; identifier=${c.identifier}; name=${c.name}`
+                )
+                .join('\n')}`,
+            },
+          ],
+          response_format: zodResponseFormat(
+            ChannelCaptionsPrompt,
+            'channelCaptions'
+          ),
+        },
+        { timeout: 60 * 1000, maxRetries: 0 }
+      )
+    ).choices[0].message.parsed || { captions: [] };
+
+    const allowed = new Set(channels.map((c) => c.id));
+    return (captions || []).filter((c) => allowed.has(c.integrationId));
   }
 
   async generateImage(prompt: string, isVertical = false) {

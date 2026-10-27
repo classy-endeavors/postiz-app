@@ -3,6 +3,7 @@ import {
   PrismaTransaction,
 } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ClippingRepository {
@@ -17,7 +18,11 @@ export class ClippingRepository {
     url: string,
     maxClips: number,
     fit: 'crop' | 'blur',
-    integrations: string[]
+    integrations: string[],
+    options?: {
+      mediaId?: string;
+      billingMode?: 'analyse' | 'confirm';
+    }
   ) {
     return this._clipping.model.clipping.create({
       data: {
@@ -26,10 +31,14 @@ export class ClippingRepository {
         maxClips,
         fit,
         integrations: JSON.stringify(integrations),
+        ...(options?.mediaId ? { mediaId: options.mediaId } : {}),
+        ...(options?.billingMode ? { billingMode: options.billingMode } : {}),
       },
       select: {
         id: true,
         status: true,
+        billingMode: true,
+        mediaId: true,
       },
     });
   }
@@ -40,7 +49,7 @@ export class ClippingRepository {
         organizationId: org,
         deletedAt: null,
         status: {
-          notIn: ['completed', 'failed'],
+          notIn: ['completed', 'failed', 'cancelled'],
         },
       },
       select: {
@@ -88,6 +97,8 @@ export class ClippingRepository {
       select: {
         id: true,
         url: true,
+        mediaId: true,
+        billingMode: true,
         status: true,
         error: true,
         title: true,
@@ -102,6 +113,7 @@ export class ClippingRepository {
             id: true,
             title: true,
             content: true,
+            channelContents: true,
             start: true,
             end: true,
             status: true,
@@ -208,13 +220,49 @@ export class ClippingRepository {
     });
   }
 
+  // Idempotent confirm: only one caller moves suggestions_ready → rendering
+  async claimConfirm(org: string, id: string) {
+    const { count } = await this._clipping.model.clipping.updateMany({
+      where: {
+        id,
+        organizationId: org,
+        deletedAt: null,
+        status: 'suggestions_ready',
+      },
+      data: {
+        status: 'rendering',
+        error: null,
+      },
+    });
+
+    return count === 1;
+  }
+
+  async claimCancel(org: string, id: string) {
+    const { count } = await this._clipping.model.clipping.updateMany({
+      where: {
+        id,
+        organizationId: org,
+        deletedAt: null,
+        status: 'suggestions_ready',
+      },
+      data: {
+        status: 'cancelled',
+        error: null,
+      },
+    });
+
+    return count === 1;
+  }
+
   // An attempt that timed out can still be running when its retry gets here, and
   // only one may store clips. The look at what is there is not enough on its own
   // (both can see nothing), so the update takes the row of the clipping first:
   // the second attempt waits on it until the first commits and then finds its clips
   createClips(
     clippingId: string,
-    clips: { title: string; content: string; start: number; end: number }[]
+    clips: { title: string; content: string; start: number; end: number }[],
+    status: 'pending' | 'suggested' = 'pending'
   ) {
     return this._transaction.model.$transaction(async (tx) => {
       await tx.clipping.update({
@@ -232,6 +280,7 @@ export class ClippingRepository {
       await tx.clippingClip.createMany({
         data: clips.map((clip) => ({
           clippingId,
+          status,
           ...clip,
         })),
       });
@@ -240,11 +289,58 @@ export class ClippingRepository {
     });
   }
 
+  listClipIdsByStatus(clippingId: string, status: string) {
+    return this._clippingClip.model.clippingClip.findMany({
+      where: { clippingId, status },
+      select: { id: true },
+      orderBy: { start: 'asc' },
+    });
+  }
+
+  async prepareConfirmClips(
+    clippingId: string,
+    selectedIds: string[],
+    channelContentsByClip: Record<string, Record<string, string>>
+  ) {
+    const selected = new Set(selectedIds);
+    const clips = await this._clippingClip.model.clippingClip.findMany({
+      where: { clippingId },
+      select: { id: true, status: true },
+    });
+
+    for (const clip of clips) {
+      if (selected.has(clip.id)) {
+        await this._clippingClip.model.clippingClip.update({
+          where: { id: clip.id },
+          data: {
+            status: 'pending',
+            error: null,
+            ...(channelContentsByClip[clip.id]
+              ? {
+                  channelContents: channelContentsByClip[
+                    clip.id
+                  ] as Prisma.InputJsonValue,
+                }
+              : {}),
+          },
+        });
+      } else if (clip.status === 'suggested' || clip.status === 'pending') {
+        await this._clippingClip.model.clippingClip.update({
+          where: { id: clip.id },
+          data: {
+            status: 'skipped',
+            error: null,
+          },
+        });
+      }
+    }
+  }
+
   failUnfinishedClips(clippingId: string, error: string) {
     return this._clippingClip.model.clippingClip.updateMany({
       where: {
         clippingId,
-        status: 'pending',
+        status: { in: ['pending', 'suggested'] },
       },
       data: {
         status: 'failed',
@@ -289,6 +385,7 @@ export class ClippingRepository {
       path?: string;
       thumbnail?: string;
       draftedAt?: Date;
+      channelContents?: Prisma.InputJsonValue;
     }
   ) {
     return this._clippingClip.model.clippingClip.update({

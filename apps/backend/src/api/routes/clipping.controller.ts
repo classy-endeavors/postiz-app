@@ -4,6 +4,8 @@ import { Organization } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { ClippingService } from '@gitroom/nestjs-libraries/database/prisma/clipping/clipping.service';
 import { ClippingDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.dto';
+import { ClippingSuggestDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.suggest.dto';
+import { ClippingConfirmDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.confirm.dto';
 
 @ApiTags('Clipping')
 @Controller('/clipping')
@@ -16,6 +18,31 @@ export class ClippingController {
     @Body() body: ClippingDto
   ) {
     return this._clippingService.startClipping(org, body);
+  }
+
+  @Post('/suggest')
+  startSuggest(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: ClippingSuggestDto
+  ) {
+    return this._clippingService.startSuggest(org, body);
+  }
+
+  @Post('/:id/confirm')
+  confirmClipping(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body() body: ClippingConfirmDto
+  ) {
+    return this._clippingService.confirmClipping(org, id, body);
+  }
+
+  @Post('/:id/cancel')
+  cancelClipping(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    return this._clippingService.cancelClipping(org, id);
   }
 
   @Get('/')
