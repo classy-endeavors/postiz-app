@@ -537,12 +537,15 @@ export class CopilotController {
           { injectOnSilence: !isDraftRequest(detail) }
         );
 
-        let replyText = streamResult.assistantText || fallbackText;
+        const streamedText = (streamResult.assistantText || '').trim();
+        const wasSilent =
+          streamResult.injectedFallback || streamedText.length === 0;
+        let replyText = streamedText || fallbackText;
 
-        // Agent tool loops still go silent on draft asks. If we detected
-        // silence and the user clearly asked for a draft with a selected
-        // channel, create the draft here so Calendar + chat both succeed.
-        if (streamResult.injectedFallback && isDraftRequest(detail)) {
+        // Agent tool loops still go silent on draft asks. Recover whenever
+        // the stream left no usable assistant text — not only when the tee
+        // flagged injectedFallback (client abort can skip that path).
+        if (wasSilent && isDraftRequest(detail)) {
           const recovery = await this.tryCreateSilentDraft(
             organization.id,
             detail,
@@ -552,14 +555,21 @@ export class CopilotController {
             recoveredUsefulReply = true;
             replyText = recovery.message;
             streamResult.assistantText = recovery.message;
+            streamResult.injectedFallback = true;
           } else if (recovery.message) {
             replyText = recovery.message;
             streamResult.assistantText = recovery.message;
+            streamResult.injectedFallback = true;
           }
+        } else if (wasSilent && !streamedText) {
+          // Caption / general silence: ensure we persist the fallback text.
+          streamResult.injectedFallback = true;
+          streamResult.assistantText = fallbackText;
+          replyText = fallbackText;
         }
 
         if (
-          (streamResult.injectedFallback || recoveredUsefulReply) &&
+          (wasSilent || recoveredUsefulReply || streamResult.injectedFallback) &&
           threadId &&
           threadId !== 'new'
         ) {

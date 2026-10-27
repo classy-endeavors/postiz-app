@@ -82,6 +82,7 @@ export const AgentChat: FC = () => {
       <Hooks />
       <LoadMessages id={params.id} />
       <RefreshThreadsOnActivity />
+      <ReloadAfterSilentRun id={params.id} />
       <div
         style={
           {
@@ -143,11 +144,22 @@ const LoadMessages: FC<{ id: string }> = ({ id }) => {
       data.messages
         .filter((p: any) => p.role === 'user' || p.role === 'assistant')
         .map((p: any) => {
+          const contentObj =
+            typeof p.content === 'string'
+              ? (() => {
+                  try {
+                    return JSON.parse(p.content);
+                  } catch {
+                    return { content: p.content };
+                  }
+                })()
+              : p.content;
           return new TextMessage({
             id: p.id,
             content:
-              p.content.content ||
-              (p.content.parts || [])
+              (typeof contentObj === 'string' ? contentObj : '') ||
+              contentObj?.content ||
+              (contentObj?.parts || [])
                 .map((part: any) => (part.type === 'text' ? part.text : ''))
                 .join(''),
             role: p.role,
@@ -190,6 +202,42 @@ const LoadMessages: FC<{ id: string }> = ({ id }) => {
   return null;
 };
 
+const messagePlainText = (message: AgentMessage | undefined) => {
+  if (!message) {
+    return '';
+  }
+  const content = (message as any).content;
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) =>
+        part?.type === 'text' || typeof part?.text === 'string'
+          ? part.text || ''
+          : ''
+      )
+      .join('')
+      .trim();
+  }
+  return '';
+};
+
+const lastMessageIsUserOnly = (messages: AgentMessage[]) => {
+  if (!messages.length) {
+    return false;
+  }
+  const last = messages[messages.length - 1] as any;
+  if (last?.role === 'user') {
+    return true;
+  }
+  // Tool-only / empty assistant turns still count as silence for the UI.
+  if (last?.role === 'assistant' && !messagePlainText(last)) {
+    return messages.some((m: any) => m?.role === 'user');
+  }
+  return false;
+};
+
 // Sidebar is a separate SWR cache; refresh when a run finishes so new chats appear
 // (Mastra title generation can lag a bit behind the first reply). Also refresh when
 // the first user message lands so history is not empty if the agent stays silent.
@@ -223,6 +271,89 @@ const RefreshThreadsOnActivity: FC = () => {
       clearTimeout(timer2);
     };
   }, [isLoading, messages.length, mutate]);
+
+  return null;
+};
+
+// CopilotKit often finishes a silent agent run with only the user bubble.
+// The backend persists a fallback (and may create a draft) in Prisma; pull
+// that into the live chat so QA does not see an empty reply after ~30–100s.
+const ReloadAfterSilentRun: FC<{ id: string }> = ({ id }) => {
+  const { isLoading, messages, agent } = useCopilotChatInternal();
+  const fetch = useFetch();
+  const { mutate: reloadCoins } = useCoinsBalance();
+  const wasLoading = useRef(false);
+  const recovering = useRef(false);
+
+  const pullServerMessages = useCallback(async () => {
+    if (recovering.current) {
+      return;
+    }
+    recovering.current = true;
+    try {
+      for (const delay of [0, 1500, 4000]) {
+        if (delay) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        const data = await (await fetch(`/copilot/${id}/list`)).json();
+        const list = gqlToAGUI(
+          (data.messages || [])
+            .filter((p: any) => p.role === 'user' || p.role === 'assistant')
+            .map((p: any) => {
+              const contentObj =
+                typeof p.content === 'string'
+                  ? (() => {
+                      try {
+                        return JSON.parse(p.content);
+                      } catch {
+                        return { content: p.content };
+                      }
+                    })()
+                  : p.content;
+              return new TextMessage({
+                id: p.id,
+                content:
+                  contentObj?.content ||
+                  (contentObj?.parts || [])
+                    .map((part: any) =>
+                      part.type === 'text' ? part.text : ''
+                    )
+                    .join(''),
+                role: p.role,
+              });
+            })
+            .filter((p: TextMessage) => !!p.content)
+        ) as AgentMessage[];
+
+        const hasAssistant = list.some(
+          (m: any) => m?.role === 'assistant' && messagePlainText(m)
+        );
+        if (hasAssistant && list.length >= messages.length) {
+          agent.setMessages(list);
+          reloadCoins();
+          break;
+        }
+      }
+    } catch {
+      // ignore — next user action / reload can still recover
+    } finally {
+      recovering.current = false;
+      reloadCoins();
+    }
+  }, [agent, fetch, id, messages.length, reloadCoins]);
+
+  useEffect(() => {
+    const finished = wasLoading.current && !isLoading;
+    wasLoading.current = isLoading;
+    if (!finished) {
+      return;
+    }
+    if (!lastMessageIsUserOnly(messages)) {
+      reloadCoins();
+      return;
+    }
+    pullServerMessages();
+  }, [isLoading, messages, pullServerMessages, reloadCoins]);
 
   return null;
 };
