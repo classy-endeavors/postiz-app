@@ -30,6 +30,7 @@ import { useIntegrationList } from '@gitroom/frontend/components/launches/helper
 import useCookie from 'react-use-cookie';
 import { useMediaQuery } from '@mantine/hooks';
 import { Onboarding } from '@gitroom/frontend/components/onboarding/onboarding';
+import { GettingStartedChecklist } from '@gitroom/frontend/components/onboarding/getting-started';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { Input } from '@gitroom/react/form/input';
 import { Button } from '@gitroom/react/form/button';
@@ -739,6 +740,7 @@ export const LaunchesComponent = () => {
           </div>
         </div>
         <div className="bg-newBgColor flex-1 min-w-0 flex flex-col gap-[16px] mobile:gap-[8px] p-[20px] mobile:p-[8px] mobile:min-h-[calc(100vh-160px)]">
+          <GettingStartedChecklist />
           <SavingsBanner />
           <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-[16px] p-[22px] mobile:p-[12px] mobile:gap-[12px] rounded-[20px] mobile:rounded-[14px] border-[1.5px] border-newOutline bg-newBgColorInner shadow-hard">
             <CalendarPanel />

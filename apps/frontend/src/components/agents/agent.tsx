@@ -5,6 +5,7 @@ import React, {
   FC,
   MouseEvent,
   useCallback,
+  useEffect,
   useMemo,
   useState,
   ReactNode,
@@ -24,6 +25,8 @@ import { Integration } from '@prisma/client';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import { markGettingStartedAgentTried } from '@gitroom/frontend/components/onboarding/getting-started';
 
 export const MediaPortal: FC<{
   media: { path: string; id: string }[];
@@ -203,6 +206,11 @@ export const AgentList: FC<{ onChange: (arr: any[]) => void }> = ({
 export const PropertiesContext = createContext({ properties: [] });
 export const Agent: FC<{ children: ReactNode }> = ({ children }) => {
   const [properties, setProperties] = useState([]);
+  const user = useUser();
+
+  useEffect(() => {
+    markGettingStartedAgentTried(user?.orgId);
+  }, [user?.orgId]);
 
   return (
     <PropertiesContext.Provider value={{ properties }}>
