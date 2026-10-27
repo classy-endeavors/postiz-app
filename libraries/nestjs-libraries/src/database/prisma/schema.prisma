@@ -326,6 +326,9 @@ model Clipping {
   id             String         @id @default(uuid())
   organizationId String
   url            String
+  mediaId        String?
+  // analyse = charge in checkAnalyse (one-shot); confirm = charge only on confirm
+  billingMode    String         @default("analyse")
   status         String         @default("analysing")
   error          String?
   title          String?
@@ -343,25 +346,28 @@ model Clipping {
 
   @@index([organizationId])
   @@index([deletedAt])
+  @@index([mediaId])
 }
 
 model ClippingClip {
-  id         String    @id @default(uuid())
-  clippingId String
-  title      String
-  content    String
-  start      Float
-  end        Float
-  trimStart  Int?
-  status     String    @default("pending")
-  error      String?
-  mediaId    String?
-  path       String?
-  thumbnail  String?
-  draftedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  clipping   Clipping  @relation(fields: [clippingId], references: [id])
+  id              String    @id @default(uuid())
+  clippingId      String
+  title           String
+  content         String
+  // per-integration captions { [integrationId]: string }; one-shot leaves null
+  channelContents Json?
+  start           Float
+  end             Float
+  trimStart       Int?
+  status          String    @default("pending")
+  error           String?
+  mediaId         String?
+  path            String?
+  thumbnail       String?
+  draftedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  clipping        Clipping  @relation(fields: [clippingId], references: [id])
 
   @@index([clippingId])
 }

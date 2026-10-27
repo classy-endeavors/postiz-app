@@ -10,6 +10,7 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useIntegrationList } from '@gitroom/frontend/components/launches/helpers/use.integration.list';
 import { AddEditModal } from '@gitroom/frontend/components/new-launch/add.edit.modal';
+import { RepurposeModal } from '@gitroom/frontend/components/media/repurpose.modal';
 
 export const MediaLayoutComponent = () => {
   const fetch = useFetch();
@@ -68,6 +69,27 @@ export const MediaLayoutComponent = () => {
     [integrations]
   );
 
+  const repurpose = useCallback(
+    (media: Media) => {
+      if (!integrations.length) {
+        toaster.show(
+          t(
+            'connect_channel_before_post',
+            'Connect a channel in the Calendar before creating a post'
+          ),
+          'warning'
+        );
+        return;
+      }
+
+      modal.openModal({
+        title: t('repurpose', 'Repurpose'),
+        children: <RepurposeModal media={media} />,
+      });
+    },
+    [integrations, modal, t, toaster]
+  );
+
   return (
     <div className="bg-newBgColorInner p-[20px] mobile:p-[12px] flex flex-1 flex-col gap-[15px] transition-all">
       <MediaBox
@@ -75,6 +97,7 @@ export const MediaLayoutComponent = () => {
         closeModal={() => {}}
         standalone={true}
         onCreatePost={createPost}
+        onRepurpose={repurpose}
       />
     </div>
   );

@@ -97,4 +97,14 @@ export class ClippingActivity {
   }) {
     return this._clippingService.failClipping(clippingId, error, customer);
   }
+
+  @ActivityMethod()
+  async markClippingSuggestionsReady({ clippingId }: { clippingId: string }) {
+    return this._clippingService.markSuggestionsReady(clippingId);
+  }
+
+  @ActivityMethod()
+  async listPendingClippingClips({ clippingId }: { clippingId: string }) {
+    return this._clippingService.listPendingClipIds(clippingId);
+  }
 }

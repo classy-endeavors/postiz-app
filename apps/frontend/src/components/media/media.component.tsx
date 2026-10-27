@@ -281,7 +281,8 @@ export const MediaBox: FC<{
   type?: 'image' | 'video';
   closeModal: () => void;
   onCreatePost?: (media: Media) => void;
-}> = ({ type, standalone, setMedia, onCreatePost }) => {
+  onRepurpose?: (media: Media) => void;
+}> = ({ type, standalone, setMedia, onCreatePost, onRepurpose }) => {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>(
@@ -641,7 +642,7 @@ export const MediaBox: FC<{
             <div className="flex-1 text-newTextColor/[0.8]">
               {t(
                 'media_library_next_steps',
-                'Your uploads are saved here. Click "Create Post" on any media to schedule it, or attach it to a message in the Agent.'
+                'Your uploads are saved here. Click "Create Post" or "Repurpose" on a video, or attach media in the Agent.'
               )}
             </div>
             <Link
@@ -834,18 +835,32 @@ export const MediaBox: FC<{
                           }}
                         />
                       )}
-                      {!!onCreatePost && (
-                        <div className="absolute inset-x-0 bottom-0 z-[100] p-[10px]">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onCreatePost(media);
-                            }}
-                            className="shrink-0 flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
-                          >
-                            <PlusIcon size={10} />
-                            {t('create_new_post', 'Create Post')}
-                          </button>
+                      {(!!onCreatePost ||
+                        (!!onRepurpose && hasExtension(media.path, 'mp4'))) && (
+                        <div className="absolute inset-x-0 bottom-0 z-[100] p-[10px] flex flex-wrap gap-[6px]">
+                          {!!onRepurpose && hasExtension(media.path, 'mp4') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRepurpose(media);
+                              }}
+                              className="shrink-0 flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-newBgColorInner text-newTextColor text-[12px] font-[500] shadow-md border border-newTextColor/20"
+                            >
+                              {t('repurpose', 'Repurpose')}
+                            </button>
+                          )}
+                          {!!onCreatePost && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onCreatePost(media);
+                              }}
+                              className="shrink-0 flex items-center gap-[6px] h-[30px] px-[10px] rounded-[6px] bg-btnPrimary text-white text-[12px] font-[500] shadow-md"
+                            >
+                              <PlusIcon size={10} />
+                              {t('create_new_post', 'Create Post')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

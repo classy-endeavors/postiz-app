@@ -4,12 +4,15 @@ import { ApplicationFailure, TypedSearchAttributes } from '@temporalio/common';
 import { TemporalService } from 'nestjs-temporal-core';
 import { ClippingRepository } from '@gitroom/nestjs-libraries/database/prisma/clipping/clipping.repository';
 import { ClippingDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.dto';
+import { ClippingSuggestDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.suggest.dto';
+import { ClippingConfirmDto } from '@gitroom/nestjs-libraries/dtos/clipping/clipping.confirm.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import {
   ClippingTranscript,
   ClippingWord,
   ProcessorFailure,
 } from '@gitroom/nestjs-libraries/upload/clipping.processor.interface';
+import { resolveClippingIngestSource } from '@gitroom/nestjs-libraries/database/prisma/clipping/clipping.ingest-source';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
@@ -171,20 +174,64 @@ export class ClippingService {
 
   private isStale(clipping: { status: string; createdAt: Date }) {
     return (
-      !['completed', 'failed'].includes(clipping.status) &&
+      !['completed', 'failed', 'cancelled'].includes(clipping.status) &&
       dayjs(clipping.createdAt).isBefore(dayjs().subtract(STALE_HOURS, 'hour'))
     );
   }
 
-  async startClipping(org: Organization, body: ClippingDto) {
+  private async resolveIngestSource(clipping: {
+    url: string;
+    mediaId?: string | null;
+    organizationId: string;
+  }) {
+    let media: { name: string; path: string } | null = null;
+    if (clipping.mediaId) {
+      const row = await this._mediaService.getMediaById(clipping.mediaId);
+      if (
+        !row ||
+        row.organizationId !== clipping.organizationId ||
+        row.deletedAt
+      ) {
+        throw new ClippingStop('The source media was not found.');
+      }
+      media = { name: row.name, path: row.path };
+    }
+
+    return resolveClippingIngestSource({
+      url: clipping.url,
+      mediaId: clipping.mediaId,
+      media,
+      storage: this.storage,
+    });
+  }
+
+  private assertClippingAvailable() {
     if (
       !this.ingest ||
       !this.clipper ||
       !this.storage.signDownloadUrl ||
       !this.storage.signUploadUrl
     ) {
-      throw new HttpException('Clipping is not available', 503);
+      // Local STORAGE_PROVIDER or missing RunPod/Deepgram/OpenAI env disables clipping
+      throw new HttpException(
+        'Clipping is not available. Configure STORAGE_PROVIDER=cloudflare, RUNPOD_API_KEY, RUNPOD_INGEST_ENDPOINT_ID, RUNPOD_CLIPPER_ENDPOINT_ID, DEEPGRAM_API_KEY, and OPENAI_API_KEY.',
+        503
+      );
     }
+  }
+
+  private async assertIntegrations(orgId: string, integrations: string[]) {
+    for (const integration of integrations) {
+      if (
+        !(await this._integrationService.getIntegrationById(orgId, integration))
+      ) {
+        throw new HttpException(`Channel ${integration} not found`, 400);
+      }
+    }
+  }
+
+  async startClipping(org: Organization, body: ClippingDto) {
+    this.assertClippingAvailable();
 
     if (!this.isYoutubeUrl(body.url)) {
       throw new HttpException('Only YouTube videos can be clipped', 400);
@@ -202,16 +249,7 @@ export class ClippingService {
     }
 
     const integrations = body.integrations || [];
-    for (const integration of integrations) {
-      if (
-        !(await this._integrationService.getIntegrationById(
-          org.id,
-          integration
-        ))
-      ) {
-        throw new HttpException(`Channel ${integration} not found`, 400);
-      }
-    }
+    await this.assertIntegrations(org.id, integrations);
 
     const client = this._temporalService.client.getRawClient();
     if (!client) {
@@ -224,21 +262,311 @@ export class ClippingService {
     }
 
     try {
-      return await this.createClipping(org.id, body, integrations, client);
+      return await this.createClippingJob(org.id, {
+        url: body.url,
+        clips: body.clips || 5,
+        fit: body.fit || 'blur',
+        integrations,
+        billingMode: 'analyse',
+        workflow: 'clippingWorkflow',
+        workflowIdPrefix: 'clipping_',
+        client,
+      });
     } finally {
       await ioRedis.del(`clippingStart:${org.id}`);
     }
   }
 
-  private async createClipping(
+  async startSuggest(org: Organization, body: ClippingSuggestDto) {
+    this.assertClippingAvailable();
+
+    if (org.isTrailing) {
+      throw new HttpException('Clipping is not available in trial mode', 406);
+    }
+
+    if ((await this.balance(org.id)) <= 0) {
+      throw new SubscriptionException({
+        action: AuthorizationActions.Create,
+        section: Sections.CLIPPING_MINUTES,
+      });
+    }
+
+    if (!!body.url === !!body.mediaId) {
+      throw new HttpException('Provide either a YouTube url or a mediaId', 400);
+    }
+
+    let url = body.url || '';
+    let mediaId: string | undefined;
+
+    if (body.mediaId) {
+      const media = await this._mediaService.getMediaById(body.mediaId);
+      if (
+        !media ||
+        media.organizationId !== org.id ||
+        media.deletedAt ||
+        media.type !== 'video'
+      ) {
+        throw new HttpException('Video media not found', 404);
+      }
+      // Stable display path only — signed URLs are resolved at ingest time
+      url = media.path;
+      mediaId = media.id;
+    } else if (!this.isYoutubeUrl(url)) {
+      throw new HttpException('Only YouTube videos can be clipped', 400);
+    }
+
+    const integrations = body.integrations || [];
+    await this.assertIntegrations(org.id, integrations);
+
+    const client = this._temporalService.client.getRawClient();
+    if (!client) {
+      throw new HttpException('Clipping is not available', 503);
+    }
+
+    if (!(await ioRedis.set(`clippingStart:${org.id}`, '1', 'EX', 15, 'NX'))) {
+      throw new HttpException('Another clipping is being started', 429);
+    }
+
+    try {
+      const created = await this.createClippingJob(org.id, {
+        url,
+        mediaId,
+        clips: body.clips || 5,
+        fit: body.fit || 'blur',
+        integrations,
+        billingMode: 'confirm',
+        workflow: 'clippingSuggestWorkflow',
+        workflowIdPrefix: 'clipping_suggest_',
+        client,
+      });
+
+      return {
+        id: created.id,
+        // Media has no duration column; minutes are known after analyse
+        estimatedMinutes: null as number | null,
+        durationSeconds: null as number | null,
+      };
+    } finally {
+      await ioRedis.del(`clippingStart:${org.id}`);
+    }
+  }
+
+  async confirmClipping(
+    org: Organization,
+    id: string,
+    body: ClippingConfirmDto
+  ) {
+    this.assertClippingAvailable();
+
+    const existing = await this._clippingRepository.getClipping(org.id, id);
+    if (!existing) {
+      throw new HttpException('Clipping not found', 404);
+    }
+
+    if (this.isStale(existing)) {
+      await this.closeStale(existing.id, existing.status);
+      throw new HttpException('This clipping expired, start again', 410);
+    }
+
+    // Idempotent: already past confirm
+    if (['rendering', 'completed'].includes(existing.status)) {
+      return this.getClipping(org.id, id);
+    }
+
+    if (existing.status !== 'suggestions_ready') {
+      throw new HttpException('Clipping is not ready to confirm', 409);
+    }
+
+    if (!existing.duration) {
+      throw new HttpException(
+        'Video duration is not known yet, wait for suggestions to finish',
+        400
+      );
+    }
+
+    const suggested = existing.clips.filter((c) => c.status === 'suggested');
+    const selected = body.clipIds.filter((clipId) =>
+      suggested.some((c) => c.id === clipId)
+    );
+    if (!selected.length) {
+      throw new HttpException('Select at least one suggested clip', 400);
+    }
+
+    const claimed = await this._clippingRepository.claimConfirm(org.id, id);
+    if (!claimed) {
+      // Another request won the claim — return current state (no double work)
+      return this.getClipping(org.id, id);
+    }
+
+    let charged = false;
+    try {
+      const full = await this._clippingRepository.getClippingById(id);
+      const integrations = (
+        await Promise.all(
+          (JSON.parse(full!.integrations) as string[]).map((integrationId) =>
+            this._integrationService.getIntegrationById(org.id, integrationId)
+          )
+        )
+      ).filter((f) => f && !f.deletedAt && !f.disabled);
+
+      const channels = integrations.map((i) => ({
+        id: i!.id,
+        identifier: i!.providerIdentifier,
+        name: i!.name,
+      }));
+
+      const channelContentsByClip: Record<string, Record<string, string>> = {};
+      for (const clip of suggested.filter((c) => selected.includes(c.id))) {
+        const generated =
+          channels.length > 0
+            ? await this._openAi.generateChannelCaptions(clip.content, channels)
+            : [];
+        const map: Record<string, string> = {};
+        for (const row of generated) {
+          map[row.integrationId] = row.content;
+        }
+        for (const override of body.captions || []) {
+          if (override.clipId === clip.id) {
+            map[override.integrationId] = override.content;
+          }
+        }
+        for (const channel of channels) {
+          if (!map[channel.id]) {
+            map[channel.id] = clip.content;
+          }
+        }
+        channelContentsByClip[clip.id] = map;
+      }
+
+      await this._clippingRepository.prepareConfirmClips(
+        id,
+        selected,
+        channelContentsByClip
+      );
+
+      const minutes = Math.ceil(existing.duration / 60);
+      const credits = (
+        await this._subscriptionService.chargeCredits(
+          id,
+          org.id,
+          CREDITS_TYPE,
+          minutes
+        )
+      ).id;
+      charged = true;
+
+      if ((await this.balance(org.id)) < 0) {
+        await this._subscriptionService.refundCredits(org.id, id);
+        charged = false;
+        await this._clippingRepository.updateClipping(org.id, id, {
+          status: 'failed',
+          error: `This video is ${minutes} minutes long, more than the clipping minutes left on this account for this month.`,
+          creditsId: null,
+        });
+        throw new HttpException(
+          `This video is ${minutes} minutes long, more than the clipping minutes left on this account for this month.`,
+          402
+        );
+      }
+
+      await this._clippingRepository.updateClipping(org.id, id, {
+        creditsId: credits,
+      });
+
+      const client = this._temporalService.client.getRawClient();
+      if (!client) {
+        await this._subscriptionService.refundCredits(org.id, id);
+        charged = false;
+        await this._clippingRepository.updateClipping(org.id, id, {
+          status: 'failed',
+          error: 'Could not start rendering',
+          creditsId: null,
+        });
+        throw new HttpException('Clipping is not available', 503);
+      }
+
+      try {
+        await client.workflow.start('clippingRenderWorkflow', {
+          workflowId: `clipping_render_${id}`,
+          taskQueue: 'main',
+          args: [{ clippingId: id }],
+          typedSearchAttributes: new TypedSearchAttributes([
+            { key: organizationId, value: org.id },
+          ]),
+        });
+      } catch (err: any) {
+        const already =
+          err?.name === 'WorkflowExecutionAlreadyStartedError' ||
+          String(err?.message || '').includes('already started');
+        if (!already) {
+          await this.failClipping(id, 'Could not start rendering', true);
+          charged = false;
+          throw new HttpException('Clipping is not available', 503);
+        }
+      }
+
+      return this.getClipping(org.id, id);
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      if (!charged) {
+        // Caption/prepare failed before charge — reopen suggestions
+        await this._clippingRepository.updateClipping(org.id, id, {
+          status: 'suggestions_ready',
+          error: null,
+        });
+      }
+      throw err;
+    }
+  }
+
+  async cancelClipping(org: Organization, id: string) {
+    const existing = await this._clippingRepository.getClipping(org.id, id);
+    if (!existing) {
+      throw new HttpException('Clipping not found', 404);
+    }
+
+    if (['cancelled', 'failed'].includes(existing.status)) {
+      return existing;
+    }
+
+    if (existing.status !== 'suggestions_ready') {
+      throw new HttpException('Only suggestions can be cancelled', 409);
+    }
+
+    const claimed = await this._clippingRepository.claimCancel(org.id, id);
+    if (!claimed) {
+      return this.getClipping(org.id, id);
+    }
+
+    await this._clippingRepository.failUnfinishedClips(
+      id,
+      'Cancelled before rendering'
+    );
+
+    return this.getClipping(org.id, id);
+  }
+
+  private async createClippingJob(
     org: string,
-    body: ClippingDto,
-    integrations: string[],
-    client: NonNullable<ReturnType<TemporalService['client']['getRawClient']>>
+    params: {
+      url: string;
+      mediaId?: string;
+      clips: number;
+      fit: 'crop' | 'blur';
+      integrations: string[];
+      billingMode: 'analyse' | 'confirm';
+      workflow: string;
+      workflowIdPrefix: string;
+      client: NonNullable<
+        ReturnType<TemporalService['client']['getRawClient']>
+      >;
+    }
   ) {
     const running = await this._clippingRepository.getRunningClippings(org);
     for (const clipping of running.filter((p) => this.isStale(p))) {
-      await this.failClipping(clipping.id, 'The clipping never finished', true);
+      await this.closeStale(clipping.id, clipping.status);
     }
 
     if (running.filter((p) => !this.isStale(p)).length >= MAX_RUNNING) {
@@ -262,15 +590,19 @@ export class ClippingService {
 
     const clipping = await this._clippingRepository.createClipping(
       org,
-      body.url,
-      body.clips || 5,
-      body.fit || 'blur',
-      integrations
+      params.url,
+      params.clips,
+      params.fit,
+      params.integrations,
+      {
+        mediaId: params.mediaId,
+        billingMode: params.billingMode,
+      }
     );
 
     try {
-      await client.workflow.start('clippingWorkflow', {
-        workflowId: `clipping_${clipping.id}`,
+      await params.client.workflow.start(params.workflow, {
+        workflowId: `${params.workflowIdPrefix}${clipping.id}`,
         taskQueue: 'main',
         args: [{ clippingId: clipping.id }],
         typedSearchAttributes: new TypedSearchAttributes([
@@ -281,7 +613,6 @@ export class ClippingService {
         ]),
       });
     } catch (err) {
-      // no workflow means nothing will ever flip the status
       await this._clippingRepository.updateClipping(org, clipping.id, {
         status: 'failed',
         error: 'Could not start clipping',
@@ -292,6 +623,28 @@ export class ClippingService {
     return { id: clipping.id };
   }
 
+  private async closeStale(clippingId: string, status: string) {
+    if (status === 'suggestions_ready') {
+      const clipping = await this._clippingRepository.getClippingById(
+        clippingId
+      );
+      if (!clipping) {
+        return;
+      }
+      await this._clippingRepository.claimCancel(
+        clipping.organizationId,
+        clippingId
+      );
+      await this._clippingRepository.failUnfinishedClips(
+        clippingId,
+        'The clipping never finished'
+      );
+      return;
+    }
+
+    await this.failClipping(clippingId, 'The clipping never finished', true);
+  }
+
   async getClipping(org: string, id: string) {
     const clipping = await this._clippingRepository.getClipping(org, id);
     if (!clipping) {
@@ -299,11 +652,38 @@ export class ClippingService {
     }
 
     if (this.isStale(clipping)) {
-      await this.failClipping(id, 'The clipping never finished', true);
+      await this.closeStale(id, clipping.status);
       return (await this._clippingRepository.getClipping(org, id))!;
     }
 
-    return clipping;
+    const billableMinutes = clipping.duration
+      ? Math.ceil(clipping.duration / 60)
+      : null;
+
+    return {
+      ...clipping,
+      billableMinutes,
+      estimatedMinutes: billableMinutes,
+    };
+  }
+
+  async markSuggestionsReady(clippingId: string) {
+    const clipping = await this._clippingRepository.getClippingById(clippingId);
+    if (!clipping) {
+      throw new ClippingStop('Clipping not found');
+    }
+
+    return this._clippingRepository.updateClipping(
+      clipping.organizationId,
+      clippingId,
+      { status: 'suggestions_ready', error: null }
+    );
+  }
+
+  async listPendingClipIds(clippingId: string) {
+    return (
+      await this._clippingRepository.listClipIdsByStatus(clippingId, 'pending')
+    ).map((c) => c.id);
   }
 
   // A chat client can't wait between two status calls, so the waiting happens
@@ -407,11 +787,15 @@ export class ClippingService {
     // so this time only the audio is asked for
     const audioOnly = clipping.status === 'transcribing';
     const keys = this.keys(clippingId);
+    const source = await this.resolveIngestSource(clipping);
     return this.ingest!.submit({
       version: 1,
       type: 'ingest',
       reference: clippingId,
-      source: { url: clipping.url, via: 'oxylabs' },
+      source: {
+        url: source.url,
+        via: source.via,
+      },
       ...(audioOnly
         ? {}
         : {
@@ -493,23 +877,28 @@ export class ClippingService {
       return { state: 'retry' };
     }
 
-    // Charged first and checked after: the clipping id is the id of the charge,
-    // so a retried poll charges once and reads the same balance, and two
-    // clippings racing each other are both counted before either is let through
     const minutes = Math.ceil(duration / 60);
-    const credits = (
-      await this._subscriptionService.chargeCredits(
-        clippingId,
-        clipping.organizationId,
-        CREDITS_TYPE,
-        minutes
-      )
-    ).id;
+    // Suggest/repurpose (billingMode=confirm) stores duration only; charge happens
+    // on confirm. One-shot (analyse) still charges here.
+    let creditsId: string | undefined;
+    if (clipping.billingMode !== 'confirm') {
+      // Charged first and checked after: the clipping id is the id of the charge,
+      // so a retried poll charges once and reads the same balance, and two
+      // clippings racing each other are both counted before either is let through
+      creditsId = (
+        await this._subscriptionService.chargeCredits(
+          clippingId,
+          clipping.organizationId,
+          CREDITS_TYPE,
+          minutes
+        )
+      ).id;
 
-    if ((await this.balance(clipping.organizationId)) < 0) {
-      throw new ClippingStop(
-        `This video is ${minutes} minutes long, more than the clipping minutes left on this account for this month.`
-      );
+      if ((await this.balance(clipping.organizationId)) < 0) {
+        throw new ClippingStop(
+          `This video is ${minutes} minutes long, more than the clipping minutes left on this account for this month.`
+        );
+      }
     }
 
     await this._clippingRepository.updateClipping(
@@ -522,7 +911,7 @@ export class ClippingService {
           : {}),
         // rounded up, the window of the last clip must reach the real end
         duration: Math.ceil(duration),
-        creditsId: credits,
+        ...(creditsId ? { creditsId } : {}),
       }
     );
 
@@ -627,15 +1016,28 @@ export class ClippingService {
       throw new ClippingStop('No part of this video works as a short clip.');
     }
 
+    const clipStatus =
+      clipping.billingMode === 'confirm' ? 'suggested' : 'pending';
     const created = await this._clippingRepository.createClips(
       clippingId,
-      clips
+      clips,
+      clipStatus
     );
-    await this._clippingRepository.updateClipping(
-      clipping.organizationId,
-      clippingId,
-      { status: 'rendering' }
-    );
+
+    // One-shot continues into render; suggest stops after pick (workflow sets ready)
+    if (clipping.billingMode !== 'confirm') {
+      await this._clippingRepository.updateClipping(
+        clipping.organizationId,
+        clippingId,
+        { status: 'rendering' }
+      );
+    } else {
+      await this._clippingRepository.updateClipping(
+        clipping.organizationId,
+        clippingId,
+        { status: 'picking' }
+      );
+    }
 
     return created.map((clip) => clip.id);
   }
@@ -648,13 +1050,14 @@ export class ClippingService {
     }
 
     const end = Math.ceil(clip.end) + WINDOW_PADDING;
+    const source = await this.resolveIngestSource(clip.clipping);
     return this.ingest!.submit({
       version: 1,
       type: 'ingest',
       reference: clipId,
       source: {
-        url: clip.clipping.url,
-        via: 'oxylabs',
+        url: source.url,
+        via: source.via,
         // a crop keeps about a third of the width, so it needs the taller rendition to
         // stay sharp; the whole picture scaled down does not
         max_height: clip.clipping.fit === 'crop' ? 1080 : 720,
@@ -952,9 +1355,18 @@ export class ClippingService {
         continue;
       }
 
+      const channelContents =
+        clip.channelContents &&
+        typeof clip.channelContents === 'object' &&
+        !Array.isArray(clip.channelContents)
+          ? (clip.channelContents as Record<string, string>)
+          : null;
+
       // one channel at a time, so a channel that fails does not take the rest along
       for (const integration of integrations) {
         try {
+          const content =
+            channelContents?.[integration!.id] || clip.content;
           await this._postsService.createPost(
             clipping.organizationId,
             {
@@ -974,7 +1386,7 @@ export class ClippingService {
                     {
                       id: makeId(10),
                       delay: 0,
-                      content: clip.content,
+                      content,
                       image: [
                         {
                           id: clip.mediaId || makeId(10),
