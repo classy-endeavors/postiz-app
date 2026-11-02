@@ -5,6 +5,7 @@ import TiktokProvider from '@gitroom/frontend/components/new-launch/providers/ti
 import InstagramProvider from '@gitroom/frontend/components/new-launch/providers/instagram/instagram.collaborators';
 import LinkedinProvider from '@gitroom/frontend/components/new-launch/providers/linkedin/linkedin.provider';
 import FacebookProvider from '@gitroom/frontend/components/new-launch/providers/facebook/facebook.provider';
+import RedditProvider from '@gitroom/frontend/components/new-launch/providers/reddit/reddit.provider';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
 import React, { FC, forwardRef, useEffect, useImperativeHandle } from 'react';
@@ -38,6 +39,10 @@ export const Providers = [
   {
     identifier: 'facebook',
     component: FacebookProvider,
+  },
+  {
+    identifier: 'reddit',
+    component: RedditProvider,
   },
 ];
 export const ShowAllProviders = forwardRef((props, ref) => {
