@@ -121,7 +121,7 @@ const RedditPreview: FC = (props) => {
               </div>
               <RenderRedditComponent
                 type={value.type}
-                images={value.media || topValue?.[0]?.image}
+                images={topValue?.[0]?.image}
               />
               <div
                 className={clsx(
